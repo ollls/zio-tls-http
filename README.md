@@ -29,12 +29,14 @@ Bottom to Top design, always rely on standard Java library whenever possible.
 The goal is to provide small and simple HTTP JSON server with all the benefits of async monadic non-blocking JAVA NIO calls wrapped up into ZIO interpreter. 
 
 Here all the dependencies it uses: This includes only ZIO and extremely fast JSON converter.
-COPY  /lib_managed/jars/dev.zio/zio_2.13/zio_2.13-1.0.3.jar ./lib
-COPY  /lib_managed/jars/dev.zio/izumi-reflect_2.13/izumi-reflect_2.13-1.0.0-M9.jar ./lib
-COPY  /lib_managed/jars/dev.zio/izumi-reflect-thirdparty-boopickle-shaded_2.13/izumi-reflect-thirdparty-boopickle-shaded_2.13-1.0.0-M9.jar ./lib
-COPY  /lib_managed/jars/dev.zio/zio-stacktracer_2.13/zio-stacktracer_2.13-1.0.3.jar ./lib
-COPY  /lib_managed/jars/com.github.plokhotnyuk.jsoniter-scala/jsoniter-scala-core_2.13/jsoniter-scala-core_2.13-2.6.2.jar ./lib
-COPY  /lib_managed/jars/com.github.plokhotnyuk.jsoniter-scala/jsoniter-scala-macros_2.13/jsoniter-scala-macros_2.13-2.6.2.jar ./lib
+
+( from Dockerfile )
+    COPY  /lib_managed/jars/dev.zio/zio_2.13/zio_2.13-1.0.3.jar ./lib
+    COPY  /lib_managed/jars/dev.zio/izumi-reflect_2.13/izumi-reflect_2.13-1.0.0-M9.jar ./lib
+    COPY  /lib_managed/jars/dev.zio/izumi-reflect-thirdparty-boopickle-shaded_2.13/izumi-reflect-thirdparty-boopickle-shaded_2.13-1.0.0-M9.jar ./lib
+    COPY  /lib_managed/jars/dev.zio/zio-stacktracer_2.13/zio-stacktracer_2.13-1.0.3.jar ./lib
+    COPY  /lib_managed/jars/com.github.plokhotnyuk.jsoniter-scala/jsoniter-scala-core_2.13/jsoniter-scala-core_2.13-2.6.2.jar ./lib
+    COPY  /lib_managed/jars/com.github.plokhotnyuk.jsoniter-scala/jsoniter-scala-macros_2.13/jsoniter-scala-macros_2.13-2.6.2.jar ./lib
 
 ## Overview.
 Web Server has it's own implementation of TLS protocol layer based on JAVA NIO and standard JDK SSLEngine. Everything is modeled as ZIO effects and processed as async routines with Java NIO. Java NIO and Application ZIO space uses same thread pool for non-blocking operations.
