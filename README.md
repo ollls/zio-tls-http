@@ -11,6 +11,9 @@ To run in docker:
     https://localhost        ZIO doc static web server example
     https://localhost/print  print headers example
     https://localhost/test   JSON output example
+    
+    Use case examples:
+    https://github.com/ollls/zio-tls-http/blob/main/src/main/scala/MyServer.scala
 
 
     
@@ -171,22 +174,6 @@ Channel is available from Request::ch, with two simple functions:
        def read: ZIO[ZEnv, Exception, Chunk[Byte]]
        def write(chunk: Chunk[Byte]): ZIO[ZEnv, Exception, Int]
   
-  
-Here is complete Request class as example:
-
-      sealed case class Request(headers: Headers, body: Chunk[Byte], ch: AsynchronousTlsByteChannel) {
-        def path: String             = headers.get( HttpRouter._PATH ).getOrElse("")
-        def method: Method           = Method(headers.get(HttpRouter._METHOD).getOrElse(""))
-        def contentLen: String       = headers.get("content-length").getOrElse("0") //keep it string
-        def uri: URI                 = new URI(path)
-        def contentType: ContentType = ContentType(headers.get("content-type").getOrElse(""))
-        def isJSONBody: Boolean      = contentType == ContentType.JSON
-
-        def bodyFromJSON[A](class0: Class[A]): A = {
-            val objm = new ObjectMapper().registerModule(DefaultScalaModule)
-            objm.readValue(body.toArray, class0)
-        }
-      }
 
 Here is a static web server example with channel routes. It serves 3 catalogs with different documents. It accepts file uploads to "/save" without preloading them into memory.
 Please, note matching operator "/:" - which means all the subfolders under provided folder.
