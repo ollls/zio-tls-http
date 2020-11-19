@@ -11,6 +11,9 @@ To run in docker:
     https://localhost        ZIO doc static web server example
     https://localhost/print  print headers example
     https://localhost/test   JSON output example
+    
+    Use case examples:
+    https://github.com/ollls/zio-tls-http/blob/main/src/main/scala/MyServer.scala
 
 
     
