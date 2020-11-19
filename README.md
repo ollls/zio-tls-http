@@ -32,8 +32,8 @@ Certificate resides in keystore.jks
 
 
 ## Approach. 
-Bottom to Top design, always rely on standard Java library whenever possible. 
-The goal is to provide small and simple HTTP JSON server with all the benefits of async monadic non-blocking JAVA NIO calls wrapped up into ZIO interpreter. 
+
+The goal is to provide small and simple HTTP JSON server with all the benefits of async monadic non-blocking JAVA NIO calls wrapped up into ZIO interpreter with minimal number of dependencies.
 
 Here all the dependencies it uses: This includes only ZIO and extremely fast JSON converter.
 
@@ -71,7 +71,7 @@ HTTP Response has
     } 
 
 ## Logs:  Logs don't support log rotation at this moment.
-Logs implemented with ZIO enironment and ZQueue. Currently there is only two logs: access and console.
+Logs implemented with ZIO enironment and ZQueue. Currently there are only two logs: access and console.
 
 You can specify desired loglevel on server initialization.
 By default log with name "console" will print color data on screen.
