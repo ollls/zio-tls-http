@@ -168,7 +168,7 @@ Post filters are used same way:
        }
          
 
-## Channell routes and example of static web server.
+## Channel routes and example of static web server.
 
 Channel routes do nothing but provide raw "ch" : channel in response, so user is responsible for reading and processing data blocks as they come.
 There a simple static Web Server implemented based on that concept. It was used for access to ZIO documentation and tested with complex snapshots of several web sites.
