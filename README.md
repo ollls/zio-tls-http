@@ -1,5 +1,8 @@
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
+
+![alt text](https://github.com/ollls/zio-tls-http/blob/main/src/main/scala/Screenshot.jpg)
+
 ## How to run.
 Please, use docker image to run it or use sbt run.  
 To run in docker:
