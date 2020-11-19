@@ -11,7 +11,7 @@ On Windows or any other machine you will need to go thru simular steps.
 You can use any other cert, as long as keystore.jks is seen by the server.
 
 
-Please, use docker image to run it or use sbt run.  
+Please, use docker image to run it or use sbt run, for sbt run default TLS port is 8084, in docker image it will be mapped to 443.
 To run in docker:
 
     sbt package
