@@ -36,9 +36,21 @@ Server has two types of application routes, so called: channel routes and app ro
 ## State of the project. ( testing, performance, etc )
 Performance tests are under way, but expectation is that on core i9 machine, simple JSON encoding GET call can be done in up to 20 000 TPS. 
 
-What is not there:
 
-Logs:  Logs doesn't support log rotation.
+
+## Logs:  Logs doesn't support log rotation at thus moment.
+Logs implemented with ZIO enironment and ZQueue. Currently there is only two logs: access and console.
+
+You can specify desired loglevel on server initialization.
+By default log with name "console" will print color data on screen.
+Also, "access" log will duplicate output to console if console LogLevel.Trace.
+To avoid too many messages being posted to console, just increase "console" LogLevel.
+
+    myHttp
+      .run(myHttpRouter.route)
+      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
+      .exitCode
+  }
 
 ## Media encoding.
 
