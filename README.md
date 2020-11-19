@@ -55,7 +55,7 @@ Http Response contains methods:
 - Simple route returning http code Ok with text body.
 
       val appRoute1 = HttpRoutes.of {
-            case GET -> Root / "hello" => ZIO(Response.Ok.body("Hello World"))
+            case GET -> Root / "hello" => ZIO(Response.Ok.asTextBody("Hello World"))
       }
       
       
