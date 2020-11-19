@@ -111,7 +111,7 @@ Http Response contains methods:
 
 ## Filters and composition of filters.
 
- Web filter is a simple function:  Response => Request. Inside of the web filter a decision can be made whether to allow access to resource or return HTTP error code.
+ Web filter is a simple function:  Response => ZIO( Request ). Inside of the web filter a decision can be made whether to allow access to resource or return HTTP error code.
  If you chain several filters with "<>" chain will be interrupted once a non 2xx code will be returned by at least one of the filters in the chain.
  
  Defining two web filters, they will be called before any user defined app route logic.
