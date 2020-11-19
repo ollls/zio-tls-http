@@ -36,7 +36,21 @@ Server has two types of application routes, so called: channel routes and app ro
 ## State of the project. ( testing, performance, etc )
 Performance tests are under way, but expectation is that on core i9 machine, simple JSON encoding GET call can be done in up to 20 000 TPS. 
 
+## JSON encoding.
+It uses https://github.com/plokhotnyuk/jsoniter-scala
 
+HTTP Request has
+
+    def fromJSON[A](implicit codec:JsonValueCodec[A]) : A = {
+                         readFromArray[A]( body.toArray )
+    }   
+                
+HTTP Response has
+
+    def asJsonBody[B : JsonValueCodec]( body0 : B ) : Response = { 
+      val json = writeToArray( body0 )
+      new Response(this.code, this.headers, Some( Chunk.fromArray( json ))).contentType( ContentType.JSON) 
+    } 
 
 ## Logs:  Logs doesn't support log rotation at this moment.
 Logs implemented with ZIO enironment and ZQueue. Currently there is only two logs: access and console.
