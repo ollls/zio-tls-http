@@ -36,7 +36,7 @@ Logs:  Logs doesn't support log rotation.
 
 ## Media encoding.
 
-Http Response contains:
+Http Response contains methods:
 
     def asTextBody(body0: String) : Response
     def asJsonBody[B : JsonValueCodec]( body0 : B ) : Response
@@ -65,11 +65,13 @@ Http Response contains:
   
 - How to read from JSON represented by case class  
       
-      case POST -> Root / "data2" =>
-          ZIO {  
-            val db = req.bodyFromJSON( classOf[DataBlock] ) 
-            Response.Ok.contentType( ContentType.Plain).body( db.toString )
-        }
+      case POST -> Root / "test" => 
+         ZIO.effect { //need to wrap up everything in the effect to have proper error handling
+           val db : DataBlock = req.fromJSON[DataBlock]
+           val name = db.name
+           Response.Ok.asTextBody( s"JSON for $name accepted" )     
+         }                                  
+      }   
 
 - Example with cookies, path and variable parameters.
 
