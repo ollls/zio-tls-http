@@ -51,12 +51,6 @@ class HttpRouter {
     val T : ZIO[ZEnv with MyLogging, Any, Unit] = for {
       req <- getHTTPRequest(c, false) /* don't try to read body of request now */
 
-      /*
-      _   <- if ( req.isWebSocket ) {
-                   c.keepAlive( 0 )
-                   Websocket.doWebSocket( req ) *> ZIO.fail( new UpgradeRequest ) 
-             } else IO.unit */
-
       res <- (for {
               response <- route_go(req, channelRoutes )
               _        <- response_processor(req, response._1 )
@@ -94,7 +88,6 @@ class HttpRouter {
 
     //keep-alive until times out with exception
     T.forever.catchAll(ex => {
-      //val c = req.ch
       ex match {
 
         case _ : UpgradeRequest =>
@@ -158,44 +151,7 @@ class HttpRouter {
       case Nil => ZIO.fail(None)
     }
 
-  //private def encode_json[A : JsonValueCodec]( obj : A ) : String = 
-  //{
-      //val TT = implicitly[Typeclass[T]]
-   //   obj.toJson
-  //}  
-
-  private def getBodyBytes(code: StatusCode, contType: ContentType, obody: Option[Chunk[Byte]]): (Chunk[Byte], StatusCode) =
-    if (code.isSuccess == false)
-    //process non OK cases
-      obody match {
-        case None => (Chunk[Byte](), code)
-
-        case Some(o) => ( o, code)
-
-        //case Some(o) => (Chunk.fromArray(o.asInstanceOf[String].getBytes), code)
-
-        case _ => (Chunk[Byte](), code)
-      } 
-    //no body case  
-    else if (obody.isDefined == false) (Chunk[Byte](), code)
-    else {
-      // body present case
-      val body = obody.get 
-
-      contType match {
-
-        case ContentType.OctetStream => (body, StatusCode.OK)
-
-        case ContentType.Plain => ( body, StatusCode.OK) 
-        
-
-        case ContentType.JSON => ( body, StatusCode.OK) 
-        
-        case _ =>
-          (Chunk[Byte](), StatusCode.UnsupportedMediaType)
-      }
-    }
-
+ 
   private def response_processor[A](req: Request, resp: Response ): ZIO[ZEnv with MyLogging, Exception, Int] =
     if (resp == NoResponse) {
 
@@ -205,12 +161,6 @@ class HttpRouter {
 
       val contType = ContentType(resp.headers.get("content-type").getOrElse(""))
      
-      /*
-           resp.body.getOrElse( Chunk[Byte]() )
-      */
-     // val R = getBodyBytes(resp.code, contType, resp.body)
-
-
       val status = resp.code
       val body   = resp.body.getOrElse( Chunk[Byte]() )
 

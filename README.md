@@ -1,15 +1,13 @@
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
-
 ![alt text](https://github.com/ollls/zio-tls-http/blob/main/Screenshot.jpg?raw=true)
 
 ## How to run.
 
 Import https://github.com/ollls/zio-tls-http/blob/main/localhost.cer to keychain on MacOS.
 Click on localhost once imported, find ">Trust", expand it, select "Always Trust".
-On Windows or any other machine you will need to go thru simular steps.
+On Windows or any other machine, you will need to go thru similar steps.
 You can use any other cert, as long as keystore.jks is seen by the server.
-
 
 Please, use docker image to run it or use sbt run.  
 To run in docker:
@@ -25,11 +23,9 @@ To run in docker:
     Use case examples:
     https://github.com/ollls/zio-tls-http/blob/main/src/main/scala/MyServer.scala
 
-
     
 Server will use self-signed SSL certificate, you will need to configure the browser to trust it.
 Certificate resides in keystore.jks
-
 
 ## Approach. 
 Bottom to Top design, always rely on standard Java library whenever possible. 
@@ -47,11 +43,11 @@ Here all the dependencies it uses: This includes only ZIO and extremely fast JSO
     COPY  /lib_managed/jars/com.github.plokhotnyuk.jsoniter-scala/jsoniter-scala-macros_2.13/jsoniter-scala-macros_2.13-2.6.2.jar ./lib
 
 ## Overview.
-Web Server has it's own implementation of TLS protocol layer based on JAVA NIO and standard JDK SSLEngine. Everything is modeled as ZIO effects and processed as async routines with Java NIO. Java NIO and Application ZIO space uses same thread pool for non-blocking operations.
-Server implements a DSL for route matching, it's very similar ( but a bit simplified ) to the one which is used in HTTP4s. Server implements pluggable pre-filters and post-filters.
-Server has two types of application routes, so called: channel routes and app routes. Channel routes allows to write a code without fetching complete body into memory and Application routes provide more convenient interface for basic JSON work where Response and Request body is read in fetched as ZIO Chunk. Also it implements static HTTP file server and was extensively tested as such. Currently for file operations examples we don't use nio calls and we don't use Managed or any other resource bracketing, this will be added later.
+Web Server has its own implementation of TLS protocol layer based on JAVA NIO and standard JDK SSLEngine. Everything is modeled as ZIO effects and processed as async routines with Java NIO. Java NIO and Application ZIO space uses same thread pool for non-blocking operations.
+Server implements a DSL for route matching, it's very similar (but a bit simplified) to the one which is used in HTTP4s. Server implements pluggable pre-filters and post-filters.
+Server has two types of application routes, so called: channel routes and app routes. Channel routes allows to write a code without fetching complete body into memory and Application routes provide more convenient interface for basic JSON work where Response and Request body is read in fetched as ZIO Chunk. Also, it implements static HTTP file server and was extensively tested as such. Currently for file operations examples we don't use nio calls and we don't use Managed or any other resource bracketing, this will be added later.
 
-## State of the project. ( testing, performance, etc )
+## State of the project. (testing, performance, etc )
 Performance tests are under way, but expectation is that on core i9 machine, simple JSON encoding GET call can be done in up to 20 000 TPS. 
 
 ## JSON encoding.
@@ -74,7 +70,7 @@ HTTP Response has
 Logs implemented with ZIO enironment and ZQueue. Currently there is only two logs: access and console.
 
 You can specify desired loglevel on server initialization.
-By default log with name "console" will print color data on screen.
+By default, log with name "console" will print color data on screen.
 Also, "access" log will duplicate output to console if console LogLevel.Trace.
 To avoid too many messages being posted to console, just increase "console" LogLevel.
 
@@ -83,7 +79,6 @@ To avoid too many messages being posted to console, just increase "console" LogL
       .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
       .exitCode
   }
-
 
 ## Route matching DSL by examples.
 
@@ -145,7 +140,6 @@ To avoid too many messages being posted to console, just increase "console" LogL
               infile.close()
             }.refineToOrDie[Exception] *> ZIO(Response.Ok)
 
-
 ## Filters and composition of filters.
 
  Web filter is a simple function:  Response => ZIO( Request ). Inside of the web filter a decision can be made whether to allow access to resource or return HTTP error code.
@@ -166,7 +160,7 @@ To avoid too many messages being posted to console, just increase "console" LogL
       val proc3 = proc1 <> proc2 
  
  Filters can be assigned per each app route, exactly same way as we did with HttpRoutes.of() but with ofWithFilter(). 
- Appropriate filter will be called only if route matches, there is a special logic which build a final route function out of a filter and user defined app route partial  function. 
+ Appropriate filter will be called only if route matches, there is a special logic which build a final route function out of a filter and user defined app route partial function. 
  
  Example:
  
@@ -174,7 +168,6 @@ To avoid too many messages being posted to console, just increase "console" LogL
             case GET -> Root / "test" =>
         ZIO(Response.Ok.contentType(ContentType.JSON).body(DataBlock("Name", "Address")))
       }
-
 
 ## Post filters.
 Post filters are different from pre-filters described earlier. 
@@ -219,7 +212,6 @@ Here is a static web server example with channel routes. It serves 3 catalogs wi
 Please, note matching operator "/:" - which means all the subfolders under provided folder.
 For GET requests we are not interested in getting data by chunks, so we complete get requests with service function finishBodyLoadRequests() called explicitly.
 
-
       val raw_route = HttpRoutes.of { req: Request =>
       {
           req match {
@@ -250,7 +242,6 @@ For GET requests we are not interested in getting data by chunks, so we complete
         }
       }
     }
-
 
 
 ## Websocket support. ( intial proof of concept, test implementation )
@@ -296,6 +287,8 @@ Websocket example with process_io()
             } else  ZIO(Response.Error(StatusCode.NotFound))
        }
     } 
+
+
 
 
 
