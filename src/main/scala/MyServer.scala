@@ -193,7 +193,7 @@ object myServer extends zio.App {
  
     val myHttp = new TLSServer
     //server
-    myHttp.KEYSTORE_PATH = "/app/keystore.jks"
+    myHttp.KEYSTORE_PATH = "keystore.jks"
     myHttp.KEYSTORE_PASSWORD = "password"
     myHttp.TLS_PROTO = "TLSv1.2"         //default TLSv1.2 in JDK8
     myHttp.BINDING_SERVER_IP = "0.0.0.0" //make sure certificate has that IP on SAN's list

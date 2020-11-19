@@ -1,9 +1,16 @@
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
 
-![alt text](https://github.com/ollls/zio-tls-http/blob/main/src/main/scala/Screenshot.jpg)
+![alt text](https://github.com/ollls/zio-tls-http/blob/main/Screenshot.jpg?raw=true)
 
 ## How to run.
+
+Import https://github.com/ollls/zio-tls-http/blob/main/localhost.cer to keychain on MacOS.
+Click on localhost once imported, find ">Trust", expand it, select "Always Trust".
+On Windows or any other machine you will need to go thru simular steps.
+You can use any other cert, as long as keystore.jks is seen by the server.
+
+
 Please, use docker image to run it or use sbt run.  
 To run in docker:
 
@@ -26,27 +33,57 @@ Certificate resides in keystore.jks
 
 ## Approach. 
 Bottom to Top design, always rely on standard Java library whenever possible. 
-The goal is to provide small and simple HTTP JSON server with all the benefits of async monadic JAVA NIO calls wrapped up into ZIO interpreter. 
+The goal is to provide small and simple HTTP JSON server with all the benefits of async monadic non-blocking JAVA NIO calls wrapped up into ZIO interpreter. 
+
+Here all the dependencies it uses: This includes only ZIO and extremely fast JSON converter.
+
+( from Dockerfile )
+
+    COPY  /lib_managed/jars/dev.zio/zio_2.13/zio_2.13-1.0.3.jar ./lib
+    COPY  /lib_managed/jars/dev.zio/izumi-reflect_2.13/izumi-reflect_2.13-1.0.0-M9.jar ./lib
+    COPY  /lib_managed/jars/dev.zio/izumi-reflect-thirdparty-boopickle-shaded_2.13/izumi-reflect-thirdparty-boopickle-shaded_2.13-1.0.0-M9.jar ./lib
+    COPY  /lib_managed/jars/dev.zio/zio-stacktracer_2.13/zio-stacktracer_2.13-1.0.3.jar ./lib
+    COPY  /lib_managed/jars/com.github.plokhotnyuk.jsoniter-scala/jsoniter-scala-core_2.13/jsoniter-scala-core_2.13-2.6.2.jar ./lib
+    COPY  /lib_managed/jars/com.github.plokhotnyuk.jsoniter-scala/jsoniter-scala-macros_2.13/jsoniter-scala-macros_2.13-2.6.2.jar ./lib
 
 ## Overview.
 Web Server has it's own implementation of TLS protocol layer based on JAVA NIO and standard JDK SSLEngine. Everything is modeled as ZIO effects and processed as async routines with Java NIO. Java NIO and Application ZIO space uses same thread pool for non-blocking operations.
 Server implements a DSL for route matching, it's very similar ( but a bit simplified ) to the one which is used in HTTP4s. Server implements pluggable pre-filters and post-filters.
-Server has two types of application routes, so called: channel routes and app routes. Channel routes allows to write a code without fetching complete body into memory and Application routes provide more convenient interface for basic JSON work where Response and Request body is read in fetched as ZIO Chunk. It has a reference implementation of basic static HTTP file server and was extensively tested as such. Currently for file operations examples we don't use nio calls and we don't use Managed or any other resource bracketing, this will be added later.
+Server has two types of application routes, so called: channel routes and app routes. Channel routes allows to write a code without fetching complete body into memory and Application routes provide more convenient interface for basic JSON work where Response and Request body is read in fetched as ZIO Chunk. Also it implements static HTTP file server and was extensively tested as such. Currently for file operations examples we don't use nio calls and we don't use Managed or any other resource bracketing, this will be added later.
 
 ## State of the project. ( testing, performance, etc )
 Performance tests are under way, but expectation is that on core i9 machine, simple JSON encoding GET call can be done in up to 20 000 TPS. 
 
-What is not there:
+## JSON encoding.
+It uses https://github.com/plokhotnyuk/jsoniter-scala
 
-Logs:  Logs doesn't support log rotation.
+HTTP Request has
 
-## Media encoding.
+    def fromJSON[A](implicit codec:JsonValueCodec[A]) : A = {
+                         readFromArray[A]( body.toArray )
+    }   
+                
+HTTP Response has
 
-Http Response contains methods:
+    def asJsonBody[B : JsonValueCodec]( body0 : B ) : Response = { 
+      val json = writeToArray( body0 )
+      new Response(this.code, this.headers, Some( Chunk.fromArray( json ))).contentType( ContentType.JSON) 
+    } 
 
-    def asTextBody(body0: String) : Response
-    def asJsonBody[B : JsonValueCodec]( body0 : B ) : Response
-  
+## Logs:  Logs don't support log rotation at this moment.
+Logs implemented with ZIO enironment and ZQueue. Currently there is only two logs: access and console.
+
+You can specify desired loglevel on server initialization.
+By default log with name "console" will print color data on screen.
+Also, "access" log will duplicate output to console if console LogLevel.Trace.
+To avoid too many messages being posted to console, just increase "console" LogLevel.
+
+    myHttp
+      .run(myHttpRouter.route)
+      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
+      .exitCode
+  }
+
 
 ## Route matching DSL by examples.
 
@@ -55,7 +92,7 @@ Http Response contains methods:
 - Simple route returning http code Ok with text body.
 
       val appRoute1 = HttpRoutes.of {
-            case GET -> Root / "hello" => ZIO(Response.Ok.body("Hello World"))
+            case GET -> Root / "hello" => ZIO(Response.Ok.asTextBody("Hello World"))
       }
       
       
@@ -111,7 +148,7 @@ Http Response contains methods:
 
 ## Filters and composition of filters.
 
- Web filter is a simple function:  Response => Request. Inside of the web filter a decision can be made whether to allow access to resource or return HTTP error code.
+ Web filter is a simple function:  Response => ZIO( Request ). Inside of the web filter a decision can be made whether to allow access to resource or return HTTP error code.
  If you chain several filters with "<>" chain will be interrupted once a non 2xx code will be returned by at least one of the filters in the chain.
  
  Defining two web filters, they will be called before any user defined app route logic.
@@ -168,7 +205,7 @@ Post filters are used same way:
        }
          
 
-## Channell routes and example of static web server.
+## Channel routes and example of static web server.
 
 Channel routes do nothing but provide raw "ch" : channel in response, so user is responsible for reading and processing data blocks as they come.
 There a simple static Web Server implemented based on that concept. It was used for access to ZIO documentation and tested with complex snapshots of several web sites.
