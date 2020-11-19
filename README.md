@@ -66,13 +66,6 @@ To avoid too many messages being posted to console, just increase "console" LogL
       .exitCode
   }
 
-## Media encoding.
-
-Http Response contains methods:
-
-    def asTextBody(body0: String) : Response
-    def asJsonBody[B : JsonValueCodec]( body0 : B ) : Response
-  
 
 ## Route matching DSL by examples.
 
