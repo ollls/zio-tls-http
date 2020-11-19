@@ -31,6 +31,7 @@ The goal is to provide small and simple HTTP JSON server with all the benefits o
 Here all the dependencies it uses: This includes only ZIO and extremely fast JSON converter.
 
 ( from Dockerfile )
+
     COPY  /lib_managed/jars/dev.zio/zio_2.13/zio_2.13-1.0.3.jar ./lib
     COPY  /lib_managed/jars/dev.zio/izumi-reflect_2.13/izumi-reflect_2.13-1.0.0-M9.jar ./lib
     COPY  /lib_managed/jars/dev.zio/izumi-reflect-thirdparty-boopickle-shaded_2.13/izumi-reflect-thirdparty-boopickle-shaded_2.13-1.0.0-M9.jar ./lib
