@@ -26,7 +26,7 @@ Certificate resides in keystore.jks
 
 ## Approach. 
 Bottom to Top design, always rely on standard Java library whenever possible. 
-The goal is to provide small and simple HTTP JSON server with all the benefits of async monadic JAVA NIO calls wrapped up into ZIO interpreter. 
+The goal is to provide small and simple HTTP JSON server with all the benefits of async monadic non-blocking JAVA NIO calls wrapped up into ZIO interpreter. 
 
 ## Overview.
 Web Server has it's own implementation of TLS protocol layer based on JAVA NIO and standard JDK SSLEngine. Everything is modeled as ZIO effects and processed as async routines with Java NIO. Java NIO and Application ZIO space uses same thread pool for non-blocking operations.
