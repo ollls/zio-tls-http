@@ -52,7 +52,7 @@ HTTP Response has
       new Response(this.code, this.headers, Some( Chunk.fromArray( json ))).contentType( ContentType.JSON) 
     } 
 
-## Logs:  Logs doesn't support log rotation at this moment.
+## Logs:  Logs don't support log rotation at this moment.
 Logs implemented with ZIO enironment and ZQueue. Currently there is only two logs: access and console.
 
 You can specify desired loglevel on server initialization.
