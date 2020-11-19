@@ -7,7 +7,7 @@
 
 Import https://github.com/ollls/zio-tls-http/blob/main/localhost.cer to keychain on MacOS.
 Click on localhost once imported, find ">Trust", expand it, select "Always Trust".
-On Windows or any othe machine you will need to go thru simular steps.
+On Windows or any other machine you will need to go thru simular steps.
 You can use any other cert, as long as keystore.jks is seen by the server.
 
 
