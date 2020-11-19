@@ -38,7 +38,7 @@ Performance tests are under way, but expectation is that on core i9 machine, sim
 
 
 
-## Logs:  Logs doesn't support log rotation at thus moment.
+## Logs:  Logs doesn't support log rotation at this moment.
 Logs implemented with ZIO enironment and ZQueue. Currently there is only two logs: access and console.
 
 You can specify desired loglevel on server initialization.
