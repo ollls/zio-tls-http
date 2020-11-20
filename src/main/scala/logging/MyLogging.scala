@@ -102,7 +102,8 @@ object MyLogging {
 
     val managedObj = open_logs(log_names).toManaged(close_logs).flatMap { logs =>
       ZQueue
-        .unbounded[(String, LogLevel, String)]
+        //.unbounded[(String, LogLevel, String)]
+        .dropping[(String, LogLevel, String)]( 1000 )
         .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3)).forever.forkDaemon)
         .toManaged(c => { c.shutdown })
         .map(

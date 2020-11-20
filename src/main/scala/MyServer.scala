@@ -130,6 +130,11 @@ object myServer extends zio.App {
 
     val app_route_JSON = HttpRoutes.ofWithFilter(proc1) { req =>
       req match {
+
+       case GET -> Root / "test2" =>
+         ZIO(Response.Ok.asTextBody( "Health Check" ) )
+
+        
        case GET -> Root / "test" =>
          ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd", 
                                                Array( "Red", "Green", "Blue"))) )
