@@ -90,6 +90,17 @@ To avoid too many messages being posted to console, just increase "console" LogL
       .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
       .exitCode
   }
+  
+  
+  You can add more logs as a Tuple, for example: ("myapplog" -> LogLevel.Trace )
+  The just use it in for comprehension on ZIO like, in this example, instead of console, there may be you log name.
+  
+    _    <- MyLogging.info( "console", s"TLS HTTP Service started on " + SERVER_PORT + ", ZIO concurrency lvl: " + metr.get.concurrency + " threads")
+    
+   "logname" will be maped to logname.log file, object MyLogging has the relative log path.
+   
+        object MyLogging { val  REL_LOG_FOLDER = "logs/" .... }
+   
 
 ## Route matching DSL by examples.
 
