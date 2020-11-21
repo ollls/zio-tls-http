@@ -18,8 +18,6 @@ lazy val root = (project in file("."))
       //"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"   % "2.6.2",
       //"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.6.2" % "compile-internal" 
       //"org.specs2" %% "specs2-core" % Specs2Version % "test",
-      //"com.fasterxml.jackson.core" % "jackson-core" % "2.11.2",
-      //"com.fasterxml.jackson.module" % "jackson-module-scala_2.12" % "2.11.2",
       //"org.apache.logging.log4j" %% "log4j-api" % "12.0"
       //"org.apache.logging.log4j" % "log4j-core" % "2.12.0",
       //"org.apache.logging.log4j" %% "log4j-api-scala" % "12.0"
