@@ -18,7 +18,7 @@ sealed case class Request(headers: Headers, body: Chunk[Byte], ch: Channel) {
   def fromJSON[A : JsonDecoder] : A = {
      new String(body.toArray).fromJson[A] match {
        case Right(v) => v
-       case Left(v)  => throw new Exception( "Bad JSON" )
+       case Left(v)  => throw new MediaEncodingError( s"JSON schema error: $v" )
      }
 
      

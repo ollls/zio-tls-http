@@ -16,6 +16,7 @@ sealed case class HTTPHeaderTooBig()    extends HTTPError
 sealed case class AccessDenied()        extends HTTPError
 sealed case class ContentLenTooBig() extends HTTPError
 sealed case class UpgradeRequest()   extends HTTPError
+sealed case class MediaEncodingError( msg: String ) extends Exception( msg )
 
 
 import zhttp.MyLogging._
