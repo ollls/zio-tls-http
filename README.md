@@ -37,6 +37,12 @@ Scroll to the bottom, you will see server startup code, then route initializatio
     val quick_req = HttpRoutes.of {
         case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
     }
+    
+### Chunked transfer encoding in not supported.   
+
+### multipart/form-data is not supported.
+
+### Server was tested with large files upload/download presented as byte streams.
 
 ## Approach. 
 
