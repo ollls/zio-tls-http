@@ -28,6 +28,12 @@ To run in docker:
 Server will use self-signed SSL certificate, you will need to configure the browser to trust it.
 Certificate resides in keystore.jks
 
+## Quick routes without "match" keyword. ( just learned by looking at http4s code example ).
+
+  val quick_req = HttpRoutes.of {
+       case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
+    }
+
 ## Approach. 
 
 The goal is to provide small and simple HTTP JSON server with all the benefits of async monadic non-blocking JAVA NIO calls wrapped up into ZIO interpreter with minimal number of dependencies.
