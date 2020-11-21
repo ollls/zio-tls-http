@@ -14,10 +14,10 @@ lazy val root = (project in file("."))
     retrieveManaged := true,
     libraryDependencies ++= Seq(
       "dev.zio"    %% "zio"         % ZioVersion,
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"   % "2.6.2",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.6.2" % "compile-internal" 
+      "dev.zio" %% "zio-json" % "0.0.1"
+      //"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"   % "2.6.2",
+      //"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.6.2" % "compile-internal" 
       //"org.specs2" %% "specs2-core" % Specs2Version % "test",
-      //"dev.zio" %% "zio-json" % "0.0.0+28-e548a5ac-SNAPSHOT"
       //"com.fasterxml.jackson.core" % "jackson-core" % "2.11.2",
       //"com.fasterxml.jackson.module" % "jackson-module-scala_2.12" % "2.11.2",
       //"org.apache.logging.log4j" %% "log4j-api" % "12.0"

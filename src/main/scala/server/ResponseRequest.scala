@@ -2,10 +2,7 @@ package zhttp
 
 import zio.Chunk
 import java.net.URI
-
-import com.github.plokhotnyuk.jsoniter_scala.macros._
-import com.github.plokhotnyuk.jsoniter_scala.core._
-
+import zio.json._
 
 
 sealed case class Request(headers: Headers, body: Chunk[Byte], ch: Channel) {
@@ -17,16 +14,16 @@ sealed case class Request(headers: Headers, body: Chunk[Byte], ch: Channel) {
   def isJSONBody: Boolean      = contentType == ContentType.JSON
   def isWebSocket: Boolean     = headers.get("Upgrade").map( _.equalsIgnoreCase( "websocket") )
                                 .collect{ case true => true }.getOrElse( false )
-  def fromJSON[A](implicit codec:JsonValueCodec[A]) : A = {
-      readFromArray[A]( body.toArray )
+
+  def fromJSON[A : JsonDecoder] : A = {
+     new String(body.toArray).fromJson[A] match {
+       case Right(v) => v
+       case Left(v)  => throw new Exception( "Bad JSON" )
+     }
+
+     
   }                              
                      
-  /* 
-  def bodyFromJSON[A](class0: Class[A]): A = {
-    //val objm = new ObjectMapper().registerModule(DefaultScalaModule)
-    //objm.readValue(body.toArray, class0)
-    null
-  }*/
 }
 
 
@@ -57,8 +54,8 @@ sealed case class Response(code: StatusCode, headers: Headers, body: Option[Chun
      new Response(this.code, this.headers, Some( Chunk.fromArray(body0.getBytes ) ) ).contentType( ContentType.Plain )
   }   
 
-  def asJsonBody[B : JsonValueCodec]( body0 : B ) : Response = { 
-      val json = writeToArray( body0 )
+  def asJsonBody[B : JsonEncoder]( body0 : B ) : Response = { 
+      val json = body0.toJson.getBytes
       new Response(this.code, this.headers, Some( Chunk.fromArray( json ))).contentType( ContentType.JSON) 
   }    
 

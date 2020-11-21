@@ -10,17 +10,19 @@ import zio.blocking._
 import zhttp.HttpRoutes.WebFilterProc
 import Method._
 
-import com.github.plokhotnyuk.jsoniter_scala.macros._
-import com.github.plokhotnyuk.jsoniter_scala.core._
+import zio.json._
 
 object param1 extends QueryParam("param1")
 
 
 object DataBlock {
-  implicit val codec: JsonValueCodec[DataBlock] = JsonCodecMaker.make
+
+  implicit val decoder: JsonDecoder[DataBlock] = DeriveJsonDecoder.gen[DataBlock]
+  implicit val encoder: JsonEncoder[DataBlock] = DeriveJsonEncoder.gen[DataBlock]
+
 }
 
-case class DataBlock(val name: String, val address: String, val c_code : Array[String] )
+case class DataBlock(val name: String, val address: String )
 
 
 object myServer extends zio.App {
@@ -136,9 +138,8 @@ object myServer extends zio.App {
 
         
        case GET -> Root / "test" =>
-         ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd", 
-                                               Array( "Red", "Green", "Blue"))) )
-
+         ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd" ) ) )
+                                                
        case POST -> Root / "test" => 
          ZIO.effect { //need to wrap up everything in the effect to have proper error handling
            val db : DataBlock = req.fromJSON[DataBlock]
