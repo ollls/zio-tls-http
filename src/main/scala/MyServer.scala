@@ -60,6 +60,9 @@ object myServer extends zio.App {
       case GET -> Root / "noavail" => ZIO(Response.Ok.asTextBody("OK "))
     }
 
+    val quick_req = HttpRoutes.of {
+       case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
+    }
     
     val ws_route2 = HttpRoutes.of { req: Request =>
     {
@@ -186,6 +189,7 @@ object myServer extends zio.App {
     }
 
     //app routes
+    myHttpRouter.addAppRoute( quick_req )
     myHttpRouter.addAppRoute( app_route_cookies_and_params )
     myHttpRouter.addAppRoute( app_route_JSON )
     myHttpRouter.addAppRoute(app_route_pre_post_filters )

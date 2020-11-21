@@ -62,7 +62,6 @@ sealed case class Response(code: StatusCode, headers: Headers, body: Option[Chun
       new Response(this.code, this.headers, Some( Chunk.fromArray( json ))).contentType( ContentType.JSON) 
   }    
 
-  //def empty[None] : Response[None] = new Response[None](this.code, this.headers, None )
 
   def contentType(type0: ContentType) =
     new Response(this.code, this.headers + ("content-type" -> type0.toString()), this.body)
