@@ -41,6 +41,7 @@ Scroll to the bottom, you will see server startup code, then route initializatio
 ### Chunked transfer encoding in not supported.   
 
 ### multipart/form-data is not supported.
+^*Hacking is encourged to address those things, if any interest ...*
 
 ### Server was tested with large files upload/download presented as byte streams.
 
