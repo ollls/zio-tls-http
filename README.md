@@ -28,8 +28,12 @@ To run in docker:
 Server will use self-signed SSL certificate, you will need to configure the browser to trust it.
 Certificate resides in keystore.jks
 
-## Quick routes without "match" keyword. ( just learned by looking at http4s code example ).
+## Quick points
 
+### Look at https://github.com/ollls/zio-tls-http/blob/main/src/main/scala/MyServer.scala
+Scroll to the bottom, you will see server startup code, then route initialization code and the actual routes ( scala partial function ) examples.
+
+### Useful example of quick Routing shortcut, with reference to Request.
   val quick_req = HttpRoutes.of {
        case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
     }
