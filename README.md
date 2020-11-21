@@ -93,9 +93,9 @@ To avoid too many messages being posted to console, just increase "console" LogL
   
   
   You can add more logs as a Tuple, for example: ("myapplog" -> LogLevel.Trace )
-  The just use it in for comprehension on ZIO like, in this example, instead of console, there may be you log name.
+  Then just call the log by name in for comprehension on any ZIO.
   
-    _    <- MyLogging.info( "console", s"TLS HTTP Service started on " + SERVER_PORT + ", ZIO concurrency lvl: " + metr.get.concurrency + " threads")
+    _    <- MyLogging.info( "myapplog", s"TLS HTTP Service started on " + SERVER_PORT + ", ZIO concurrency lvl: " + metr.get.concurrency + " threads")
     
    "logname" will be maped to logname.log file, object MyLogging has the relative log path.
    
