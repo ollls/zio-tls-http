@@ -11,6 +11,7 @@ import zhttp.HttpRoutes.WebFilterProc
 import Method._
 
 import zio.json._
+import zio.Chunk
 
 object param1 extends QueryParam("param1")
 
@@ -22,7 +23,7 @@ object DataBlock {
 
 }
 
-case class DataBlock(val name: String, val address: String )
+case class DataBlock(val name: String, val address: String, val colors : Chunk[String] )
 
 
 object myServer extends zio.App {
@@ -138,9 +139,9 @@ object myServer extends zio.App {
 
         
        case GET -> Root / "test" =>
-         ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd" ) ) )
+         ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd", Chunk( "red", "blue", "green" ) ) ) )
                                                 
-       case POST -> Root / "test" => 
+       case POST -> Root / "test" =>
          ZIO.effect { //need to wrap up everything in the effect to have proper error handling
            val db : DataBlock = req.fromJSON[DataBlock]
            val name = db.name
