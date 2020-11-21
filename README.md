@@ -34,8 +34,8 @@ Certificate resides in keystore.jks
 Scroll to the bottom, you will see server startup code, then route initialization code and the actual routes ( scala partial function ) examples.
 
 ### Useful example of quick Routing shortcut, with reference to Request.
-  val quick_req = HttpRoutes.of {
-       case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
+    val quick_req = HttpRoutes.of {
+        case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
     }
 
 ## Approach. 
