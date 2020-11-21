@@ -4,7 +4,7 @@ RUN   mkdir logs
 RUN   mkdir lib
 RUN   mkdir web_root
 RUN   mkdir web_root/zio_doc 
-RUN   cd web_root/zio_doc; curl -fsL https://javadoc.io/jar/dev.zio/zio_2.12/1.0.3/zio_2.12-1.0.3-javadoc.jar.jar | jar -x;cd .. 
+RUN   cd web_root/zio_doc; curl -fsL https://javadoc.io/jar/dev.zio/zio_2.13/1.0.3/zio_2.13-1.0.3-javadoc.jar.jar | jar -x;cd .. 
 RUN   cd /app
 COPY  /target/scala-2.13/zio-http_2.13-0.0.1.jar .
 COPY  /lib_managed/jars/dev.zio/zio_2.13/zio_2.13-1.0.3.jar ./lib
