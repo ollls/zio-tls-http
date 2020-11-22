@@ -227,7 +227,7 @@ Post filters are used same way:
        }
          
 
-## Default filters
+## Default filters.
 
 As shown in example in MyServer.scala.
 This should be self explanatory. Expectation is that default filters always be called, either standaolne or in composition with custom filers provided on routes.
