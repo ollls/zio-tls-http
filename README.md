@@ -226,17 +226,7 @@ Post filters are used same way:
         }
        }
          
-## Default filters.
 
-You can override a default Post and Pre filters, providing global filter coverage on all the routes at once.
-Those can be used for rate limiting logic, metrics gathering, global authentication polices, etc
-
-Use:
-
-    HttpRoutes.defaultPostProc(proc: Response => Response )
-    HttpRoutes.defaultFilter(ft0: Request => ZIO[ZEnv, Throwable, Response])
-
-<Metrics example is comming for this section>
 
 
 ## Channel routes and example of static web server.
