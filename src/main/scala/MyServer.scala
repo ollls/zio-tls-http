@@ -28,6 +28,9 @@ case class DataBlock(val name: String, val address: String, val colors : Chunk[S
 
 object myServer extends zio.App {
 
+  HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
+  HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
+
   val ROOT_CATALOG = "/app/web_root"
 
   val myHttpRouter = new HttpRouter
@@ -131,8 +134,7 @@ object myServer extends zio.App {
       }
     }
 
-    val app_route_JSON = HttpRoutes.ofWithFilter(proc1) { req =>
-      req match {
+    val app_route_JSON = HttpRoutes.ofWithFilter(proc1) { 
 
        case GET -> Root / "test2" =>
          ZIO(Response.Ok.asTextBody( "Health Check" ) )
@@ -141,14 +143,14 @@ object myServer extends zio.App {
        case GET -> Root / "test" =>
          ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd", Chunk( "red", "blue", "green" ) ) ) )
                                                 
-       case POST -> Root / "test" =>
+       case req @ POST -> Root / "test" =>
          ZIO.effect { //need to wrap up everything in the effect to have proper error handling
            val db : DataBlock = req.fromJSON[DataBlock]
            val name = db.name
            Response.Ok.asTextBody( s"JSON for $name accepted" )     
          }                                  
       }   
-    }
+    
 
     val app_route_cookies_and_params = HttpRoutes.of { req: Request =>
       {
