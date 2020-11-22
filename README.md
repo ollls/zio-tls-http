@@ -227,6 +227,27 @@ Post filters are used same way:
        }
          
 
+## Default filters
+
+As shown in example in MyServer.scala.
+This should be self explanatory. Expectation is that default filters always be called, either standaolne or in composition with custom filers provided on routes.
+
+    HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
+    HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
+    
+That behavior achieved with follwing lines in HttpRoutes.scala.
+
+    def ofWithFilter(
+         filter0: WebFilterProc,
+         postProc0: PostProc = _postProc
+    )(pf: PartialFunction[Request, ZIO[ZEnv with MyLogging, Throwable, Response]]): HttpRoutes[Response] = {
+
+        //preceded with default filter first
+        val filter   = if ( filter0   != _filter )  _filter <> filter0  else filter0
+
+        // default post proc called last, defaultPostProc ( mypostProc( response )
+        val postProc = if ( postProc0 != _postProc ) _postProc compose postProc0 else postProc0
+
 
 
 ## Channel routes and example of static web server.
