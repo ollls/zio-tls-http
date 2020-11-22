@@ -229,11 +229,12 @@ Post filters are used same way:
 
 ## Default filters.
 
-As shown in example in MyServer.scala.
-This should be self explanatory. Expectation is that default filters always be called, either standaolne or in composition with custom filers provided on routes.
+As shown in the example, file MyServer.scala.
 
     HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
     HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
+    
+This should be self-explanatory. Expectation is that default filters always be called, either standaolne or in composition with custom filers provided on routes.    
     
 That behavior achieved with follwing lines in HttpRoutes.scala.
 
