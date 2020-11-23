@@ -59,9 +59,15 @@ object HttpRoutes {
     ofWithFilter(_filter, postProc)(pf)
 
   def ofWithFilter(
-    filter: WebFilterProc,
-    postProc: PostProc = _postProc
+    filter0: WebFilterProc,
+    postProc0: PostProc = _postProc
   )(pf: PartialFunction[Request, ZIO[ZEnv with MyLogging, Throwable, Response]]): HttpRoutes[Response] = {
+
+    //preceded with default filter first
+    val filter   = if ( filter0   != _filter )  _filter <> filter0  else filter0
+
+    // default post proc called last, defaultPostProc ( mypostProc( response )
+    val postProc = if ( postProc0 != _postProc ) _postProc compose postProc0 else postProc0
 
     //filter partial function - will call filter only if second route function defined
     val f0: PartialFunction[Request, ZIO[ZEnv, Throwable, Response]] =
