@@ -28,11 +28,22 @@ To run in docker:
 Server will use self-signed SSL certificate, you will need to configure the browser to trust it.
 Certificate resides in keystore.jks
 
-## Quick routes without "match" keyword. ( just learned by looking at http4s code example ).
+## Quick points
 
-  val quick_req = HttpRoutes.of {
-       case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
+### Look at https://github.com/ollls/zio-tls-http/blob/main/src/main/scala/MyServer.scala
+Scroll to the bottom, you will see server startup code, then route initialization code and the actual routes ( scala partial function ) examples.
+
+### Useful example of quick Routing shortcut, with reference to Request.
+    val quick_req = HttpRoutes.of {
+        case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
     }
+    
+### Chunked transfer encoding in not supported.   
+
+### multipart/form-data is not supported.
+^*Hacking is encourged to address those things, if any interest ...*
+
+### Server was tested with large files upload/download presented as byte streams.
 
 ## Approach. 
 
@@ -86,6 +97,17 @@ To avoid too many messages being posted to console, just increase "console" LogL
       .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
       .exitCode
   }
+  
+  
+  You can add more logs as a Tuple, for example: ("myapplog" -> LogLevel.Trace )
+  Then just call the log by name in for comprehension on any ZIO.
+  
+    _    <- MyLogging.info( "myapplog", s"TLS HTTP Service started on " + SERVER_PORT + ", ZIO concurrency lvl: " + metr.get.concurrency + " threads")
+    
+   "logname" will be maped to logname.log file, object MyLogging has the relative log path.
+   
+        object MyLogging { val  REL_LOG_FOLDER = "logs/" .... }
+   
 
 ## Route matching DSL by examples.
 
@@ -204,6 +226,30 @@ Post filters are used same way:
         }
        }
          
+
+## Default filters.
+
+As shown in the example, file MyServer.scala.
+
+    HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
+    HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
+    
+This should be self-explanatory. Expectation is that default filters always be called, either standaolne or in composition with custom filers provided on routes.    
+    
+That behavior achieved with follwing lines in HttpRoutes.scala.
+
+    def ofWithFilter(
+         filter0: WebFilterProc,
+         postProc0: PostProc = _postProc
+    )(pf: PartialFunction[Request, ZIO[ZEnv with MyLogging, Throwable, Response]]): HttpRoutes[Response] = {
+
+        //preceded with default filter first
+        val filter   = if ( filter0   != _filter )  _filter <> filter0  else filter0
+
+        // default post proc called last, defaultPostProc ( mypostProc( response )
+        val postProc = if ( postProc0 != _postProc ) _postProc compose postProc0 else postProc0
+
+
 
 ## Channel routes and example of static web server.
 
