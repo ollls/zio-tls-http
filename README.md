@@ -34,9 +34,12 @@ Certificate resides in keystore.jks
 Scroll to the bottom, you will see server startup code, then route initialization code and the actual routes ( scala partial function ) examples.
 
 ### Useful example of quick Routing shortcut, with reference to Request.
-    val quick_req = HttpRoutes.of {
-        case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
-    }
+
+```scala
+val quick_req = HttpRoutes.of {
+    case req @ GET -> Root / "qprint" => ZIO( Response.Ok().asTextBody( req.headers.printHeaders) )
+}
+```    
     
 ### Chunked transfer encoding in not supported.   
 
@@ -73,16 +76,20 @@ It uses https://github.com/plokhotnyuk/jsoniter-scala
 
 HTTP Request has
 
-    def fromJSON[A](implicit codec:JsonValueCodec[A]) : A = {
-                         readFromArray[A]( body.toArray )
-    }   
+```scala
+def fromJSON[A](implicit codec:JsonValueCodec[A]) : A = {
+                     readFromArray[A]( body.toArray )
+}
+```
                 
 HTTP Response has
 
-    def asJsonBody[B : JsonValueCodec]( body0 : B ) : Response = { 
-      val json = writeToArray( body0 )
-      new Response(this.code, this.headers, Some( Chunk.fromArray( json ))).contentType( ContentType.JSON) 
-    } 
+```scala
+def asJsonBody[B : JsonValueCodec]( body0 : B ) : Response = { 
+  val json = writeToArray( body0 )
+  new Response(this.code, this.headers, Some( Chunk.fromArray( json ))).contentType( ContentType.JSON) 
+}
+```
 
 ## Logs:  Logs don't support log rotation at this moment.
 Logs implemented with ZIO enironment and ZQueue. Currently there are only two logs: access and console.
@@ -92,21 +99,27 @@ By default, log with name "console" will print color data on screen.
 Also, "access" log will duplicate output to console if console LogLevel.Trace.
 To avoid too many messages being posted to console, just increase "console" LogLevel.
 
-    myHttp
-      .run(myHttpRouter.route)
-      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
-      .exitCode
-  }
+```scala
+myHttp
+  .run(myHttpRouter.route)
+  .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
+  .exitCode
+}
+```
   
   
   You can add more logs as a Tuple, for example: ("myapplog" -> LogLevel.Trace )
   Then just call the log by name in for comprehension on any ZIO.
   
+  ```scala
     _    <- MyLogging.info( "myapplog", s"TLS HTTP Service started on " + SERVER_PORT + ", ZIO concurrency lvl: " + metr.get.concurrency + " threads")
+  ```
     
    "logname" will be maped to logname.log file, object MyLogging has the relative log path.
    
-        object MyLogging { val  REL_LOG_FOLDER = "logs/" .... }
+   ```scala
+   object MyLogging { val  REL_LOG_FOLDER = "logs/" .... }
+   ```
    
 
 ## Route matching DSL by examples.
@@ -115,59 +128,68 @@ To avoid too many messages being posted to console, just increase "console" LogL
 
 - Simple route returning http code Ok with text body.
 
-      val appRoute1 = HttpRoutes.of {
-            case GET -> Root / "hello" => ZIO(Response.Ok.asTextBody("Hello World"))
-      }
-      
+  ```scala
+  val appRoute1 = HttpRoutes.of {
+        case GET -> Root / "hello" => ZIO(Response.Ok.asTextBody("Hello World"))
+  }
+  ```
       
 - Simple JSON response      
       
-      val another_app = HttpRoutes.ofWithFilter(proc1) { req =>
-            req match {
-                case GET -> Root / "test" =>
-                    ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd", 
-                                               Array( "Red", "Green", "Blue"))) )
-            }   
-        }
+  ```scala    
+  val another_app = HttpRoutes.ofWithFilter(proc1) { req =>
+        req match {
+            case GET -> Root / "test" =>
+                ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd", 
+                                           Array( "Red", "Green", "Blue"))) )
+        }   
+  }
+  ```      
   
 - How to read from JSON represented by case class  
       
-      case POST -> Root / "test" => 
-         ZIO.effect { //need to wrap up everything in the effect to have proper error handling
-           val db : DataBlock = req.fromJSON[DataBlock]
-           val name = db.name
-           Response.Ok.asTextBody( s"JSON for $name accepted" )     
-         }                                  
-      }   
+  ```scala    
+  case POST -> Root / "test" => 
+     ZIO.effect { //need to wrap up everything in the effect to have proper error handling
+       val db : DataBlock = req.fromJSON[DataBlock]
+       val name = db.name
+       Response.Ok.asTextBody( s"JSON for $name accepted" )     
+     }                                  
+  }
+  ```    
 
 - Example with cookies, path and variable parameters.
 
   *Please, note a raw param string is always available with req.uri.getQuery*
 
-      object param1 extends QueryParam("param1") 
-      object param2 extends QueryParam("param2")
-      
-      val app_route = HttpRoutes.of { req: Request =>
-      {
-        req match {
-            val app_route = HttpRoutes.of { req: Request => { req match {
-            case GET -> Root / "hello" / "user" / StringVar(userId) :? param1(par) :? param2(par2) =>
-            ZIO(  Response.Ok
-                      .hdr(headers)
-                      .cookie( Cookie("testCookie", "ABCD", secure = true )
-                      .body( s"$userId with param1 = $par, param2 = $par2\n query = $query" ))
-      }
-      ...
+  ```scala
+  object param1 extends QueryParam("param1") 
+  object param2 extends QueryParam("param2")
+
+  val app_route = HttpRoutes.of { req: Request =>
+  {
+    req match {
+        val app_route = HttpRoutes.of { req: Request => { req match {
+        case GET -> Root / "hello" / "user" / StringVar(userId) :? param1(par) :? param2(par2) =>
+        ZIO(  Response.Ok
+                  .hdr(headers)
+                  .cookie( Cookie("testCookie", "ABCD", secure = true )
+                  .body( s"$userId with param1 = $par, param2 = $par2\n query = $query" ))
+  }
+  ...
+   ```
       
 - How to post a file with AppRoute ( file will be pre-read in memory for AppRoute integration )
 
-            ...
-      case POST -> Root / "receiver" / StringVar(fileName) =>
-            effectBlocking {
-              val infile = new java.io.FileOutputStream( ROOT_CATALOG + "/" + fileName)
-              infile.write(req.body.toArray)
-              infile.close()
-            }.refineToOrDie[Exception] *> ZIO(Response.Ok)
+  ```scala
+     ...
+     case POST -> Root / "receiver" / StringVar(fileName) =>
+        effectBlocking {
+          val infile = new java.io.FileOutputStream( ROOT_CATALOG + "/" + fileName)
+          infile.write(req.body.toArray)
+          infile.close()
+        }.refineToOrDie[Exception] *> ZIO(Response.Ok)
+  ```
 
 ## Filters and composition of filters.
 
@@ -176,78 +198,94 @@ To avoid too many messages being posted to console, just increase "console" LogL
  
  Defining two web filters, they will be called before any user defined app route logic.
 
-      val proc1 = WebFilterProc( (_) => ZIO(Response.Ok.hdr("Injected-Header-Value" -> "1234").hdr("Injected-Header-Value" -> "more" ) ) )
+```scala
+val proc1 = WebFilterProc( (_) => ZIO(Response.Ok.hdr("Injected-Header-Value" -> "1234").hdr("Injected-Header-Value" -> "more" ) ) )
 
-      val proc2 = WebFilterProc( req  => ZIO {
-                       if ( req.headers.getMval( "Injected-Header-Value").exists( _ == "1234" ) )
-                       Response.Ok.hdr("Injected-Header-Value" -> "CheckPassed") 
-                       else Response.Error( StatusCode.Forbidden ) 
-                              } )
+val proc2 = WebFilterProc( req  => ZIO {
+               if ( req.headers.getMval( "Injected-Header-Value").exists( _ == "1234" ) )
+               Response.Ok.hdr("Injected-Header-Value" -> "CheckPassed") 
+               else Response.Error( StatusCode.Forbidden ) 
+                      } )
+ ```                             
  
  Here we combine proc1 and proc2 together.
  
-      val proc3 = proc1 <> proc2 
+ ```scala
+ val proc3 = proc1 <> proc2 
+ ```     
  
  Filters can be assigned per each app route, exactly same way as we did with HttpRoutes.of() but with ofWithFilter(). 
  Appropriate filter will be called only if route matches, there is a special logic which build a final route function out of a filter and user defined app route partial function. 
  
  Example:
  
-      val another_app = HttpRoutes.ofWithFilter(proc3) {
-            case GET -> Root / "test" =>
+ ```scala
+val another_app = HttpRoutes.ofWithFilter(proc3) {
+    case GET -> Root / "test" =>
         ZIO(Response.Ok.contentType(ContentType.JSON).body(DataBlock("Name", "Address")))
-      }
+}
+```      
 
 ## Post filters.
 Post filters are different from pre-filters described earlier. 
 The goal of Post-Filter is to provide extra data in the form of http headers in the user output. ( such as CORS headers ).
 Currently post filter is a simple:
 
-      type PostProc      = Response[_] => Response[_]
-      
-      val openCORS: HttpRoutes.PostProc = (r) => r.hdr(("Access-Control-Allow-Origin" -> "*"))
-                                            .hdr(("Access-Control-Allow-Method" -> "POST, GET, PUT"))
+```scala
+  type PostProc      = Response[_] => Response[_]
+
+  val openCORS: HttpRoutes.PostProc = (r) => r.hdr(("Access-Control-Allow-Origin" -> "*"))
+                                        .hdr(("Access-Control-Allow-Method" -> "POST, GET, PUT"))
+```
                                             
 Post filters are used same way:
 
-       val another_app2 = HttpRoutes.ofWithFilter(proc3, openCORS) { req =>
-          req match {
-             case GET -> Root / "test2" =>
-               ZIO(Response.Ok.contentType(ContentType.Plain).body(req.headers.printHeaders))
-           }
-         }
+```scala
+val another_app2 = HttpRoutes.ofWithFilter(proc3, openCORS) { req =>
+  req match {
+    case GET -> Root / "test2" =>
+      ZIO(Response.Ok.contentType(ContentType.Plain).body(req.headers.printHeaders))
+  }
+}
+```         
          
   or
-  
-      val another_app2 = HttpRoutes.ofWithPostProc( openCORS) { req =>
-        req match {
-          case GET -> Root / "test2" =>
-           ZIO(Response.Ok.contentType(ContentType.Plain).body(req.headers.printHeaders))
-        }
-       }
+
+```scala 
+val another_app2 = HttpRoutes.ofWithPostProc( openCORS) { req =>
+  req match {
+    case GET -> Root / "test2" =>
+      ZIO(Response.Ok.contentType(ContentType.Plain).body(req.headers.printHeaders))
+  }
+}
+```
          
 
 ## Default filters.
 
 As shown in the example, file MyServer.scala.
 
-    HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
-    HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
+```scala
+HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
+HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
+```
     
 This should be self-explanatory. Expectation is that default filters always be called, either standaolne or in composition with custom filers provided on routes.    
     
 That behavior achieved with follwing lines in HttpRoutes.scala.
 
-    def ofWithFilter(
-         filter0: WebFilterProc,
-         postProc0: PostProc = _postProc
-    )(pf: PartialFunction[Request, ZIO[ZEnv with MyLogging, Throwable, Response]]): HttpRoutes[Response] = {
+```scala
+def ofWithFilter(
+     filter0: WebFilterProc,
+     postProc0: PostProc = _postProc
+)(pf: PartialFunction[Request, ZIO[ZEnv with MyLogging, Throwable, Response]]): HttpRoutes[Response] = {
 
-        //preceded with default filter first
-        val filter   = if ( filter0   != _filter )  _filter <> filter0  else filter0
+    //preceded with default filter first
+    val filter   = if ( filter0   != _filter )  _filter <> filter0  else filter0
 
-        // default post proc called last, defaultPostProc ( mypostProc( response )
-        val postProc = if ( postProc0 != _postProc ) _postProc compose postProc0 else postProc0
+    // default post proc called last, defaultPostProc ( mypostProc( response )
+    val postProc = if ( postProc0 != _postProc ) _postProc compose postProc0 else postProc0
+```
 
 
 
@@ -257,45 +295,48 @@ Channel routes do nothing but provide raw "ch" : channel in response, so user is
 There a simple static Web Server implemented based on that concept. It was used for access to ZIO documentation and tested with complex snapshots of several web sites.
 Channel is available from Request::ch, with two simple functions:
 
-       def read: ZIO[ZEnv, Exception, Chunk[Byte]]
-       def write(chunk: Chunk[Byte]): ZIO[ZEnv, Exception, Int]
+```scala
+def read: ZIO[ZEnv, Exception, Chunk[Byte]]
+def write(chunk: Chunk[Byte]): ZIO[ZEnv, Exception, Int]
+```
   
 
 Here is a static web server example with channel routes. It serves 3 catalogs with different documents. It accepts file uploads to "/save" without preloading them into memory.
 Please, note matching operator "/:" - which means all the subfolders under provided folder.
 For GET requests we are not interested in getting data by chunks, so we complete get requests with service function finishBodyLoadRequests() called explicitly.
 
-      val raw_route = HttpRoutes.of { req: Request =>
-      {
-          req match {
-          case GET -> Root =>
-            for {
-              _ <- myHttpRouter.finishBodyLoadForRequest(req)
-              res <- ZIO(
-                      Response
-                        .Error(StatusCode.SeeOther)
-                        .body("web/index.html")
-                    )
-            } yield (res)
-          case GET -> "web" /: _ =>
-            myHttpRouter.finishBodyLoadForRequest(req) *>
-              FileUtils.loadFile(req, ROOT_CATALOG)
+```scala
+val raw_route = HttpRoutes.of { req: Request =>
+  {
+      req match {
+      case GET -> Root =>
+        for {
+          _ <- myHttpRouter.finishBodyLoadForRequest(req)
+          res <- ZIO(
+                  Response
+                    .Error(StatusCode.SeeOther)
+                    .body("web/index.html")
+                )
+        } yield (res)
+      case GET -> "web" /: _ =>
+        myHttpRouter.finishBodyLoadForRequest(req) *>
+          FileUtils.loadFile(req, ROOT_CATALOG)
 
-          case GET -> Root / "web2" / _ =>
-            myHttpRouter.finishBodyLoadForRequest(req) *>
-              FileUtils.loadFile(req, ROOT_CATALOG)
+      case GET -> Root / "web2" / _ =>
+        myHttpRouter.finishBodyLoadForRequest(req) *>
+          FileUtils.loadFile(req, ROOT_CATALOG)
 
-          case GET -> "web3" /: _ =>
-            myHttpRouter.finishBodyLoadForRequest(req) *>
-              FileUtils.loadFile(req, ROOT_CATALOG)
+      case GET -> "web3" /: _ =>
+        myHttpRouter.finishBodyLoadForRequest(req) *>
+          FileUtils.loadFile(req, ROOT_CATALOG)
 
-          case POST -> Root / "save" / StringVar(_) =>
-            FileUtils.saveFile(req, ROOT_CATALOG)
+      case POST -> Root / "save" / StringVar(_) =>
+        FileUtils.saveFile(req, ROOT_CATALOG)
 
-        }
-      }
     }
-
+  }
+}
+```
 
 ## Websocket support. ( intial proof of concept, test implementation )
 
@@ -312,39 +353,35 @@ Control packets ( PING/PONG will be processed automaticaly ).
 Usage of process_io() is optional.
 Obviously basic functions on WebSocket() can be used directly.
 
-      def accept( req : Request ) : ZIO[ZEnv with MyLogging, Exception, Unit]
-      def acceptAndRead(req: Request): ZIO[ZEnv with MyLogging, Exception, WebSocketFrame]
-      def writeFrame( req : Request, frame : WebSocketFrame )
-      def readFrame(req: Request ) : ZIO[ZEnv, Exception, WebSocketFrame ]
+```scala
+def accept( req : Request ) : ZIO[ZEnv with MyLogging, Exception, Unit]
+def acceptAndRead(req: Request): ZIO[ZEnv with MyLogging, Exception, WebSocketFrame]
+def writeFrame( req : Request, frame : WebSocketFrame )
+def readFrame(req: Request ) : ZIO[ZEnv, Exception, WebSocketFrame ]
+```
 
 Websocket example with process_io()
 
-      val ws_route2 = HttpRoutes.of { req: Request =>
-       {
-          req match {
-            case GET -> Root / "websocket" =>
-                  if (req.isWebSocket) {
-                        val session = Websocket();
-                        session.accept( req ) *>
-                        session.process_io( req, in => {
-                        /* expect text or cont */
-                              if ( in.opcode == WebSocketFrame.BINARY ) ZIO( WebSocketFrame.Close() )
-                              else {
-                                    //types data on screen, this support CONTINUATION packets automaticaly.
-                                    //for each packet there will be a separate putStrLn
-                                    //only one "Hello From Server will be sent back, afer last CONT packet is received.
-                                    zio.console.putStrLn( "ABC> " + new String( in.data.toArray )) *>
-                                    ZIO( WebSocketFrame.Text( "Hello From Server", true ) )
-                              }   
-                        } )
-            } else  ZIO(Response.Error(StatusCode.NotFound))
-       }
-    } 
-
-
-
-
-
-
-
-
+```scala
+val ws_route2 = HttpRoutes.of { req: Request =>
+   {
+      req match {
+        case GET -> Root / "websocket" =>
+              if (req.isWebSocket) {
+                    val session = Websocket();
+                    session.accept( req ) *>
+                    session.process_io( req, in => {
+                    /* expect text or cont */
+                          if ( in.opcode == WebSocketFrame.BINARY ) ZIO( WebSocketFrame.Close() )
+                          else {
+                                //types data on screen, this support CONTINUATION packets automaticaly.
+                                //for each packet there will be a separate putStrLn
+                                //only one "Hello From Server will be sent back, afer last CONT packet is received.
+                                zio.console.putStrLn( "ABC> " + new String( in.data.toArray )) *>
+                                ZIO( WebSocketFrame.Text( "Hello From Server", true ) )
+                          }   
+                    } )
+        } else  ZIO(Response.Error(StatusCode.NotFound))
+   }
+} 
+```    
