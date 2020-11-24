@@ -3,7 +3,12 @@ package zhttp
 import zio.Has
 import zio.ZLayer
 import zio.ZQueue
-import java.io.FileWriter
+
+import java.nio.channels.FileChannel
+import java.nio.file.FileSystems
+import java.nio.ByteBuffer
+import java.nio.file.StandardOpenOption
+
 import scala.collection.immutable.ListMap
 import zio.clock.{ currentDateTime }
 import scala.io.AnsiColor
@@ -16,7 +21,14 @@ object MyLogging {
 
   val  REL_LOG_FOLDER = "logs/"
 
-  case class LogRec(logName: String, log: FileWriter, lvl: LogLevel)
+  case class LogRec(logName: String, log: FileChannel, lvl: LogLevel)
+  {  
+     def write_rotate( line : String ) = {
+       effectBlocking {
+         ZIO.unit
+       }
+     }
+  }
 
   type MyLogging = Has[Service]
 
@@ -77,7 +89,7 @@ object MyLogging {
                   val console_line = s"$TS [$LVL] $MSG"
                   println(console_line)
                 }
-                logRec.log.write(line); logRec.log.flush()
+                logRec.log.write( ByteBuffer.wrap( line.getBytes() ) ); /*logRec.log.flush()*/
               }
             }
           })
@@ -89,7 +101,13 @@ object MyLogging {
       logs <- effectBlocking(ListMap[String, LogRec]())
       result <- IO.effect(
                  log_names.foldLeft(logs)(
-                   (logs, name) => logs + (name._1 -> LogRec(name._1, new FileWriter( REL_LOG_FOLDER + name._1 + ".log", true), name._2))
+                   (logs, name) => logs + (name._1 -> LogRec( name._1, 
+                                                              FileChannel.open(
+                                                                     FileSystems.getDefault().getPath( REL_LOG_FOLDER, name._1 + ".log" ),  
+                                                                      java.nio.file.StandardOpenOption.CREATE, 
+                                                                      java.nio.file.StandardOpenOption.APPEND,
+                                                                      java.nio.file.StandardOpenOption.SYNC), 
+                                                              name._2) )
                  )
                )          
     } yield (result)
