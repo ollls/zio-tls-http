@@ -62,8 +62,8 @@ class TLSServer {
                         .catchAll( _ => {
                           //e.printStackTrace; println("***" + e.toString); /*group.shutdownNow *>*/
                           IO.succeed(0)
-                        }) )
-                        .fork
+                        }) 
+                        .fork )
                   
 
                 _ <- loop.repeat(Schedule.forever)
