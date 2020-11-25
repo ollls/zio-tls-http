@@ -59,12 +59,12 @@ class TLSServer {
                           "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName ) ) *>
                       AsynchronousServerTlsByteChannel(channel, ssl_context)
                         .use(c => processor( new TlsChannel( c.keepAlive(KEEP_ALIVE ) )))
-                        .catchAll(_ => {
+                        .catchAll( e => {
                           //e.printStackTrace; println("***" + e.toString); /*group.shutdownNow *>*/
                           IO.succeed(0)
-                        })
+                        }) )
                         .fork
-                  )
+                  
 
                 _ <- loop.repeat(Schedule.forever)
 
@@ -81,7 +81,7 @@ class TLSServer {
 
     val T = myAppLogic.fold(e => {
       e.printStackTrace(); zio.ExitCode(1)
-    }, _ => zio.ExitCode(0))
+    }, _ => zio.ExitCode(0)) 
 
     T
   }
