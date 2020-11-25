@@ -1,3 +1,5 @@
+PLEASE USE MASTER BRANCH, IT's DEFAULT NOW.
+
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
 ![alt text](https://github.com/ollls/zio-tls-http/blob/main/Screenshot.jpg?raw=true)
