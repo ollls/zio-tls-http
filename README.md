@@ -1,4 +1,4 @@
-PLEASE USE MASTER BRANCH, IT's DEFAULT NOW.
+PLEASE USE MASTER BRANCH, IT's DEFAULT NOW with ZIO-JSON
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
