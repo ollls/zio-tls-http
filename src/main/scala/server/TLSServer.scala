@@ -59,7 +59,7 @@ class TLSServer {
                           "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName ) ) *>
                       AsynchronousServerTlsByteChannel(channel, ssl_context)
                         .use(c => processor( new TlsChannel( c.keepAlive(KEEP_ALIVE ) )))
-                        .catchAll( e => {
+                        .catchAll( _ => {
                           //e.printStackTrace; println("***" + e.toString); /*group.shutdownNow *>*/
                           IO.succeed(0)
                         }) )
