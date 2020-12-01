@@ -1,6 +1,6 @@
 PLEASE USE MASTER BRANCH, IT's DEFAULT NOW with ZIO-JSON
 
-LOG ROTATION SUPPORT in DEV branch now.
+LOG ROTATION SUPPORT.
 
         object MyLogging {
              val  MAX_LOG_FILE_SIZE = 1024 * 1024 * 10 //10M
