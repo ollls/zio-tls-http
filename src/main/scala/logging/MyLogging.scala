@@ -27,12 +27,22 @@ object MyLogging {
   val  FILE_TS_FMT    = DateTimeFormatter.ofPattern( "yyyyMMddHHmmss" )
   val  REL_LOG_FOLDER = "logs/"
 
-  val  MAX_LOG_FILE_SIZE = 1024 * 1024 * 10 //10M
-  val  MAX_NUMBER_ROTATED_LOGS = 4
+  val  MAX_LOG_FILE_SIZE = 1024 * 1024 * 1 //1M
+  val  MAX_NUMBER_ROTATED_LOGS = 5
 
 
   class LogRec(logName: String, var log: FileChannel, val lvl: LogLevel)
   {  
+
+     private def critical_error_message( log_msg : String, lvl : LogLevel )
+     {
+        val TS           = withColor(AnsiColor.GREEN, 
+                           LogDatetimeFormatter.humanReadableDateTimeFormatter.format( java.time.OffsetDateTime.now() ) )
+        val MSG          = withColor(AnsiColor.YELLOW, log_msg)
+        val LVL          = withColor( colorFromLogLevel( lvl ), lvl.render )
+        val console_line = s"$TS [$LVL] $MSG"
+        println(console_line)
+     }
 
      private def removeOldLogs = 
      {
@@ -46,17 +56,10 @@ object MyLogging {
 
      private def reOpenLogFile = 
      {
-         var log1 : FileChannel = null
-
-         try {
-            log1 = FileChannel.open( FileSystems.getDefault().getPath( REL_LOG_FOLDER, logName + ".log" ),  
+        log = FileChannel.open( FileSystems.getDefault().getPath( REL_LOG_FOLDER, logName + ".log" ),  
                                                                       java.nio.file.StandardOpenOption.CREATE,
                                                                       java.nio.file.StandardOpenOption.APPEND,
                                                                       java.nio.file.StandardOpenOption.SYNC )
-         } catch {
-           case e : Exception => println( e.toString() )
-         }                                                              
-         log = log1
      }
 
 
@@ -68,13 +71,18 @@ object MyLogging {
      }
 
      def write_rotate( line : String ) = {
+     try {  
          log.write( ByteBuffer.wrap( line.getBytes() ) )
          if ( log.size() >  MAX_LOG_FILE_SIZE  ) {
            log.close()
            archiveLogFile
            removeOldLogs 
            reOpenLogFile
-         } 
+         }
+      } catch {
+        case e : Exception => println( critical_error_message( "CRITICAL: CAN NOT WRITE LOGS " + e.toString, LogLevel.Error ) )
+      }
+
      }
   }
 
@@ -138,13 +146,12 @@ object MyLogging {
                   println(console_line)
                 }
                   logRec.write_rotate( line )
-                //logRec.log.write( ByteBuffer.wrap( line.getBytes() ) ); /*logRec.log.flush()*/
               }
             }
           })
     } yield ()
     
-    //T.catchAll( e => zio.console.putStrLn( e.toString() ) )
+ 
 
 
   private def open_logs(log_names: Seq[(String, LogLevel)]): ZIO[ZEnv, Throwable, ListMap[String, LogRec]] = {
@@ -172,8 +179,11 @@ object MyLogging {
 
     val managedObj = open_logs(log_names).toManaged(close_logs).flatMap { logs =>
       ZQueue
-        .unbounded[(String, LogLevel, String, OffsetDateTime)]
-        //.dropping[(String, LogLevel, String)]( 1000 )
+        //with unbounded queue you won't lose a single record, but with stress test it grows up to 10-15 min delay and more
+        //here for perfomance reasons we use dropping queue, some messages under stress load will be lost, once it exceeds a queue
+        //you always can switch off access log and avoid issue entirely
+        //.unbounded[(String, LogLevel, String, OffsetDateTime)]   //<--- uncomment for unlimited, no loss queue
+        .dropping[(String, LogLevel, String, OffsetDateTime)]( 5000 )
         .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4 )).forever.forkDaemon)
         .toManaged(c => { c.shutdown })
         .map(
