@@ -24,5 +24,5 @@ object LogLevel {
   case object Info  extends LogLevel { val level = 3; val render = "info"  }
   case object Debug extends LogLevel { val level = 2; val render = "debug" }
   case object Trace extends LogLevel { val level = 1; val render = "trace" }
-  case object Off   extends LogLevel { val level = 0; val render = "off"   }
+  case object Off   extends LogLevel { val level = 77; val render = "off"   }
 }

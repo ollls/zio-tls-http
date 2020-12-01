@@ -17,16 +17,64 @@ import scala.io.AnsiColor._
 import zio.{ IO, ZEnv, ZIO }
 import zio.blocking._
 
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.nio.file.Files
+import java.time.OffsetDateTime
+
 object MyLogging {
 
+  val  FILE_TS_FMT    = DateTimeFormatter.ofPattern( "yyyyMMddHHmmss" )
   val  REL_LOG_FOLDER = "logs/"
 
-  case class LogRec(logName: String, log: FileChannel, lvl: LogLevel)
+  val  MAX_LOG_FILE_SIZE = 1024 * 1024 * 10 //10M
+  val  MAX_NUMBER_ROTATED_LOGS = 4
+
+
+  class LogRec(logName: String, var log: FileChannel, val lvl: LogLevel)
   {  
+
+     private def removeOldLogs = 
+     {
+        val dir =  FileSystems.getDefault().getPath( REL_LOG_FOLDER )
+
+         Files.list( dir ).filter( c => !c.endsWith( logName + ".log" ))
+                          .filter( c => c.getName(1).toString.startsWith( logName )  )
+                          .sorted( java.util.Comparator.reverseOrder() ).skip( MAX_NUMBER_ROTATED_LOGS ).forEach( c => c.toFile.delete )
+
+     }
+
+     private def reOpenLogFile = 
+     {
+         var log1 : FileChannel = null
+
+         try {
+            log1 = FileChannel.open( FileSystems.getDefault().getPath( REL_LOG_FOLDER, logName + ".log" ),  
+                                                                      java.nio.file.StandardOpenOption.CREATE,
+                                                                      java.nio.file.StandardOpenOption.APPEND,
+                                                                      java.nio.file.StandardOpenOption.SYNC )
+         } catch {
+           case e : Exception => println( e.toString() )
+         }                                                              
+         log = log1
+     }
+
+
+     private def archiveLogFile = 
+     {       
+         val srcFile = FileSystems.getDefault().getPath( REL_LOG_FOLDER, logName + ".log" ).toFile()
+         val archFile = FileSystems.getDefault().getPath( REL_LOG_FOLDER, logName + "." + LocalDateTime.now().format(  FILE_TS_FMT  ) + ".log" ).toFile()
+         srcFile.renameTo( archFile )
+     }
+
      def write_rotate( line : String ) = {
-       effectBlocking {
-         ZIO.unit
-       }
+         log.write( ByteBuffer.wrap( line.getBytes() ) )
+         if ( log.size() >  MAX_LOG_FILE_SIZE  ) {
+           log.close()
+           archiveLogFile
+           removeOldLogs 
+           reOpenLogFile
+         } 
      }
   }
 
@@ -47,35 +95,35 @@ object MyLogging {
   }
 
   trait Service {
-    def log(logName: String, lvl: LogLevel, msg: String): ZIO[MyLogging, Throwable, Unit]
+    def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit]
   }
 
-  def log(name: String, lvl: LogLevel, msg: String): ZIO[MyLogging, Exception, Unit] =
-    ZIO.accessM[MyLogging](logenv => logenv.get.log(name, lvl, msg)).refineToOrDie[Exception]
+  def log(name: String, lvl: LogLevel, msg: String): ZIO[ ZEnv with MyLogging, Exception, Unit] =
+    ZIO.accessM[ZEnv with MyLogging](logenv => logenv.asInstanceOf[MyLogging].get.log(name, lvl, msg ) ) 
 
-  def info(name: String, msg: String): ZIO[MyLogging, Exception, Unit] =
+  def info(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     log(name, LogLevel.Info, msg)
 
-  def debug(name: String, msg: String): ZIO[MyLogging, Exception, Unit] =
+  def debug(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     log(name, LogLevel.Debug, msg)
 
-  def error(name: String, msg: String): ZIO[MyLogging, Exception, Unit] =
+  def error(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     log(name, LogLevel.Error, msg)
 
-  def trace(name: String, msg: String): ZIO[MyLogging, Exception, Unit] =
+  def trace(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     log(name, LogLevel.Trace, msg)
 
-  def warn(name: String, msg: String): ZIO[MyLogging, Exception, Unit] =
+  def warn(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     log(name, LogLevel.Warn, msg)
 
   private def write_logs(
     logs: ListMap[String, LogRec],
     log_name: String,
     lvl: LogLevel,
-    log_msg: String
+    log_msg: String,
+    date: OffsetDateTime
   ): ZIO[ZEnv, Throwable, Unit] =
-    for {
-      date <- currentDateTime.orDie
+     for {
       ts   <- IO.effectTotal(LogDatetimeFormatter.humanReadableDateTimeFormatter.format(date))
       _ <- effectBlocking(logs.get(log_name).foreach { logRec =>
             {
@@ -89,11 +137,15 @@ object MyLogging {
                   val console_line = s"$TS [$LVL] $MSG"
                   println(console_line)
                 }
-                logRec.log.write( ByteBuffer.wrap( line.getBytes() ) ); /*logRec.log.flush()*/
+                  logRec.write_rotate( line )
+                //logRec.log.write( ByteBuffer.wrap( line.getBytes() ) ); /*logRec.log.flush()*/
               }
             }
           })
     } yield ()
+    
+    //T.catchAll( e => zio.console.putStrLn( e.toString() ) )
+
 
   private def open_logs(log_names: Seq[(String, LogLevel)]): ZIO[ZEnv, Throwable, ListMap[String, LogRec]] = {
     for {
@@ -101,7 +153,7 @@ object MyLogging {
       logs <- effectBlocking(ListMap[String, LogRec]())
       result <- IO.effect(
                  log_names.foldLeft(logs)(
-                   (logs, name) => logs + (name._1 -> LogRec( name._1, 
+                   (logs, name) => logs + (name._1 -> new LogRec( name._1, 
                                                               FileChannel.open(
                                                                      FileSystems.getDefault().getPath( REL_LOG_FOLDER, name._1 + ".log" ),  
                                                                       java.nio.file.StandardOpenOption.CREATE, 
@@ -120,16 +172,23 @@ object MyLogging {
 
     val managedObj = open_logs(log_names).toManaged(close_logs).flatMap { logs =>
       ZQueue
-        //.unbounded[(String, LogLevel, String)]
-        .dropping[(String, LogLevel, String)]( 1000 )
-        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3)).forever.forkDaemon)
+        .unbounded[(String, LogLevel, String, OffsetDateTime)]
+        //.dropping[(String, LogLevel, String)]( 1000 )
+        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4 )).forever.forkDaemon)
         .toManaged(c => { c.shutdown })
         .map(
           q =>
             new Service {
-              override def log(log: String, lvl: LogLevel, msg: String): ZIO[MyLogging, Throwable, Unit] =
-                q.offer((log, lvl, msg)).unit
-
+              override def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
+              {
+                for {
+                 time <-  currentDateTime.orDie 
+                  _   <-  logs.get( log ) match {
+                     case None => IO.unit
+                     case Some( logRec ) => if( logRec.lvl <= lvl  ) { q.offer((log, lvl, msg, time ) ).unit } else IO.unit 
+                  }
+                } yield()   
+              }
             }
         )
 

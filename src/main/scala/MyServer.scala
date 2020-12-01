@@ -211,7 +211,7 @@ object myServer extends zio.App {
 
     myHttp
       .run(myHttpRouter.route)
-      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
+      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info )))
       .exitCode
   }
 }
