@@ -1,5 +1,12 @@
 PLEASE USE MASTER BRANCH, IT's DEFAULT NOW with ZIO-JSON
 
+LOG ROTATION SUPPORT in DEV branch now.
+
+        object MyLogging {
+             val  MAX_LOG_FILE_SIZE = 1024 * 1024 * 10 //10M
+             val  MAX_NUMBER_ROTATED_LOGS = 4
+             ....
+
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
 ![alt text](https://github.com/ollls/zio-tls-http/blob/main/Screenshot.jpg?raw=true)
