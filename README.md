@@ -104,8 +104,19 @@ def asJsonBody[B : JsonValueCodec]( body0 : B ) : Response = {
 }
 ```
 
-## Logs:  Logs don't support log rotation at this moment.
+
+## Logs.
+
 Logs implemented with ZIO enironment and ZQueue. Currently there are only two logs: access and console.
+
+Log rotation uses two configuration constants:
+
+        object MyLogging {
+             val  MAX_LOG_FILE_SIZE = 1024 * 1024 * 10 //10M
+             val  MAX_NUMBER_ROTATED_LOGS = 4
+             ....
+
+
 
 You can specify desired loglevel on server initialization.
 By default, log with name "console" will print color data on screen.
