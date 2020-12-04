@@ -31,7 +31,8 @@ object HttpRouter
 
 class HttpRouter {
   //MAX SIZE for current implementation: 16676 ( one TLS app packet ) - do not exceed.
-  var HTTP_HEADER_SZ  = 8096 * 2
+  val HTTP_HEADER_SZ  = 8096 * 2
+  val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
                     
   private var appRoutes     = List[HttpRoutes[Response]]()
 
@@ -271,7 +272,7 @@ class HttpRouter {
                      
        contentLenL <- ZIO.fromTry( Try( contentLen.toLong ) )
 
-      _          <- if ( contentLenL > 1048576 * 100 ) ZIO.fail( new ContentLenTooBig ) else ZIO.unit        
+      _          <- if ( contentLenL > MAX_ALLOWED_CONTENT_LEN ) ZIO.fail( new ContentLenTooBig ) else ZIO.unit        
 
       bodyChunk <- if (fetchBody)
                     rd_loop2(c, contentLen.toInt, firstChunk.drop(pos))
