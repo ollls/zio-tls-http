@@ -158,17 +158,20 @@ object MyLogging {
     for {
       //_    <- zio.console.putStrLn( "ZIO-TLS-HTTP started, log files in: " + REL_LOG_FOLDER + log_names.mkString( ",") )  
       logs <- effectBlocking(ListMap[String, LogRec]())
-      result <- IO.effect(
-                 log_names.foldLeft(logs)(
-                   (logs, name) => logs + (name._1 -> new LogRec( name._1, 
-                                                              FileChannel.open(
-                                                                     FileSystems.getDefault().getPath( REL_LOG_FOLDER, name._1 + ".log" ),  
-                                                                      java.nio.file.StandardOpenOption.CREATE, 
-                                                                      java.nio.file.StandardOpenOption.APPEND,
-                                                                      java.nio.file.StandardOpenOption.SYNC), 
-                                                              name._2) )
-                 )
-               )          
+      result <- IO.effect {
+        // ensure log folder exists
+        val logPath = FileSystems.getDefault().getPath(REL_LOG_FOLDER)
+        Files.createDirectories(logPath)
+        log_names.foldLeft(logs)(
+          (logs, name) => logs + (name._1 -> new LogRec(name._1,
+            FileChannel.open(
+              logPath.resolve(name._1 + ".log"),
+              java.nio.file.StandardOpenOption.CREATE,
+              java.nio.file.StandardOpenOption.APPEND,
+              java.nio.file.StandardOpenOption.SYNC),
+            name._2))
+        )
+      }
     } yield (result)
   }
 
