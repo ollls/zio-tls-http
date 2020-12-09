@@ -7,21 +7,18 @@ resolvers += Resolver.sonatypeRepo("snapshots")
 lazy val root = (project in file("."))
   .settings(
     organization := "ZIO",
-    name := "zio-http",
+    name := "zio-tls-http",
     version := "0.0.1",
     scalaVersion := "2.13.1",
     maxErrors := 3,
     retrieveManaged := true,
     libraryDependencies ++= Seq(
       "dev.zio"    %% "zio"         % ZioVersion,
-      "dev.zio" %% "zio-json" % "0.0.1"
-      //"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"   % "2.6.2",
-      //"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.6.2" % "compile-internal" 
-      //"org.specs2" %% "specs2-core" % Specs2Version % "test",
-      //"org.apache.logging.log4j" %% "log4j-api" % "12.0"
-      //"org.apache.logging.log4j" % "log4j-core" % "2.12.0",
-      //"org.apache.logging.log4j" %% "log4j-api-scala" % "12.0"
-    )
+      "dev.zio" %% "zio-json" % "0.0.1",
+      "dev.zio" %% "zio-test" % ZioVersion % Test,
+      "dev.zio" %% "zio-test-sbt" % ZioVersion % Test
+    ),
+     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
 // Refine scalac params from tpolecat

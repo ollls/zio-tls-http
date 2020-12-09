@@ -19,7 +19,6 @@ sealed case class UpgradeRequest()   extends HTTPError
 sealed case class MediaEncodingError( msg: String ) extends Exception( msg )
 
 
-import zhttp.MyLogging._
 
 object HttpRouter
 {
@@ -31,7 +30,8 @@ object HttpRouter
 
 class HttpRouter {
   //MAX SIZE for current implementation: 16676 ( one TLS app packet ) - do not exceed.
-  var HTTP_HEADER_SZ  = 8096 * 2
+  val HTTP_HEADER_SZ  = 8096 * 2
+  val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
                     
   private var appRoutes     = List[HttpRoutes[Response]]()
 
@@ -48,8 +48,8 @@ class HttpRouter {
     appRoutes = rt :: appRoutes
 
  
-  def route( c : Channel ): ZIO[ ZEnv with MyLogging, Exception, Unit] = {
-    val T : ZIO[ZEnv with MyLogging, Any, Unit] = for {
+  def route( c : Channel ): ZIO[ ZEnv with MyEnv, Exception, Unit] = {
+    val T : ZIO[ZEnv with MyEnv, Any, Unit] = for {
       req <- getHTTPRequest(c, false) /* don't try to read body of request now */
 
       res <- (for {
@@ -136,7 +136,7 @@ class HttpRouter {
   private def route_go(
     req: Request,
     appRoutes: List[HttpRoutes[Response] ]
-  ): ZIO[ZEnv with MyLogging, Option[Exception], ( Response, HttpRoutes.PostProc )]=
+  ): ZIO[ZEnv with MyEnv, Option[Exception], ( Response, HttpRoutes.PostProc )]=
      appRoutes match {
       case h :: tail => {
         for {
@@ -153,7 +153,7 @@ class HttpRouter {
     }
 
  
-  private def response_processor[A](req: Request, resp: Response ): ZIO[ZEnv with MyLogging, Exception, Int] =
+  private def response_processor[A](req: Request, resp: Response ): ZIO[ZEnv with MyEnv, Exception, Int] =
     if (resp == NoResponse) {
 
       IO.succeed(0)
@@ -271,7 +271,7 @@ class HttpRouter {
                      
        contentLenL <- ZIO.fromTry( Try( contentLen.toLong ) )
 
-      _          <- if ( contentLenL > 1048576 * 100 ) ZIO.fail( new ContentLenTooBig ) else ZIO.unit        
+      _          <- if ( contentLenL > MAX_ALLOWED_CONTENT_LEN ) ZIO.fail( new ContentLenTooBig ) else ZIO.unit        
 
       bodyChunk <- if (fetchBody)
                     rd_loop2(c, contentLen.toInt, firstChunk.drop(pos))

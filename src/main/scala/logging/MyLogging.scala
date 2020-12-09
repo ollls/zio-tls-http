@@ -24,6 +24,8 @@ import java.time.OffsetDateTime
 
 object MyLogging {
 
+  type MyLogging = Has[Service]
+
   val  FILE_TS_FMT    = DateTimeFormatter.ofPattern( "yyyyMMddHHmmss" )
   val  REL_LOG_FOLDER = "logs/"
 
@@ -85,8 +87,6 @@ object MyLogging {
 
      }
   }
-
-  type MyLogging = Has[Service]
 
   private def withColor(color: String, s: String): String = s"$color$s$RESET"
 

@@ -46,6 +46,9 @@ class Headers( tbl0 : HashMap[String, Set[String]] )
 
     def this() = this( HashMap[String, Set[String]]())
 
+    def cookie( cookie : Cookie ) = updated ( "Set-Cookie" -> cookie.toString() )
+
+    def contentType(type0: ContentType) = updated ("content-type" -> type0.toString())
 
     def +( pair : ( String, String ) ) = updated( pair )
 

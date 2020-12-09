@@ -1,10 +1,10 @@
 package zhttp
 
 import zio.{ ZEnv, ZIO }
-import MyLogging.MyLogging
+
 
 //normal app routes - A is Request
-final case class HttpRoutes[A](run: Request => ZIO[ZEnv with MyLogging, Option[Exception], A], postProc: HttpRoutes.PostProc)
+final case class HttpRoutes[A](run: Request => ZIO[ZEnv with MyEnv, Option[Exception], A], postProc: HttpRoutes.PostProc)
 
 object HttpRoutes {
 
@@ -37,7 +37,7 @@ object HttpRoutes {
   //type WebFilterProc = Request => ZIO[ZEnv, Throwable, Response
 
   //replaces sequence and OptionT
-  def OptionToOptionalZIOError[A](oza: Option[ZIO[ZEnv with MyLogging, Throwable, A]]): ZIO[ZEnv with MyLogging, Option[Exception], A] =
+  def OptionToOptionalZIOError[A](oza: Option[ZIO[ZEnv with MyEnv, Throwable, A]]): ZIO[ZEnv with MyEnv, Option[Exception], A] =
     oza match {
       case Some(x) => x.refineToOrDie[Exception].asSomeError
       case None    => ZIO.fromOption(None)
@@ -52,16 +52,16 @@ object HttpRoutes {
   def defaultPostProc                 = _postProc
   def defaultPostProc(proc: PostProc) = _postProc = proc
 
-  def of(pf: PartialFunction[Request, ZIO[ZEnv with MyLogging, Throwable, Response]]) =
+  def of(pf: PartialFunction[Request, ZIO[ZEnv with MyEnv, Throwable, Response]]) =
     ofWithFilter(_filter, _postProc)(pf)
 
-  def ofWithPostProc(postProc: PostProc)(pf: PartialFunction[Request, ZIO[ZEnv with MyLogging, Throwable, Response]]) =
+  def ofWithPostProc(postProc: PostProc)(pf: PartialFunction[Request, ZIO[ZEnv with MyEnv, Throwable, Response]]) =
     ofWithFilter(_filter, postProc)(pf)
 
   def ofWithFilter(
     filter0: WebFilterProc,
     postProc0: PostProc = _postProc
-  )(pf: PartialFunction[Request, ZIO[ZEnv with MyLogging, Throwable, Response]]): HttpRoutes[Response] = {
+  )(pf: PartialFunction[Request, ZIO[ZEnv with MyEnv, Throwable, Response]]): HttpRoutes[Response] = {
 
     //preceded with default filter first
     val filter   = if ( filter0   != _filter )  _filter <> filter0  else filter0
@@ -78,7 +78,7 @@ object HttpRoutes {
       }
 
     //resulting lifted and sequenced function, which combines filter and route processing
-    def res0(req: Request): ZIO[ZEnv with MyLogging, Option[Exception], Response] =
+    def res0(req: Request): ZIO[ZEnv with MyEnv, Option[Exception], Response] =
       for {
         filter_resp <- OptionToOptionalZIOError(f0.lift(req))
 

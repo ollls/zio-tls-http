@@ -27,10 +27,10 @@ class TLSServer {
   var KEEP_ALIVE: Long  = 15000 //ms, good if short for testing with broken site's snaphosts with 404 pages
   var SERVER_PORT       = 8084
 
-  private var processor: Channel => ZIO[ZEnv with MyLogging.MyLogging, Exception, Unit] = null
+  private var processor: Channel => ZIO[ZEnv with MyEnv, Exception, Unit] = null
 
   /////////////////////////////////
-  def myAppLogic: ZIO[ZEnv with MyLogging, Throwable, ExitCode] =
+  def myAppLogic: ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
     for {
 
       metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.metrics)
@@ -75,7 +75,7 @@ class TLSServer {
     } yield (ExitCode(0))
 
   //////////////////////////////////////////////////
-  def run(proc: Channel => ZIO[ZEnv with MyLogging.MyLogging, Exception, Unit]) = {
+  def run(proc: Channel => ZIO[ZEnv with MyEnv, Exception, Unit]) = {
 
     processor = proc
 
