@@ -1,4 +1,7 @@
-PLEASE USE MASTER BRANCH, IT's DEFAULT NOW with ZIO-JSON
+
+Switched to MyEnv alias. All environments are avialble in the app routes.
+To add new environment just use MyEnv alias.
+
 
 LOG ROTATION SUPPORT.
 
