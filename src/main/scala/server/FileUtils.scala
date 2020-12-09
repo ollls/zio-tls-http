@@ -9,7 +9,7 @@ import java.net.URI
 import java.nio.file.{ Path => JPath }
 import java.nio.file.FileSystems
 import java.io.FileOutputStream
-import MyLogging.MyLogging
+
 
 object FileUtils {
 
@@ -75,7 +75,7 @@ object FileUtils {
   }
 
 ////////////////////////////////////////////////////////////////////////////
-  def loadFile( req : Request, folder: String ): ZIO[ZEnv with MyLogging, Throwable, Response ] = {
+  def loadFile( req : Request, folder: String ): ZIO[ZEnv with MyEnv, Throwable, Response ] = {
     //val  packet_sz = 12192
 
     val c = req.ch

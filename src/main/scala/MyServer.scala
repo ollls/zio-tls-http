@@ -129,6 +129,7 @@ object myServer extends zio.App {
     val app_route_pre_post_filters = HttpRoutes.ofWithFilter(proc3, openCORS) { req =>
       req match {
         case GET -> Root / "print" =>
+          MyLogging.trace( "console", "Hello from app")  *>
           ZIO(Response.Ok.asTextBody(req.headers.printHeaders))
         case GET -> Root / "Ok" => ZIO( Response.Ok )  
       }
@@ -199,6 +200,7 @@ object myServer extends zio.App {
 
     myHttpRouter.addAppRoute( ws_route2 )
 
+    val T : MyEnv = null
  
     val myHttp = new TLSServer
     //server
