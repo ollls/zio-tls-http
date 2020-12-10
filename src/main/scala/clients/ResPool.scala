@@ -24,7 +24,7 @@ type ResPool[R] = Has[ResPool.Service[R]]
 
  trait Service[R] {      
     def acquire : ZIO[ ZEnv with ResPool[R], Throwable,R]
-    def release( res : R ) : ZIO[ ZEnv with Has[ResPool.Service[R]], Throwable,Unit]
+    def release( res : R ) : ZIO[ ZEnv with ResPool[R], Throwable,Unit]
 }
 
 
