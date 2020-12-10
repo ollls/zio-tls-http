@@ -1,4 +1,8 @@
 
+dev_svc branch has new environment ResPool[], used with LDAPConnecton from Unbound LDAP SDK with async ZIO binding.
+ResPool[] uses short lived connection, con will be closed in 10 sec if not used. This way you get conection pool with reliable recovery.
+^Can be used as example how to do ZIO Env with type parameters.
+
 Switched to MyEnv alias. All environments are avialble in the app routes.
 To add new environment just use MyEnv alias.
 
