@@ -5,6 +5,9 @@ ResPool[] uses short lived connection, con will be closed in 10 sec if not used.
 
 ^Can be used as example how to do ZIO Env with type parameters. ( you will need some Izumi's zio.tag to make it work, Java type earsure blocks nested types )
 
+https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/ResPool.scala
+
+
 * Switched to MyEnv alias. All environments are avialble in the app routes.
 To add new environment just use MyEnv alias.
 
