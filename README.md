@@ -74,7 +74,7 @@ val quick_req = HttpRoutes.of {
 }
 ```    
     
-### Chunked transfer encoding in not supported.   
+### chunked transfer encoding in not supported.   
 
 ### multipart/form-data is not supported.
 ^*Hacking is encourged to address those things, if any interest ...*
