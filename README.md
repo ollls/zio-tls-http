@@ -12,7 +12,7 @@ ResPool[] uses short lived connection, con will be closed in 10 sec if not used.
                         _    <- ResPool.release[LDAPConnection] ( con )
                 } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
 
-^Can be used as example how to do ZIO Env with type parameters. ( you will need some Izumi's zio.tag to make it work, Java type earsure blocks nested types, and Has[] ws made invariant, so no way, thatnks to Tag[] there is a solution)
+^Can be used as example how to do ZIO Env with type parameters. ( you will need some Izumi's zio.tag to make it work, Java type earsure blocks nested types, and Has[] was made invariant, so no way, thanks to Tag[] there is a solution)
 
 https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/ResPool.scala
 
