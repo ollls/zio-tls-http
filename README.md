@@ -2,6 +2,7 @@
 
 * dev_svc branch has new environment ResPool[], used with LDAPConnecton from Unbound LDAP SDK with async ZIO binding.
 ResPool[] uses short lived connection, con will be closed in 10 sec if not used. This way you get conection pool with reliable recovery.
+( next step is create a resource pool where you can access resource by "name", same a pproach used for logs )
 
         case GET -> Root / "ldap" =>
                 for {
