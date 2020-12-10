@@ -3,6 +3,13 @@
 * dev_svc branch has new environment ResPool[], used with LDAPConnecton from Unbound LDAP SDK with async ZIO binding.
 ResPool[] uses short lived connection, con will be closed in 10 sec if not used. This way you get conection pool with reliable recovery.
 
+        case GET -> Root / "ldap" =>
+                for {
+                        con  <- ResPool.acquire[LDAPConnection] 
+                        res  <- AsyncLDAP.asearch( con, "o=company.com", "uid=userid")
+                        _    <- ResPool.release[LDAPConnection] ( con )
+                } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
+
 ^Can be used as example how to do ZIO Env with type parameters. ( you will need some Izumi's zio.tag to make it work, Java type earsure blocks nested types )
 
 https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/ResPool.scala
