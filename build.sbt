@@ -15,6 +15,7 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "dev.zio"    %% "zio"         % ZioVersion,
       "dev.zio" %% "zio-json" % "0.0.1",
+      "com.unboundid" % "unboundid-ldapsdk" % "5.1.2",
       "dev.zio" %% "zio-test" % ZioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % ZioVersion % Test
     ),

@@ -3,8 +3,11 @@ package example
 import zio.ZIO
 import zio.ZEnv
 import zhttp._
+import zhttp.clients._
 
 import java.time.ZonedDateTime
+import zio.ZLayer
+import zio.Has
 
 import zio.blocking._
 import zhttp.HttpRoutes.WebFilterProc
@@ -12,6 +15,10 @@ import Method._
 
 import zio.json._
 import zio.Chunk
+import com.unboundid.ldap.sdk.LDAPConnection
+
+import com.unboundid.ldap.sdk.SearchResultEntry
+
 
 object param1 extends QueryParam("param1")
 
@@ -140,6 +147,12 @@ object myServer extends zio.App {
        case GET -> Root / "test2" =>
          ZIO(Response.Ok.asTextBody( "Health Check" ) )
 
+        case GET -> Root / "ldap" =>
+        for {
+          con  <- ResPool.acquire[LDAPConnection] 
+          res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=userid")
+          _    <- ResPool.release[LDAPConnection] ( con )
+        } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
         
        case GET -> Root / "test" =>
          ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd", Chunk( "red", "blue", "green" ) ) ) )
@@ -200,7 +213,10 @@ object myServer extends zio.App {
 
     myHttpRouter.addAppRoute( ws_route2 )
 
-    val T : MyEnv = null
+    AsyncLDAP.HOST    =  "localhost"
+    AsyncLDAP.PORT    =  636
+    AsyncLDAP.BIND_DN = "cn=directory manager"
+    AsyncLDAP.PWD     = "password"
  
     val myHttp = new TLSServer
     //server
@@ -211,9 +227,13 @@ object myServer extends zio.App {
     myHttp.KEEP_ALIVE = 2000             //ms, good if short for testing with broken site's snaphosts with 404 pages
     myHttp.SERVER_PORT = 8084
 
-    myHttp
-      .run(myHttpRouter.route)
-      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info )))
-      .exitCode
+    val logger = MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info ))
+    val ldap : ZLayer[zio.ZEnv,Nothing,Has[ResPool.Service[ LDAPConnection]]] 
+               = ResPool.make[LDAPConnection](  AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close )
+
+    val my_layers = logger ++ ldap
+
+    myHttp.run(myHttpRouter.route).provideSomeLayer[ZEnv]( my_layers ).exitCode
+
   }
 }
