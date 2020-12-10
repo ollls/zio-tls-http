@@ -6,7 +6,7 @@ ResPool[] uses short lived connection, con will be closed in 10 sec if not used.
         case GET -> Root / "ldap" =>
                 for {
                         con  <- ResPool.acquire[LDAPConnection] 
-                        res  <- AsyncLDAP.asearch( con, "o=company.com", "uid=userid")
+                        res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=userid")
                         _    <- ResPool.release[LDAPConnection] ( con )
                 } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
 
