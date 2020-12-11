@@ -2,7 +2,6 @@
 
 * dev_svc branch has new environments ResPool[] and ResPoolGroup[], used with LDAPConnecton from Unbound LDAP SDK with async ZIO binding.
 ResPool[] uses short lived connection, con will be closed in 10 sec if not used. This way you get conection pool with reliable recovery.
-( We will create ResPool2 type facade to support second environment with the same type parameter also small HttpClient for ResPoll is coming )
 
 
         case GET -> Root / "ldap" =>
