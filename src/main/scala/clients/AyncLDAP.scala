@@ -17,10 +17,10 @@ import zio.IO
 
 object AsyncLDAP {
 
-   var HOST =  "localhost"
-   var PORT =  636
-   var BIND_DN = "cn=directory manager"
-   var PWD     = "password"
+  var HOST    = "localhost"
+  var PORT    = 636
+  var BIND_DN = "cn=directory manager"
+  var PWD     = "password"
 
   def ldap_con_ssl() = {
     //println("new ldap con")
@@ -28,31 +28,30 @@ object AsyncLDAP {
     val sslSocketFactory = sslUtil.createSSLSocketFactory();
     val lc               = new LDAPConnection(sslSocketFactory);
 
-    lc.connect( HOST, PORT )
-    lc.bind( BIND_DN, PWD )
+    lc.connect(HOST, PORT)
+    lc.bind(BIND_DN, PWD)
 
     lc
   }
 
-  def ldap_con_close(c: LDAPConnection) = {  /*println("ldap con close");*/  c.close() }
+  def ldap_con_close(c: LDAPConnection) = /*println("ldap con close");*/ c.close()
 
   def a_search(c: LDAPConnection, baseDN: String, filter: String) =
-    IO.effectAsync[Exception, Chunk[SearchResultEntry]]( cb => {
+    IO.effectAsync[Exception, Chunk[SearchResultEntry]](cb => {
 
-      val listener = new AsyncSearchResultListener 
-       {
-            var results = Chunk[SearchResultEntry]()
-            /////////////////////////
-             def searchResultReceived(reqId: AsyncRequestID, searchRes: SearchResult) =
-                cb(IO.effectTotal(results))
-            /////////////////////////  
-            def searchEntryReturned(searchEntry: SearchResultEntry) =
-                results = results ++ Chunk(searchEntry)
-            ////////////////////////  
-            def searchReferenceReturned(searchReference: SearchResultReference) = {}
+      val listener = new AsyncSearchResultListener {
+        var results = Chunk[SearchResultEntry]()
+        /////////////////////////
+        def searchResultReceived(reqId: AsyncRequestID, searchRes: SearchResult) =
+          cb(IO.effectTotal(results))
+        /////////////////////////
+        def searchEntryReturned(searchEntry: SearchResultEntry) =
+          results = results ++ Chunk(searchEntry)
+        ////////////////////////
+        def searchReferenceReturned(searchReference: SearchResultReference) = {}
       }
 
-      c.asyncSearch(new SearchRequest( listener , baseDN, SearchScope.SUB, filter, "uid", "cn"))
+      c.asyncSearch(new SearchRequest(listener, baseDN, SearchScope.SUB, filter, "uid", "cn"))
 
     })
 
