@@ -7,6 +7,11 @@ https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
 *To support many environmenments, please keep environment alias MyEnv updated accordingly.
 https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/server/package.scala*
 
+Example:
+
+      type MyEnv = MyLogging with ResPoolGroup[LDAPConnection]
+
+
 * Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
 
 * Switched to MyEnv alias. All environments are avialble in the app routes.
