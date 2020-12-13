@@ -95,7 +95,7 @@ Server has two types of application routes, so called: channel routes and app ro
 Performance tests are under way, but expectation is that on core i9 machine, simple JSON encoding GET call can be done in up to 20 000 TPS. 
 
 ## JSON encoding.
-It uses https://github.com/plokhotnyuk/jsoniter-scala
+It uses https://github.com/plokhotnyuk/jsoniter-scala  ( now with ZIO-JSON )
 
 HTTP Request has
 
