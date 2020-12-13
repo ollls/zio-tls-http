@@ -1,5 +1,9 @@
 # Update history.
 
+* Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
+  Original example MyServer cluttered with to many use cases.
+https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
+
 * Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
 
 * Switched to MyEnv alias. All environments are avialble in the app routes.
