@@ -3,7 +3,7 @@
 * dev_svc tested ResPoolGroup, connection pool for ZIO environment: support many resources of the same type, with access by name.
   Example:
 
-          val ldap2 : ZLayer[zio.ZEnv with MyLogging.MyLogging,Nothing,Has[ResPoolGroup.Service[LDAPConnection]]]= ResPoolGroup.make[LDAPConnection]( 
+          val ldap2 : ZLayer[zio.ZEnv with MyLogging,Nothing,Has[ResPoolGroup.Service[LDAPConnection]]]= ResPoolGroup.make[LDAPConnection]( 
                      ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close, "ldap_pool"),
                      ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl2, AsyncLDAP.ldap_con_close2, "temp_pool" ) ) 
                      
