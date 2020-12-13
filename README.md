@@ -9,7 +9,7 @@ https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/server/package.
 
 Example:
 
-      type MyEnv = MyLogging with ResPoolGroup[LDAPConnection]
+      type MyEnv = MyLogging with ResPool[LDAPConnection]
 
 
 * Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
