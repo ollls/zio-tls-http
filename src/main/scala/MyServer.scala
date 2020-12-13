@@ -3,6 +3,7 @@ package example
 import zio.ZIO
 import zio.ZEnv
 import zhttp._
+import zhttp.dsl._
 
 import java.time.ZonedDateTime
 
