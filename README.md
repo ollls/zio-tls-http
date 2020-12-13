@@ -19,7 +19,7 @@ LOG ROTATION SUPPORT.
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
-![alt text](https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala)
+![alt text](https://github.com/ollls/zio-tls-http/blob/master/Screenshot.jpg)
 
 
 Your comments or questions appreciated, please ask at
