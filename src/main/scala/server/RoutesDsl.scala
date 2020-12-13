@@ -1,5 +1,6 @@
-package zhttp
+package zhttp.dsl
 
+import zhttp._
 import scala.util.Try
 import java.net.URI
 

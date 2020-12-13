@@ -103,11 +103,17 @@ object MyLogging {
   }
 
   trait Service {
-    def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit]
+    def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit]
   }
 
   def log(name: String, lvl: LogLevel, msg: String): ZIO[ ZEnv with MyLogging, Exception, Unit] =
     ZIO.accessM[ZEnv with MyLogging](logenv => logenv.asInstanceOf[MyLogging].get.log(name, lvl, msg ) ) 
+
+ def logService: ZIO[ ZEnv with MyLogging, Exception, MyLogging.Service] =
+ {
+      ZIO.access[ZEnv with MyLogging]( logenv => logenv.asInstanceOf[MyLogging].get )
+ }   
+ 
 
   def info(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     log(name, LogLevel.Info, msg)
@@ -179,7 +185,6 @@ object MyLogging {
     effectBlocking(logs.foreach(rec => rec._2.log.close())).catchAll(_ => IO.unit)
 
   def make(log_names: (String, LogLevel)*): ZLayer[ZEnv, Throwable, Has[MyLogging.Service]] = {
-
     val managedObj = open_logs(log_names).toManaged(close_logs).flatMap { logs =>
       ZQueue
         //with unbounded queue you won't lose a single record, but with stress test it grows up to 10-15 min delay and more
@@ -188,11 +193,11 @@ object MyLogging {
         //.unbounded[(String, LogLevel, String, OffsetDateTime)]   //<--- uncomment for unlimited, no loss queue
         .dropping[(String, LogLevel, String, OffsetDateTime)]( 5000 )
         .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4 )).forever.forkDaemon)
-        .toManaged(c => { c.shutdown })
+        .toManaged(c => c.shutdown )
         .map(
           q =>
             new Service {
-              override def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
+              override def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit] =
               {
                 for {
                  time <-  currentDateTime.orDie 
