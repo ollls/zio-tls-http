@@ -76,7 +76,7 @@ object ServerExample extends zio.App {
       case GET -> Root / "service" / "users" / StringVar(uid)  =>
         for {
           con <- ResPool.acquire[LDAPConnection]
-          res <- AsyncLDAP.a_search(con, "o=intuit.com", s"uid=$uid", ATTRIBUTES : _* )
+          res <- AsyncLDAP.a_search(con, "o=company.com", s"uid=$uid", ATTRIBUTES : _* )
           _   <- ResPool.release[LDAPConnection](con)
      
 
