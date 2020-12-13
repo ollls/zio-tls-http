@@ -1,5 +1,7 @@
 # Update history.
 
+## Client connections resource pools.
+
 * dev_svc tested ResPoolGroup, connection pool for ZIO environment: support many resources of the same type, with access by name.
   Example:
 
