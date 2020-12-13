@@ -39,6 +39,7 @@ class TLSServer {
       _    <- MyLogging.info( "console", "Listens: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms")
 
       executor <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.asECES)
+      //executor2 <- IO( java.util.concurrent.Executors.newCachedThreadPool() )
 
       ssl_context <- buildSSLContext(TLS_PROTO, KEYSTORE_PATH, KEYSTORE_PASSWORD)
 

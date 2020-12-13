@@ -23,7 +23,6 @@ object AsyncLDAP {
   var PWD     = "password"
 
   def ldap_con_ssl() = {
-    //println("new ldap con")
     val sslUtil          = new SSLUtil(new TrustAllTrustManager());
     val sslSocketFactory = sslUtil.createSSLSocketFactory();
     val lc               = new LDAPConnection(sslSocketFactory);
@@ -34,7 +33,7 @@ object AsyncLDAP {
     lc
   }
 
-  def ldap_con_close(c: LDAPConnection) = /*println("ldap con close");*/ c.close()
+  def ldap_con_close(c: LDAPConnection) = { /*println("ldap con close");*/ c.close() }
 
   def a_search(c: LDAPConnection, baseDN: String, filter: String) =
     IO.effectAsync[Exception, Chunk[SearchResultEntry]](cb => {

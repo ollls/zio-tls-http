@@ -1,9 +1,9 @@
-/target
-/project
-/logs
-/.bloop
-/.metals
-/lib_managed
+target
+project
+logs
+.bloop
+.metals
+lib_managed
 .log
 .db
 *.json

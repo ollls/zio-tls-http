@@ -19,6 +19,10 @@ import com.unboundid.ldap.sdk.LDAPConnection
 
 import com.unboundid.ldap.sdk.SearchResultEntry
 
+import zhttp.clients._
+
+import MyLogging.MyLogging
+
 
 object param1 extends QueryParam("param1")
 
@@ -144,14 +148,33 @@ object myServer extends zio.App {
 
     val app_route_JSON = HttpRoutes.ofWithFilter(proc1) { 
 
+      case GET -> Root / "eiam-edgv2" / "v1" / "json" =>
+            ZIO(Response.Ok.asJsonBody( DataBlock("Thomas", "1001 Dublin Blvd", Chunk( "red", "blue", "green" ) ) ) )
+
+      case GET -> Root / "eiam-edgv2" / "health" =>
+           ZIO(Response.Ok.asTextBody( "Health Check Ok" ) )
+
        case GET -> Root / "test2" =>
          ZIO(Response.Ok.asTextBody( "Health Check" ) )
 
+
+      case GET -> Root / "ldap2" =>
+        for {
+          //con  <- ZIO.effect( AsyncLDAP.ldap_con_ssl() ) 
+          con  <- ResPoolGroup.acquire[LDAPConnection]( "temp_pool")
+          res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=user1")
+          // _    <- ZIO.effect( AsyncLDAP.ldap_con_close( con ) ) 
+          _    <- ResPoolGroup.release[LDAPConnection] ( "temp_pool", con  )
+        } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
+
+
         case GET -> Root / "ldap" =>
         for {
-          con  <- ResPool.acquire[LDAPConnection] 
-          res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=userid")
-          _    <- ResPool.release[LDAPConnection] ( con )
+          //con  <- ZIO.effect( AsyncLDAP.ldap_con_ssl() ) 
+          con  <- ResPoolGroup.acquire[LDAPConnection]( "ldap_pool")
+          res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=user2")
+          // _    <- ZIO.effect( AsyncLDAP.ldap_con_close( con ) ) 
+          _    <- ResPoolGroup.release[LDAPConnection] ( "ldap_pool", con  )
         } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
         
        case GET -> Root / "test" =>
@@ -214,7 +237,7 @@ object myServer extends zio.App {
     myHttpRouter.addAppRoute( ws_route2 )
 
     AsyncLDAP.HOST    =  "localhost"
-    AsyncLDAP.PORT    =  636
+    AsyncLDAP.PORT    =  2636
     AsyncLDAP.BIND_DN = "cn=directory manager"
     AsyncLDAP.PWD     = "password"
  
@@ -222,18 +245,23 @@ object myServer extends zio.App {
     //server
     myHttp.KEYSTORE_PATH = "keystore.jks"
     myHttp.KEYSTORE_PASSWORD = "password"
+   
     myHttp.TLS_PROTO = "TLSv1.2"         //default TLSv1.2 in JDK8
     myHttp.BINDING_SERVER_IP = "0.0.0.0" //make sure certificate has that IP on SAN's list
     myHttp.KEEP_ALIVE = 2000             //ms, good if short for testing with broken site's snaphosts with 404 pages
     myHttp.SERVER_PORT = 8084
 
     val logger = MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info ))
-    val ldap : ZLayer[zio.ZEnv,Nothing,Has[ResPool.Service[ LDAPConnection]]] 
-               = ResPool.make[LDAPConnection](  AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close )
 
-    val my_layers = logger ++ ldap
+    //val ldap : ZLayer[zio.ZEnv,Nothing,Has[ResPool.Service[ LDAPConnection]]] 
+              // = ResPool.make[LDAPConnection](  AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close )
 
-    myHttp.run(myHttpRouter.route).provideSomeLayer[ZEnv]( my_layers ).exitCode
+    val ldap2 : ZLayer[zio.ZEnv with MyLogging.MyLogging,Nothing,Has[ResPoolGroup.Service[LDAPConnection]]]= ResPoolGroup.make[LDAPConnection]( 
+                     ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close, "ldap_pool"),
+                     ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close, "temp_pool" ) ) 
+               
+
+    myHttp.run(myHttpRouter.route).provideSomeLayer[ZEnv with MyLogging]( ldap2 ).provideSomeLayer[ZEnv]( logger ).exitCode
 
   }
 }

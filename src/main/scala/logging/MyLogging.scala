@@ -103,11 +103,17 @@ object MyLogging {
   }
 
   trait Service {
-    def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit]
+    def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit]
   }
 
   def log(name: String, lvl: LogLevel, msg: String): ZIO[ ZEnv with MyLogging, Exception, Unit] =
     ZIO.accessM[ZEnv with MyLogging](logenv => logenv.asInstanceOf[MyLogging].get.log(name, lvl, msg ) ) 
+
+ def logService: ZIO[ ZEnv with MyLogging, Exception, MyLogging.Service] =
+ {
+      ZIO.access[ZEnv with MyLogging]( logenv => logenv.asInstanceOf[MyLogging].get )
+ }   
+ 
 
   def info(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     log(name, LogLevel.Info, msg)
@@ -191,7 +197,7 @@ object MyLogging {
         .map(
           q =>
             new Service {
-              override def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
+              override def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit] =
               {
                 for {
                  time <-  currentDateTime.orDie 
