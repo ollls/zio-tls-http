@@ -1,4 +1,24 @@
-PLEASE USE MASTER BRANCH, IT's DEFAULT NOW with ZIO-JSON
+# Update history.
+
+* dev_svc branch has new environments ResPool[] and ResPoolGroup[], used with LDAPConnecton from Unbound LDAP SDK with async ZIO binding.
+ResPool[] uses short lived connection, con will be closed in 10 sec if not used. This way you get conection pool with reliable recovery.
+
+
+        case GET -> Root / "ldap" =>
+                for {
+                        con  <- ResPool.acquire[LDAPConnection] 
+                        res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=userid")
+                        _    <- ResPool.release[LDAPConnection] ( con )
+                } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
+
+^Can be used as example how to do ZIO Env with type parameters. ( you will need some Izumi's zio.tag to make it work, Java type earsure blocks nested types, and Has[] was made invariant, so no way, thanks to Tag[] there is a solution)
+
+https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/ResPool.scala
+
+
+* Switched to MyEnv alias. All environments are avialble in the app routes.
+To add new environment just use MyEnv alias.
+
 
 LOG ROTATION SUPPORT.
 
@@ -54,7 +74,7 @@ val quick_req = HttpRoutes.of {
 }
 ```    
     
-### Chunked transfer encoding in not supported.   
+### chunked transfer encoding in not supported.   
 
 ### multipart/form-data is not supported.
 ^*Hacking is encourged to address those things, if any interest ...*
