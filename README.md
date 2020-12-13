@@ -1,38 +1,6 @@
 # Update history.
 
-## Client connections resource pools.
-
-* dev_svc tested ResPoolGroup, connection pool for ZIO environment: support many resources of the same type, with access by name.
-  Example:
-
-          val ldap2 : ZLayer[zio.ZEnv with MyLogging,Nothing,Has[ResPoolGroup.Service[LDAPConnection]]]= ResPoolGroup.make[LDAPConnection]( 
-                     ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close, "ldap_pool"),
-                     ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl2, AsyncLDAP.ldap_con_close2, "temp_pool" ) ) 
-                     
-   Usage:
-   
-          case GET -> Root / "ldap" =>
-          for {
-              con  <- ResPoolGroup.acquire[LDAPConnection]( "ldap_pool")
-              res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=user2")
-              _    <- ResPoolGroup.release[LDAPConnection] ( "ldap_pool", con  )
-           } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
-
-* dev_svc branch has new environments ResPool[] and ResPoolGroup[], used with LDAPConnecton from Unbound LDAP SDK with async ZIO binding.
-ResPool[] uses short lived connection, con will be closed in 10 sec if not used. This way you get conection pool with reliable recovery.
-
-
-        case GET -> Root / "ldap" =>
-                for {
-                        con  <- ResPool.acquire[LDAPConnection] 
-                        res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=userid")
-                        _    <- ResPool.release[LDAPConnection] ( con )
-                } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
-
-^Can be used as example how to do ZIO Env with type parameters. ( you will need some Izumi's zio.tag to make it work, Java type earsure blocks nested types, and Has[] was made invariant)
-
-https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/ResPool.scala
-
+* Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
 
 * Switched to MyEnv alias. All environments are avialble in the app routes.
 To add new environment just use MyEnv alias.
@@ -399,6 +367,40 @@ val raw_route = HttpRoutes.of { req: Request =>
   }
 }
 ```
+
+
+## Client connections resource pools.
+
+* dev_svc tested ResPoolGroup, connection pool for ZIO environment: support many resources of the same type, with access by name.
+  Example:
+
+          val ldap2 : ZLayer[zio.ZEnv with MyLogging,Nothing,Has[ResPoolGroup.Service[LDAPConnection]]]= ResPoolGroup.make[LDAPConnection]( 
+                     ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close, "ldap_pool"),
+                     ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl2, AsyncLDAP.ldap_con_close2, "temp_pool" ) ) 
+                     
+   Usage:
+   
+          case GET -> Root / "ldap" =>
+          for {
+              con  <- ResPoolGroup.acquire[LDAPConnection]( "ldap_pool")
+              res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=user2")
+              _    <- ResPoolGroup.release[LDAPConnection] ( "ldap_pool", con  )
+           } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
+
+* dev_svc branch has new environments ResPool[] and ResPoolGroup[], used with LDAPConnecton from Unbound LDAP SDK with async ZIO binding.
+ResPool[] uses short lived connection, con will be closed in 10 sec if not used. This way you get conection pool with reliable recovery.
+
+
+        case GET -> Root / "ldap" =>
+                for {
+                        con  <- ResPool.acquire[LDAPConnection] 
+                        res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=userid")
+                        _    <- ResPool.release[LDAPConnection] ( con )
+                } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
+
+^Can be used as example how to do ZIO Env with type parameters. ( you will need some Izumi's zio.tag to make it work, Java type earsure blocks nested types, and Has[] was made invariant)
+
+https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/ResPool.scala
 
 ## Websocket support. ( intial proof of concept, test implementation )
 
