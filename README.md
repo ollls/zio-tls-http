@@ -1,7 +1,7 @@
 # Update history.
 
 * Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
-  Original example MyServer cluttered with to many use cases.
+  Original example MyServer cluttered with too many use cases.
 https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
 
 *To support many environmenments, please keep environment alias MyEnv updated accordingly.
