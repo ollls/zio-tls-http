@@ -10,6 +10,8 @@ object ResponseWriters {
 
   final val TAG = "zio-nio-tls-http"
 
+  final val CRLF = "\r\n"
+
 ////////////////////////////////////////////////////////////////////////////
   def writeNoBodyResponse(
     c: Channel,
@@ -90,18 +92,18 @@ object ResponseWriters {
 
     val r = new StringBuilder
 
-    r ++= "HTTP/1.1 " + code.value.toString + "\n"
-    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT\n"
-    r ++= "Server: " + TAG + "\n"
-    r ++= "Content-Length: " + msg.length + "\n"
+    r ++= "HTTP/1.1 " + code.value.toString + CRLF
+    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT" + CRLF
+    r ++= "Server: " + TAG + CRLF
+    r ++= "Content-Length: " + msg.length + CRLF
 
-    resp.headers.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + "\n" }
+    resp.headers.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
 
     if (close)
-      r ++= "Connection: close\n"
+      r ++= "Connection: close" + CRLF
     else
-      r ++= "Connection: keep-alive\n"
-    r ++= "\n"
+      r ++= "Connection: keep-alive" + CRLF
+    r ++= CRLF
 
     r ++= msg
 
@@ -116,15 +118,15 @@ object ResponseWriters {
 
     val r = new StringBuilder
 
-    r ++= "HTTP/1.1 " + code.value.toString + "\n"
-    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT\n"
-    r ++= "Server: " + TAG + "\n"
-    r ++= "Content-Length: " + msg.length + "\n"
+    r ++= "HTTP/1.1 " + code.value.toString + CRLF
+    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT" + CRLF
+    r ++= "Server: " + TAG + CRLF
+    r ++= "Content-Length: " + msg.length + CRLF
     if (close)
-      r ++= "Connection: close\n"
+      r ++= "Connection: close" + CRLF
     else
-      r ++= "Connection: keep-alive\n"
-    r ++= "\n"
+      r ++= "Connection: keep-alive" + CRLF
+    r ++= CRLF
 
     r ++= msg
 
@@ -139,12 +141,12 @@ object ResponseWriters {
 
     val r = new StringBuilder
 
-    r ++= "HTTP/1.1 415 Unsupported Media Type\n"
-    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT\n"
-    r ++= "Server: " + TAG + "\n"
-    r ++= "Content-Length: 0\n"
-    r ++= "Connection: keep-alive\n"
-    r ++= "\n"
+    r ++= "HTTP/1.1 415 Unsupported Media Type" + CRLF
+    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT" + CRLF
+    r ++= "Server: " + TAG + CRLF
+    r ++= "Content-Length: 0" + CRLF
+    r ++= "Connection: keep-alive" + CRLF
+    r ++= CRLF
 
     r.toString()
   }
@@ -158,14 +160,14 @@ object ResponseWriters {
 
     val r = new StringBuilder
 
-    r ++= "HTTP/1.1 303 Redirect\n"
-    r ++= "Location: " + location + "\n"
-    r ++= "Cache-Control: no-cache, no-store, must-revalidate\n"
-    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT\n"
-    r ++= "Server: " + TAG + "\n"
-    r ++= "Content-Length: 0\n"
-    r ++= "Connection: keep-alive\n"
-    r ++= "\n"
+    r ++= "HTTP/1.1 303 Redirect" + CRLF
+    r ++= "Location: " + location + CRLF
+    r ++= "Cache-Control: no-cache, no-store, must-revalidate" + CRLF
+    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT" + CRLF
+    r ++= "Server: " + TAG + CRLF
+    r ++= "Content-Length: 0" + CRLF
+    r ++= "Connection: keep-alive" + CRLF
+    r ++= CRLF
 
     r.toString()
 
@@ -180,14 +182,13 @@ object ResponseWriters {
 
     val r = new StringBuilder
 
-    r ++= "HTTP/1.1 405 Method not allowed\n"
-    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT\n"
-    r ++= "Server: " + TAG + "\n"
-    //r ++= "Content-Type: " + contType + "\n"
-    r ++= "Allow: " + allow + "\n"
-    r ++= "Content-Length: 0\n"
-    r ++= "Connection: keep-alive\n"
-    r ++= "\n"
+    r ++= "HTTP/1.1 405 Method not allowed" + CRLF
+    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT" + CRLF
+    r ++= "Server: " + TAG + CRLF
+    r ++= "Allow: " + allow + CRLF
+    r ++= "Content-Length: 0" + CRLF
+    r ++= "Connection: keep-alive" + CRLF
+    r ++= CRLF
 
     r.toString()
   }
@@ -204,13 +205,13 @@ object ResponseWriters {
 
     val r = new StringBuilder
 
-    r ++= "HTTP/1.1 200 OK\n"
-    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT\n"
-    r ++= "Server: " + TAG + "\n"
-    r ++= "Content-Type: " + cont_type + "\n"
-    r ++= "Content-Length: " + file_size + "\n"
-    r ++= "Connection: keep-alive\n"
-    r ++= "\n"
+    r ++= "HTTP/1.1 200 OK" + CRLF
+    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT" + CRLF
+    r ++= "Server: " + TAG + CRLF
+    r ++= "Content-Type: " + cont_type + CRLF
+    r ++= "Content-Length: " + file_size + CRLF
+    r ++= "Connection: keep-alive" + CRLF
+    r ++= CRLF
 
     r.toString()
 
