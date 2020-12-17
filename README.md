@@ -1,5 +1,5 @@
 # Update history.
-* DEV branch only. Early prototype ( but tested with Jmetter) of embeded HTTPClient ( TLS only! ) with Connection Pooling.
+* DEV branch only. Early prototype ( but tested with Jmetter) of embeded HTTPClient, non-blocking, ZIO-NIO ( TLS only! ) with Connection Pooling.
 
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
 
