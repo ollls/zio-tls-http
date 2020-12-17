@@ -23,16 +23,22 @@ import zhttp.Headers
 import zhttp.ContentType
 import zhttp.Cookie
 
-
 sealed case class HttpConnectionError(msg: String)     extends Exception(msg)
 sealed case class HttpResponseHeaderError(msg: String) extends Exception(msg)
 
-case class ClientResponse( val hdrs : Headers, val code : String, body : Chunk[Byte] )
-{
-   def protocol = hdrs.get( "%prot" ).getOrElse("")
-   def httpString = code.toString + " " + hdrs.get( "%message" ).getOrElse("")
-   def bodyAsText = new String( body.toArray )
-} 
+case class ClientResponse(val hdrs: Headers, val code: String, body: Chunk[Byte]) {
+  def protocol    = hdrs.get("%prot").getOrElse("")
+  def httpString  = code.toString + " " + hdrs.get("%message").getOrElse("")
+  def isKeepAlive = hdrs.get("Connection").getOrElse("").equalsIgnoreCase("keep-alive")
+
+  def asText: String = new String(body.toArray)
+
+  def asObjfromJSON[A: JsonDecoder]: A =
+    new String(body.toArray).fromJson[A] match {
+      case Right(v) => v
+      case Left(v)  => throw new HttpConnectionError(s"JSON schema error: $v")
+    }
+}
 
 case class ClientRequest(
   val method: Method,
@@ -48,7 +54,7 @@ case class ClientRequest(
     body(Chunk.fromArray(json)).contentType(ContentType.JSON)
   }
 
-  def bodyAsText(body0: String): ClientRequest =
+  def asTextBody(body0: String): ClientRequest =
     body(Chunk.fromArray(body0.getBytes)).contentType(ContentType.Plain)
 
   def hdr(hdr: Headers): ClientRequest = new ClientRequest(this.method, this.path, hdrs ++ hdr, this.body)
@@ -70,45 +76,46 @@ object HttpConnection {
   val HTTP_HEADER_SZ          = 8096 * 2
   val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
 
-  def buildSSLContext(
-    protocol: String,
-    JKSkeystore: String,
-    password: String
-  ) = {
+  private def buildSSLContext(protocol: String, JKSkeystore: String, password: String) = {
+    val sslContext: SSLContext = SSLContext.getInstance(protocol)
 
-    val test = effectBlocking {
+    val keyStore: KeyStore = KeyStore.getInstance("JKS")
 
-      val sslContext: SSLContext = SSLContext.getInstance(protocol)
+    val ks = new java.io.FileInputStream(JKSkeystore)
 
-      val keyStore: KeyStore = KeyStore.getInstance("JKS")
+    if (ks == null) ZIO.fail(new java.io.FileNotFoundException(JKSkeystore + " keystore file not found."))
 
-      val ks = new java.io.FileInputStream(JKSkeystore)
+    keyStore.load(ks, password.toCharArray())
 
-      if (ks == null) ZIO.fail(new java.io.FileNotFoundException(JKSkeystore + " keystore file not found."))
+    val tmf: TrustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+    tmf.init(keyStore)
 
-      keyStore.load(ks, password.toCharArray())
+    val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
+    kmf.init(keyStore, password.toCharArray())
+    sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
 
-      val tmf: TrustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-      tmf.init(keyStore)
-
-      val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
-      kmf.init(keyStore, password.toCharArray())
-      sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-      sslContext
-    }
-
-    test.refineToOrDie[Exception]
-
+    sslContext
   }
 
-  def connectSSL( host: String, port: Int, trustKeystore: String = null, password: String = "" ): ZIO[zio.ZEnv, Exception, Channel] = {
+  private def buildSSLContextM(
+    protocol: String,
+    jKSkeystore: String,
+    password: String
+  ) = effectBlocking(buildSSLContext(protocol, jKSkeystore, password)).refineToOrDie[Exception]
+
+  private def connectSSL(
+    host: String,
+    port: Int,
+    trustKeystore: String = null,
+    password: String = ""
+  ): ZIO[zio.ZEnv, Exception, Channel] = {
     val T = for {
-      address <- SocketAddress.inetSocketAddress( host, port )
-      ssl_ctx <- if( trustKeystore == null ) effectBlocking( SSLContext.getDefault() ).refineToOrDie[Exception]
-                 else buildSSLContext("TLSv1.2", trustKeystore, password)
-      ch      <- AsynchronousSocketChannel()
-      _       <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
-      tls_ch  <- AsynchronousTlsByteChannel(ch, ssl_ctx)
+      address <- SocketAddress.inetSocketAddress(host, port)
+      ssl_ctx <- if (trustKeystore == null) effectBlocking(SSLContext.getDefault()).refineToOrDie[Exception]
+                else buildSSLContextM("TLSv1.2", trustKeystore, password)
+      ch     <- AsynchronousSocketChannel()
+      _      <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
+      tls_ch <- AsynchronousTlsByteChannel(ch, ssl_ctx)
     } yield (tls_ch)
 
     T.map(c => new TlsChannel(c))
@@ -117,17 +124,15 @@ object HttpConnection {
   def connect(url: String, trustKeystore: String, password: String) = {
     val u = new URI(url)
     (if (u.getScheme().equalsIgnoreCase("https")) {
-      connectSSL(u.getHost(),u.getPort, trustKeystore, password).map(new HttpConnection( u, _))
-    } else {
-      throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())
-    }).catchAll( e => ZIO.fail( new HttpConnectionError( e.toString() ) ) )
+       val ss = connectSSL(u.getHost(), u.getPort, trustKeystore, password).map(new HttpConnection(u, _))
+       ss
+     } else {
+       throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())
+     }).catchAll(e => ZIO.fail(new HttpConnectionError(e.toString())))
   }
-
 }
 
-
-class HttpConnection( val uri : URI, val ch: Channel) {
-
+class HttpConnection(val uri: URI, val ch: Channel) {
 
   final val CRLF = "\r\n"
 
@@ -150,57 +155,56 @@ class HttpConnection( val uri : URI, val ch: Channel) {
       resChunk  <- if (pos < 0) read_http_header(hdr_size, cb ++ nextChunk) else ZIO.effectTotal(cb ++ nextChunk)
     } yield (resChunk)
 
-
-
   private def getHTTPResponse = {
     val result = for {
       headerChunk <- read_http_header(HttpConnection.HTTP_HEADER_SZ)
-      source <- ZIO.effect(Source.fromBytes(headerChunk.toArray))
-      _      <- ZIO.effect(source.withPositioning(true))
-      lines  <- ZIO.effect(source.getLines())
-      _ <- if (lines.hasNext == false) ZIO.fail(new HttpResponseHeaderError( "no data") )
+      source      <- ZIO.effect(Source.fromBytes(headerChunk.toArray))
+      _           <- ZIO.effect(source.withPositioning(true))
+      lines       <- ZIO.effect(source.getLines())
+      _ <- if (lines.hasNext == false) ZIO.fail(new HttpResponseHeaderError("no data"))
           else ZIO.succeed(0).unit
-  
-       http_line = raw"(HTTP/.+)\s+(\d{3}+)(.*)".r 
 
-       headers0 <- lines.next match {
-                     case http_line( prot, code, emsg ) =>
-                       ZIO.effectTotal( Headers( "%prot" -> prot, "%code" -> code, "%mesage" -> emsg ) )
-                     case _ => ZIO.fail( new HttpResponseHeaderError( "bad response") )
+      http_line = raw"(HTTP/.+)\s+(\d{3}+)(.*)".r
 
-                   }
-       
-       attribute_pair = raw"(.{2,100}):\s+(.+)".r            
+      headers0 <- lines.next match {
+                   case http_line(prot, code, emsg) =>
+                     ZIO.effectTotal(Headers("%prot" -> prot, "%code" -> code, "%mesage" -> emsg))
+                   case _ => ZIO.fail(new HttpResponseHeaderError("bad response"))
 
-       headers <- ZIO.effect {
-                                   lines
-                                     .takeWhile(!_.isEmpty)
-                                     .foldLeft(  headers0 )((map, line) => {
+                 }
 
-                                       line match {
-                                         case attribute_pair(attr, value) => map + (attr.toLowerCase -> value)
-                                       }
+      attribute_pair = raw"(.{2,100}):\s+(.+)".r
 
-                                     })
-                                 }   
-                                 
-      pos0 = new String( headerChunk.toArray).indexOf("\r\n\r\n")
-      pos  = pos0 + 4         
-      
-      contentLen <-     if( pos0 == -1 )  ZIO.fail( new HttpResponseHeaderError( "bad response(2)") ) 
-                        else ZIO.effect {
-                          headers.get("content-length").getOrElse("0")
-                        }
+      headers <- ZIO.effect {
+                  lines
+                    .takeWhile(!_.isEmpty)
+                    .foldLeft(headers0)((map, line) => {
 
-      contentLenL <- ZIO.fromTry( Try( contentLen.toLong ) )
+                      line match {
+                        case attribute_pair(attr, value) => map + (attr.toLowerCase -> value)
+                      }
 
-       _  <- if ( contentLenL > HttpConnection.MAX_ALLOWED_CONTENT_LEN ) 
-                ZIO.fail( new HttpResponseHeaderError( "content len too big" ) )
-                else ZIO.unit  
+                    })
+                }
 
-      bodyChunk <- rd_loop2( contentLen.toInt, headerChunk.drop(pos))
- 
-    } yield ( ClientResponse( headers,  headers.get( "%code").get, bodyChunk ) )
+      pos0 = new String(headerChunk.toArray).indexOf("\r\n\r\n")
+      pos  = pos0 + 4
+
+      contentLen <- if (pos0 == -1) ZIO.fail(new HttpResponseHeaderError("bad response(2)"))
+                   else
+                     ZIO.effect {
+                       headers.get("content-length").getOrElse("0")
+                     }
+
+      contentLenL <- ZIO.fromTry(Try(contentLen.toLong))
+
+      _ <- if (contentLenL > HttpConnection.MAX_ALLOWED_CONTENT_LEN)
+            ZIO.fail(new HttpResponseHeaderError("content len too big"))
+          else ZIO.unit
+
+      bodyChunk <- rd_loop2(contentLen.toInt, headerChunk.drop(pos))
+
+    } yield (ClientResponse(headers, headers.get("%code").get, bodyChunk))
 
     result
   }
@@ -208,14 +212,14 @@ class HttpConnection( val uri : URI, val ch: Channel) {
   def close = ch.close
 
   ///////////////////////////////////////////////////////////////
-  def send(req: ClientRequest) : ZIO[zio.ZEnv,Throwable,ClientResponse] = {
+  def send(req: ClientRequest): ZIO[zio.ZEnv, Throwable, ClientResponse] = {
 
     val b = req.body.getOrElse(Chunk[Byte]())
     val r = new StringBuilder
 
     r ++= req.method.name + " " + req.path + " " + "HTTP/1.1" + CRLF
     r ++= "User-Agent: zio-tls-http-client" + CRLF
-    r ++= "Host: " + uri.getHost() + CRLF 
+    r ++= "Host: " + uri.getHost() + CRLF
     r ++= "Accept: */*" + CRLF
     r ++= "Content-Length: " + b.size + CRLF
     r ++= CRLF
@@ -228,7 +232,7 @@ class HttpConnection( val uri : URI, val ch: Channel) {
 
       data <- getHTTPResponse
 
-    } yield (data)).catchAll( e => ZIO.fail( new HttpConnectionError( e.toString() ) ) )
+    } yield (data)).catchAll(e => ZIO.fail(new HttpConnectionError(e.toString())))
 
   }
 }
