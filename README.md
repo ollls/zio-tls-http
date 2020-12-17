@@ -11,14 +11,11 @@ Key points:
 
 * Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
   Original example MyServer cluttered with too many use cases.
+  
 https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
 
-*To support many environmenments, please keep environment alias MyEnv updated accordingly.
-https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/server/package.scala*
 
-Example:
-
-      type MyEnv = MyLogging with ResPool[LDAPConnection]
+            package.scala must have type MyEnv = MyLogging with ResPool[LDAPConnection]
 
 
 * Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
