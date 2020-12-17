@@ -23,14 +23,6 @@ https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
 * Switched to MyEnv alias. All environments are avialble in the app routes.
 To add new environment just use MyEnv alias.
 
-
-LOG ROTATION SUPPORT.
-
-        object MyLogging {
-             val  MAX_LOG_FILE_SIZE = 1024 * 1024 * 10 //10M
-             val  MAX_NUMBER_ROTATED_LOGS = 4
-             ....
-
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
 ![alt text](https://github.com/ollls/zio-tls-http/blob/master/Screenshot.jpg)
