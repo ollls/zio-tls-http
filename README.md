@@ -4,8 +4,8 @@
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
 
 Key points:
-ResPool.TIME_TO_LIVE < KEEP_ALIVE on remote host
-package.scala must have  type MyEnv = MyLogging with ResPool[HttpConnection]
+* ResPool.TIME_TO_LIVE < KEEP_ALIVE on remote host
+* package.scala must have  type MyEnv = MyLogging with ResPool[HttpConnection]
 
 
 * Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
