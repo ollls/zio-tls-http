@@ -31,6 +31,7 @@ case class ClientResponse( val hdrs : Headers, val code : String, body : Chunk[B
 {
    def protocol = hdrs.get( "%prot" ).getOrElse("")
    def httpString = code.toString + " " + hdrs.get( "%message" ).getOrElse("")
+   def bodyAsText = new String( body.toArray )
 } 
 
 case class ClientRequest(
@@ -159,8 +160,7 @@ class HttpConnection( val uri : URI, val ch: Channel) {
       lines  <- ZIO.effect(source.getLines())
       _ <- if (lines.hasNext == false) ZIO.fail(new HttpResponseHeaderError( "no data") )
           else ZIO.succeed(0).unit
-
-       //http_line = raw"([A-Z]{3,8})\s+(.+)\s+(HTTP/.+)".r    
+  
        http_line = raw"(HTTP/.+)\s+(\d{3}+)(.*)".r 
 
        headers0 <- lines.next match {
@@ -185,7 +185,7 @@ class HttpConnection( val uri : URI, val ch: Channel) {
                                  }   
                                  
       pos0 = new String( headerChunk.toArray).indexOf("\r\n\r\n")
-      pos  = pos0 + 2         
+      pos  = pos0 + 4         
       
       contentLen <-     if( pos0 == -1 )  ZIO.fail( new HttpResponseHeaderError( "bad response(2)") ) 
                         else ZIO.effect {
@@ -199,8 +199,7 @@ class HttpConnection( val uri : URI, val ch: Channel) {
                 else ZIO.unit  
 
       bodyChunk <- rd_loop2( contentLen.toInt, headerChunk.drop(pos))
-
-
+ 
     } yield ( ClientResponse( headers,  headers.get( "%code").get, bodyChunk ) )
 
     result
@@ -223,13 +222,13 @@ class HttpConnection( val uri : URI, val ch: Channel) {
 
     req.hdrs.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
 
-    for {
+    (for {
       _ <- ch.write(Chunk.fromArray(r.toString.getBytes))
       _ <- if (req.body.isDefined) ch.write(req.body.get) else ZIO.unit
 
       data <- getHTTPResponse
 
-    } yield (data)
+    } yield (data)).catchAll( e => ZIO.fail( new HttpConnectionError( e.toString() ) ) )
 
   }
 }
