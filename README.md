@@ -1,4 +1,22 @@
-PLEASE USE MASTER BRANCH, IT's DEFAULT NOW with ZIO-JSON
+# Update history.
+
+* Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
+  Original example MyServer cluttered with too many use cases.
+https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
+
+*To support many environmenments, please keep environment alias MyEnv updated accordingly.
+https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/server/package.scala*
+
+Example:
+
+      type MyEnv = MyLogging with ResPool[LDAPConnection]
+
+
+* Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
+
+* Switched to MyEnv alias. All environments are avialble in the app routes.
+To add new environment just use MyEnv alias.
+
 
 LOG ROTATION SUPPORT.
 
@@ -9,7 +27,7 @@ LOG ROTATION SUPPORT.
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
-![alt text](https://github.com/ollls/zio-tls-http/blob/main/Screenshot.jpg?raw=true)
+![alt text](https://github.com/ollls/zio-tls-http/blob/master/Screenshot.jpg)
 
 
 Your comments or questions appreciated, please ask at
@@ -54,7 +72,7 @@ val quick_req = HttpRoutes.of {
 }
 ```    
     
-### Chunked transfer encoding in not supported.   
+### chunked transfer encoding in not supported.   
 
 ### multipart/form-data is not supported.
 ^*Hacking is encourged to address those things, if any interest ...*
@@ -85,7 +103,7 @@ Server has two types of application routes, so called: channel routes and app ro
 Performance tests are under way, but expectation is that on core i9 machine, simple JSON encoding GET call can be done in up to 20 000 TPS. 
 
 ## JSON encoding.
-It uses https://github.com/plokhotnyuk/jsoniter-scala
+It uses https://github.com/plokhotnyuk/jsoniter-scala  ( now with ZIO-JSON )
 
 HTTP Request has
 
@@ -361,6 +379,40 @@ val raw_route = HttpRoutes.of { req: Request =>
   }
 }
 ```
+
+
+## Client connections resource pools.
+
+* dev_svc tested ResPoolGroup, connection pool for ZIO environment: support many resources of the same type, with access by name.
+  Example:
+
+          val ldap2 : ZLayer[zio.ZEnv with MyLogging,Nothing,Has[ResPoolGroup.Service[LDAPConnection]]]= ResPoolGroup.make[LDAPConnection]( 
+                     ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close, "ldap_pool"),
+                     ResPoolGroup.RPD( AsyncLDAP.ldap_con_ssl2, AsyncLDAP.ldap_con_close2, "temp_pool" ) ) 
+                     
+   Usage:
+   
+          case GET -> Root / "ldap" =>
+          for {
+              con  <- ResPoolGroup.acquire[LDAPConnection]( "ldap_pool")
+              res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=user2")
+              _    <- ResPoolGroup.release[LDAPConnection] ( "ldap_pool", con  )
+           } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
+
+* dev_svc branch has new environments ResPool[] and ResPoolGroup[], used with LDAPConnecton from Unbound LDAP SDK with async ZIO binding.
+ResPool[] uses short lived connection, con will be closed in 10 sec if not used. This way you get conection pool with reliable recovery.
+
+
+        case GET -> Root / "ldap" =>
+                for {
+                        con  <- ResPool.acquire[LDAPConnection] 
+                        res  <- AsyncLDAP.a_search( con, "o=company.com", "uid=userid")
+                        _    <- ResPool.release[LDAPConnection] ( con )
+                } yield( Response.Ok.asJsonBody( res.map( c => c.getAttributeValue( "cn" ) ) ) )
+
+^Can be used as example how to do ZIO Env with type parameters. ( you will need some Izumi's zio.tag to make it work, Java type earsure blocks nested types, and Has[] was made invariant)
+
+https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/ResPool.scala
 
 ## Websocket support. ( intial proof of concept, test implementation )
 
