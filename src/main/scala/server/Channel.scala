@@ -18,6 +18,8 @@ trait Channel {
 
     def keepAlive( ms : Long ) : Unit
 
+    def close :  ZIO[ZEnv, Exception, Unit ]
+
 
 }
 
@@ -33,6 +35,8 @@ class TlsChannel( c : AsynchronousTlsByteChannel) extends Channel
     def remoteAddress = c.remoteAddress
 
     def keepAlive( ms : Long ) : Unit = c.keepAlive(ms).asInstanceOf[Unit]
+
+    def close = c.close
 
 
 }

@@ -221,7 +221,6 @@ class HttpRouter {
     } yield (resChunk)
 
   ////////////////////////////////////////////////////////////////
-  //assumption: HTTP_HEADER_SZ cannot be more then one TLS packet, which is 16 KB 
   private def getHTTPRequest(c: Channel, fetchBody: Boolean): ZIO[ZEnv, Exception, Request] = {
     val result = for {
 

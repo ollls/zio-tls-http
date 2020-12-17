@@ -22,10 +22,11 @@ sealed class TLSChannelError(msg: String) extends Exception(msg)
 
 object AsynchronousTlsByteChannel {
 
+  //no zmanaged on the client
   def apply(
     raw_ch: AsynchronousSocketChannel,
     sslContext: SSLContext
-  ): ZManaged[ZEnv, Exception, AsynchronousTlsByteChannel] = {
+  ): ZIO[ZEnv, Exception, AsynchronousTlsByteChannel] = {
     val open = for {
       ssl_engine <- IO.effect(new SSLEngine(sslContext.createSSLEngine()))
       _          <- ssl_engine.setUseClientMode(true)
@@ -34,7 +35,7 @@ object AsynchronousTlsByteChannel {
       r          <- IO.effect(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
     } yield (r)
 
-    ZManaged.make(open.refineToOrDie[Exception])(_.close)
+    open.refineToOrDie[Exception]
 
   }
 
