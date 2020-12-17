@@ -18,6 +18,8 @@ object Websocket {
 
 class Websocket(isClient: Boolean) {
 
+  final val CRLF = "\r\n"
+
   private val IN_J_BUFFER = java.nio.ByteBuffer.allocate(0xffff * 2) //64KB * 2
   private val frames      = new FrameTranscoder(isClient)
 
@@ -49,9 +51,9 @@ class Websocket(isClient: Boolean) {
   /////////////////////////////////////////////////////////////////////
   private def genWsResponse(resp: Response): String = {
     val r = new StringBuilder
-    r ++= "HTTP/1.1 101 Switching Protocols\n"
-    resp.headers.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + "\n" }
-    r ++= "\n"
+    r ++= "HTTP/1.1 101 Switching Protocols" + CRLF
+    resp.headers.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
+    r ++= CRLF
     val T = r.toString()
     T
   }
