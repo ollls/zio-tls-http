@@ -204,7 +204,7 @@ class HttpRouter {
 
     rd_proc(req.ch, contentLen.toInt, req.body).map(Request(req.headers, _, req.ch)).catchAll {
       case e => {
-        ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.BadRequest, "Invalid content length " + e.toString(), true) *>
+        ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.BadRequest, "Invalid content length", true) *>
           IO.fail(e)
       }
     }

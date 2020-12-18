@@ -20,9 +20,9 @@ sealed case class Request(headers: Headers, body: Chunk[Byte], ch: Channel) {
        case Right(v) => v
        case Left(v)  => throw new MediaEncodingError( s"JSON schema error: $v" )
      }
-
-     
-  }                              
+  }   
+  
+  def bodyAsText = new String( body.toArray ) 
                      
 }
 
