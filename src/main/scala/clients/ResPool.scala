@@ -49,9 +49,11 @@ object ResPool {
         MyLogging.log( "console", LogLevel.Trace, s"ResPoolM: closing resource on shutdown" )
          )  )
 
-     } yield( ZIO.unit ) 
-     
-     T.catchAll( e => ZIO.unit )
+     } yield( units ) 
+
+     val TT = T *> ZIO.unit
+    
+     TT.catchAll( e => ZIO.unit )
   }
 
   def makeService[R](q: zio.Queue[ResRec[R]], createResource: () => R, closeResource: (R) => Unit) =

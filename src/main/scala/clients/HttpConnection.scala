@@ -128,7 +128,7 @@ object HttpConnection {
        ss
      } else {
        throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())
-     }).catchAll(e => ZIO.fail(new HttpConnectionError(e.toString())))
+     }).catchAll(e => ZIO.fail(new HttpConnectionError( url + " " + e.toString())))
   }
 }
 
