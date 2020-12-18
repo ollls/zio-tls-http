@@ -51,7 +51,7 @@ To run in docker:
     https://localhost/test   JSON output example
     
     Use case examples:
-    https://github.com/ollls/zio-tls-http/blob/main/src/master/scala/MyServer.scala
+    https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/MyServer.scala
 
     
 Server will use self-signed SSL certificate, you will need to configure the browser to trust it.
@@ -59,7 +59,7 @@ Certificate resides in keystore.jks
 
 ## Quick points
 
-### Look at https://github.com/ollls/zio-tls-http/blob/main/src/master/scala/MyServer.scala
+### Look at https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/MyServer.scala
 Scroll to the bottom, you will see server startup code, then route initialization code and the actual routes ( scala partial function ) examples.
 
 ### Useful example of quick Routing shortcut, with reference to Request.
