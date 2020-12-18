@@ -128,13 +128,23 @@ object HttpConnection {
        ss
      } else {
        throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())
-     }).catchAll(e => ZIO.fail(new HttpConnectionError( url + " " + e.toString())))
+     }).catchAll(e => ZIO.fail(new HttpConnectionError(url + " " + e.toString())))
   }
 }
 
 class HttpConnection(val uri: URI, val ch: Channel) {
 
   final val CRLF = "\r\n"
+
+  private def rd_proc( contentLen: Int, bodyChunk: Chunk[Byte]) = {
+    var totalChunk = bodyChunk
+    val loop = for {
+      chunk <- if (contentLen > totalChunk.length) ch.read else ZIO.succeed(Chunk[Byte]())
+      _     <- ZIO.effectTotal { totalChunk = totalChunk ++ chunk }
+      //_     <- zio.console.putStrLn("read block, size= " + totalChunk.length)
+    } yield (totalChunk)
+    loop.repeatWhile(_.length < contentLen)
+  }
 
   private def rd_loop2(
     contentLen: Int,
@@ -202,7 +212,7 @@ class HttpConnection(val uri: URI, val ch: Channel) {
             ZIO.fail(new HttpResponseHeaderError("content len too big"))
           else ZIO.unit
 
-      bodyChunk <- rd_loop2(contentLen.toInt, headerChunk.drop(pos))
+      bodyChunk <- rd_proc(contentLen.toInt, headerChunk.drop(pos))
 
     } yield (ClientResponse(headers, headers.get("%code").get, bodyChunk))
 

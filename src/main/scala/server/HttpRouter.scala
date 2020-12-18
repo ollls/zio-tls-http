@@ -185,24 +185,26 @@ class HttpRouter {
   
     }
 
-  //TODO  expected size for read: contentLen = contentLen - bodyChunk.length
-  private def rd_loop2(
-    c: Channel,
-    contentLen: Int,
-    bodyChunk: Chunk[Byte]
-  ): ZIO[ZEnv, Exception, zio.Chunk[Byte]] =
-    if (contentLen > bodyChunk.length) {
-      c.read.flatMap(chunk => rd_loop2(c, contentLen, bodyChunk ++ chunk))
-    } else
-      IO.succeed(bodyChunk)
+
+  private def rd_proc( c: Channel, contentLen: Int, bodyChunk: Chunk[Byte] ) = 
+  {
+      var totalChunk = bodyChunk 
+      val loop = for {
+        chunk      <- if ( contentLen > totalChunk.length ) c.read else ZIO.succeed( Chunk[Byte]() )
+        _ <- ZIO.effectTotal{ totalChunk = totalChunk ++ chunk }
+       // _ <- zio.console.putStrLn( "read block, size= " + totalChunk.length + "cl = " + contentLen  )
+      } yield( totalChunk )
+      loop.repeatWhile(  _.length < contentLen  )
+  }
+
 
   ////////////////////////////////////////////////////////////////
   def finishBodyLoadForRequest(req: Request): ZIO[ZEnv, Exception, Request] = {
     val contentLen = req.headers.get("content-length").getOrElse("0")
 
-    rd_loop2(req.ch, contentLen.toInt, req.body).map(Request(req.headers, _, req.ch)).catchAll {
+    rd_proc(req.ch, contentLen.toInt, req.body).map(Request(req.headers, _, req.ch)).catchAll {
       case e => {
-        ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.BadRequest, "Invalid content length", true) *>
+        ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.BadRequest, "Invalid content length " + e.toString(), true) *>
           IO.fail(e)
       }
     }
@@ -273,7 +275,7 @@ class HttpRouter {
       _          <- if ( contentLenL > MAX_ALLOWED_CONTENT_LEN ) ZIO.fail( new ContentLenTooBig ) else ZIO.unit        
 
       bodyChunk <- if (fetchBody)
-                    rd_loop2(c, contentLen.toInt, firstChunk.drop(pos))
+                    rd_proc(c, contentLen.toInt, firstChunk.drop(pos))
                   else
                     IO.succeed {
                       firstChunk.drop(pos)
