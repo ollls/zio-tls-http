@@ -1,0 +1,19 @@
+
+
+We follow a simple model for all read and write operations.
+
+There is one read() function, it takes no parameters, it reads whatever is there or blocks asynchronously with keep-alive timeout.
+For TLS stream read() always read a single packet, so read() needs to be repeated to match content-length.
+In order to get content-length read() needs to be repeated until double CR is read or it fails if header size exceeds limit.
+The same true for regular reads it will fail if content-length is exceeding limit.
+The only exception is WebSockets, there we use low level readBuffer() which requires a byte buffer as a parameter. 
+
+The write() function is more advanced it takes a Chunk[Byte] and it splits into TLS packets.
+So, for basic operation (HTTP Request with text) there is no control over HTTP Chunk size, 
+it is TLS packet or less. 
+
+For file operations there is HTTP_CHUNK_SIZE, it can be made less or more then TLS packet size. If it's made more than TLS packet, TLS encoding will work with the whole big chunk at once, but it will split it anyway into smaller packets, each packet will be equal of standard TLS packet. If it's made less than TLS packets size, you will get many small TLS packets. 
+Clients like Insomnia displays packet size, so you can check for yourself.
+
+
+
