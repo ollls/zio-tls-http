@@ -1,4 +1,8 @@
 # Update history.
+
+Note on how stuff works.
+* https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
+
 * DEV branch only. Early prototype ( but tested with Jmetter) of embeded HTTPClient, non-blocking, ZIO-NIO ( TLS only! ) with Connection Pooling.
 
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
