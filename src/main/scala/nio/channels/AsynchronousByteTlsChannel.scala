@@ -52,10 +52,18 @@ object AsynchronousTlsByteChannel {
         _ match {
           case NEED_WRAP =>
             for {
+              //data to check in_buff to prevent unnecessary read, and let to process the rest wih sequential unwrap
+              pos_            <- in_buf.position
+              lim_            <- in_buf.limit
+              
               _               <- out_buf.clear
               result          <- ssl_engine.wrap(empty, out_buf)
               _               <- out_buf.flip
-              _               <- sequential_unwrap_flag.set(false)
+              //prevent reset to read if buffer has more data, now we can realy on underflow processing later
+              _               <- if ( pos_ > 0 && pos_ < lim_ ) IO.unit
+                                 else sequential_unwrap_flag.set(false)
+              
+        
               handshakeStatus <- raw_ch.writeBuffer(out_buf) *> IO.effect(result.getHandshakeStatus)
             } yield (handshakeStatus)
 
@@ -67,6 +75,8 @@ object AsynchronousTlsByteChannel {
                     _      <- in_buf.clear
                     _      <- out_buf.clear
                     _      <- raw_ch.readBuffer(in_buf)
+                     _     <- if ( n == -1 ) ZIO.fail( new TLSChannelError( "AsynchronousTlsByteChannel: no data to unwrap") )
+                              else ZIO.unit
                     _      <- in_buf.flip
                     _      <- sequential_unwrap_flag.set(true)
                     result <- ssl_engine.unwrap(in_buf, out_buf)
@@ -79,8 +89,7 @@ object AsynchronousTlsByteChannel {
                     lim <- in_buf.limit
 
                     hStat <- if (pos == lim) {
-                              IO(println("1" + pos + "  " + lim)) *> sequential_unwrap_flag.set(false) *> IO
-                                .succeed(NEED_UNWRAP)
+                              sequential_unwrap_flag.set(false) *> IO.succeed(NEED_UNWRAP)
                             } else {
                               for {
                                 r <- ssl_engine.unwrap(in_buf, out_buf)
