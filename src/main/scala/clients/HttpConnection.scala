@@ -232,9 +232,9 @@ class HttpConnection(val uri: URI, val ch: Channel) {
     r ++= "Host: " + uri.getHost() + CRLF
     r ++= "Accept: */*" + CRLF
     r ++= "Content-Length: " + b.size + CRLF
+    req.hdrs.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
     r ++= CRLF
 
-    req.hdrs.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
 
     (for {
       _ <- ch.write(Chunk.fromArray(r.toString.getBytes))
