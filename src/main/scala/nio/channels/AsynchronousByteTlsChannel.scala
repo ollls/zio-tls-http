@@ -74,8 +74,8 @@ object AsynchronousTlsByteChannel {
                   for {
                     _      <- in_buf.clear
                     _      <- out_buf.clear
-                    _      <- raw_ch.readBuffer(in_buf)
-                     _     <- if ( n == -1 ) ZIO.fail( new TLSChannelError( "AsynchronousTlsByteChannel: no data to unwrap") )
+                    n      <- raw_ch.readBuffer(in_buf)
+                    _     <- if ( n == -1 ) ZIO.fail( new TLSChannelError( "AsynchronousTlsByteChannel: no data to unwrap") )
                               else ZIO.unit
                     _      <- in_buf.flip
                     _      <- sequential_unwrap_flag.set(true)
