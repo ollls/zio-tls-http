@@ -1,13 +1,7 @@
 # Update history.
 
-* HttpClient on dev branch ( clients.HttpConnection ) looks stable ( underflow status gave me hard time, pls look at commit diff on dev). Anyone is wellcome to try.
-( we will need an auth filter ) for Http Client... this happens next year.
-Also, simple mem cache with LRU evictions on ZIO STM: "atomically { Queue, HashMap }" is coming next year.
-We have cool:ResPool[R] already. ( the idea was ported from working production system ).
+* HttpClient on dev branch ( clients.HttpConnection ) looks stable ( underflow status gave me hard time, pls look at commit diff on dev). Anyone is wellcome to try. ( we will need an auth filter ) for Http Client... this happens next year.
 Whoever is reading it, Happy Holidays and Happy New 2021.
-
-Personaly I think regular mutable Compare and Set or lock free Queue and HashMap is better then STM, 
-but I will start with STM implementation, should be very neat.
 
 Note on how stuff works.
 * https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
