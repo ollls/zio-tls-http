@@ -22,6 +22,8 @@ import java.security.KeyStore
 import zhttp.Headers
 import zhttp.ContentType
 import zhttp.Cookie
+import zhttp.MyLogging
+import zhttp.MyLogging.MyLogging
 
 sealed case class HttpConnectionError(msg: String)     extends Exception(msg)
 sealed case class HttpResponseHeaderError(msg: String) extends Exception(msg)
@@ -71,11 +73,15 @@ case class ClientRequest(
 
 }
 
+//Request to Request, enriched with headers
+case class FilterProc(run: ClientRequest => ClientRequest )
+
 object HttpConnection {
 
   val HTTP_HEADER_SZ          = 8096 * 2
   val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
-  val TLS_PROTOCOL_TAG            = "TLSv1.2"
+  val TLS_PROTOCOL_TAG        = "TLSv1.2"
+  val CLIENT_TAG              = "zio-tls-http"
 
   private def buildSSLContext(protocol: String, JKSkeystore: String, password: String) = {
     val sslContext: SSLContext = SSLContext.getInstance(protocol)
@@ -113,7 +119,7 @@ object HttpConnection {
     val T = for {
       address <- SocketAddress.inetSocketAddress(host, port)
       ssl_ctx <- if (trustKeystore == null) effectBlocking(SSLContext.getDefault()).refineToOrDie[Exception]
-                else buildSSLContextM( TLS_PROTOCOL_TAG, trustKeystore, password)
+                else buildSSLContextM(TLS_PROTOCOL_TAG, trustKeystore, password)
       ch     <- AsynchronousSocketChannel()
       _      <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
       tls_ch <- AsynchronousTlsByteChannel(ch, ssl_ctx)
@@ -122,11 +128,15 @@ object HttpConnection {
     T.map(c => new TlsChannel(c))
   }
 
-  def connect(url: String, trustKeystore: String = null, password: String = "") = {
-    val u = new URI(url)
-    val port = if ( u.getPort == -1 ) 443 else u.getPort
+  def connect( url: String, trustKeystore: String = null, password: String = "" ) 
+      = connectWithFilter( url, req => req, trustKeystore, password )
+
+  def connectWithFilter(url: String, filter: ClientRequest => ClientRequest,
+              trustKeystore: String = null, password: String = "") = {
+    val u    = new URI(url)
+    val port = if (u.getPort == -1) 443 else u.getPort
     (if (u.getScheme().equalsIgnoreCase("https")) {
-       val ss = connectSSL(u.getHost(), port, trustKeystore, password).map(new HttpConnection(u, _))
+       val ss = connectSSL(u.getHost(), port, trustKeystore, password).map(new HttpConnection(u, _, FilterProc( filter ) ))
        ss
      } else {
        throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())
@@ -134,11 +144,11 @@ object HttpConnection {
   }
 }
 
-class HttpConnection(val uri: URI, val ch: Channel) {
+class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc ) {
 
   final val CRLF = "\r\n"
 
-  private def rd_proc( contentLen: Int, bodyChunk: Chunk[Byte]) = {
+  private def rd_proc(contentLen: Int, bodyChunk: Chunk[Byte]) = {
     var totalChunk = bodyChunk
     val loop = for {
       chunk <- if (contentLen > totalChunk.length) ch.read else ZIO.succeed(Chunk[Byte]())
@@ -224,25 +234,39 @@ class HttpConnection(val uri: URI, val ch: Channel) {
   def close = ch.close
 
   ///////////////////////////////////////////////////////////////
-  def send(req: ClientRequest): ZIO[zio.ZEnv, Throwable, ClientResponse] = {
+  def send(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
 
-    val b = req.body.getOrElse(Chunk[Byte]())
-    val r = new StringBuilder
+    def parseRequest(req: ClientRequest) = ZIO.effect {
 
-    r ++= req.method.name + " " + req.path + " " + "HTTP/1.1" + CRLF
-    r ++= "User-Agent: zio-tls-http-client" + CRLF
-    r ++= "Host: " + uri.getHost() + CRLF
-    r ++= "Accept: */*" + CRLF
-    r ++= "Content-Length: " + b.size + CRLF
-    req.hdrs.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
-    r ++= CRLF
+      val b = req.body.getOrElse(Chunk[Byte]())
+      val r = new StringBuilder
 
+      r ++= req.method.name + " " + req.path + " " + "HTTP/1.1" + CRLF
+      r ++= "User-Agent: " + HttpConnection.CLIENT_TAG + CRLF
+      r ++= "Host: " + uri.getHost() + CRLF
+      r ++= "Accept: */*" + CRLF
+      r ++= "Content-Length: " + b.size + CRLF
+
+      req.hdrs.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
+
+      r ++= CRLF
+    }
 
     (for {
+      //potentially blocking, if you need to talk to OAUTH2 to propagate headers ...
+      req0 <- effectBlocking( filter.run(req) )
+      r    <- parseRequest(req0)
+
       _ <- ch.write(Chunk.fromArray(r.toString.getBytes))
+
+      _ <- MyLogging.trace( "client", "http >>>: " + req0.method + "  " + this.uri.toString() + " ;path = " + req.path )
+
       _ <- if (req.body.isDefined) ch.write(req.body.get) else ZIO.unit
 
       data <- getHTTPResponse
+
+      _ <- MyLogging.trace( "client", "http <<<: " + "http code = " + data.httpString + " " + 
+                            "bytes=" + data.hdrs.get( "content-length").getOrElse(0) + " text = " + data.asText.substring( 0, 30 ).replace( "\n", "") + " ... " )
 
     } yield (data)).catchAll(e => ZIO.fail(new HttpConnectionError(e.toString())))
 
