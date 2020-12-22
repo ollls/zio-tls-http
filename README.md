@@ -1,6 +1,6 @@
 # Update history.
 
-* HttpClient on dev branch ( clients.HttpConnection ) looks stable. Anyone is wellcome to try.
+* HttpClient on dev branch ( clients.HttpConnection ) looks stable ( underflow status gave me hard time, pls look at commit diff on dev). Anyone is wellcome to try.
 ( we will need an auth filter ) for Http Client... this happens next year.
 Also, simple mem cache with LRU evictions on ZIO STM: "atomically { Queue, HashMap }" is coming next year.
 We have cool:ResPool[R] already. ( the idea was ported from working production system ).
