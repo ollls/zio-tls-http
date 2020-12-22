@@ -1,6 +1,6 @@
 # Update history.
 
-* HttpClient: ( clients.HttpConnection ) looks stable. Anyone is wellcome to try.
+* HttpClient on dev branch ( clients.HttpConnection ) looks stable. Anyone is wellcome to try.
 
 Note on how stuff works.
 * https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
