@@ -266,7 +266,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc ) {
       data <- getHTTPResponse
 
       _ <- MyLogging.trace( "client", "http <<<: " + "http code = " + data.httpString + " " + 
-                            "bytes=" + data.hdrs.get( "content-length").getOrElse(0) + " text = " + data.asText.substring( 0, 30 ).replace( "\n", "") + " ... " )
+                            "bytes = " + data.hdrs.get( "content-length").getOrElse(0) + " text = " + data.asText.substring( 0, 30 ).replace( "\n", "") + " ... " )
 
     } yield (data)).catchAll(e => ZIO.fail(new HttpConnectionError(e.toString())))
 
