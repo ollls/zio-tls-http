@@ -75,6 +75,7 @@ object HttpConnection {
 
   val HTTP_HEADER_SZ          = 8096 * 2
   val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
+  val TLS_PROTOCOL_TAG            = "TLSv1.2"
 
   private def buildSSLContext(protocol: String, JKSkeystore: String, password: String) = {
     val sslContext: SSLContext = SSLContext.getInstance(protocol)
@@ -112,7 +113,7 @@ object HttpConnection {
     val T = for {
       address <- SocketAddress.inetSocketAddress(host, port)
       ssl_ctx <- if (trustKeystore == null) effectBlocking(SSLContext.getDefault()).refineToOrDie[Exception]
-                else buildSSLContextM("TLSv1.2", trustKeystore, password)
+                else buildSSLContextM( TLS_PROTOCOL_TAG, trustKeystore, password)
       ch     <- AsynchronousSocketChannel()
       _      <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
       tls_ch <- AsynchronousTlsByteChannel(ch, ssl_ctx)
@@ -121,10 +122,11 @@ object HttpConnection {
     T.map(c => new TlsChannel(c))
   }
 
-  def connect(url: String, trustKeystore: String, password: String) = {
+  def connect(url: String, trustKeystore: String = null, password: String = "") = {
     val u = new URI(url)
+    val port = if ( u.getPort == -1 ) 443 else u.getPort
     (if (u.getScheme().equalsIgnoreCase("https")) {
-       val ss = connectSSL(u.getHost(), u.getPort, trustKeystore, password).map(new HttpConnection(u, _))
+       val ss = connectSSL(u.getHost(), port, trustKeystore, password).map(new HttpConnection(u, _))
        ss
      } else {
        throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())
