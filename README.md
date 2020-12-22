@@ -4,7 +4,7 @@
 
             HttpConnection.connectWithFilter( "https://www.scala-lang.org:443/", r => r.hdr( "someheader", "1728.2222") )
 * HttpClient has separate logging. To get the log, please add "client" to log environment. ( without "client" it will work just fine, just no data captured ).
-Once again: this is flexible, use any named logs for your purposes.
+Feel free to use any named logs for your purposes.
             
             .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), 
                                                    ("access" -> LogLevel.Info ), 
