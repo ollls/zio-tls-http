@@ -3,7 +3,7 @@
 * dev branch: HttpClient can be used with connectWithFilter. Filter is executing on blocking pool ( to get OAUTH2 headers, etc... ).
 
             HttpConnection.connectWithFilter( "https://www.scala-lang.org:443/", r => r.hdr( "someheader", "1728.2222") )
-* HttpClient now had separate logging. To get the log, please add "client" to log environment.
+* HttpClient has separate logging. To get the log, please add "client" to log environment.
             
             .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), 
                                                    ("access" -> LogLevel.Info ), 
