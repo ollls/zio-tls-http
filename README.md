@@ -1,6 +1,16 @@
 # Update history.
 
-* HttpClient on dev branch ( clients.HttpConnection ) looks stable ( underflow status gave me hard time, pls look at commit diff on dev). Anyone is wellcome to try. ( we will need an auth filter ) for Http Client... this happens next year.
+* dev branch: HttpClient can be used with connectWithFilter. Filter is executing on blocking pool ( to get OAUTH2 headers, etc... ).
+
+            HttpConnection.connectWithFilter( "https://www.scala-lang.org:443/", r => r.hdr( "someheader", "1728.2222") )
+* HttpClient now had separate logging. To get the log, please add "client" to log environment.
+            
+            .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), 
+                                                   ("access" -> LogLevel.Info ), 
+                                                   "client" -> LogLevel.Trace ))
+
+
+* HttpClient on dev branch ( clients.HttpConnection ) looks stable ( underflow status gave me hard time, pls look at commit diff on dev). Anyone is wellcome to try.
 Whoever is reading it, Happy Holidays and Happy New 2021.
 
 Note on how stuff works.
