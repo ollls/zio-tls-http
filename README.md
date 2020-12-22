@@ -1,29 +1,34 @@
 # Update history.
 
+* HttpClient: ( clients.HttpConnection ) looks stable. Anyone is wellcome to try.
+After the New Year will promote all client's related stuff to master. 
+
+Note on how stuff works.
+* https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
+
+* DEV branch only. Early prototype ( but tested with Jmetter) of embeded HTTPClient, non-blocking, ZIO-NIO ( TLS only! ) with Connection Pooling.
+
+https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
+
+Key points:
+
+            ResPool.TIME_TO_LIVE < KEEP_ALIVE on remote host
+            package.scala must have  type MyEnv = MyLogging with ResPool[HttpConnection]
+
+
 * Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
   Original example MyServer cluttered with too many use cases.
+  
 https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
 
-*To support many environmenments, please keep environment alias MyEnv updated accordingly.
-https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/server/package.scala*
 
-Example:
-
-      type MyEnv = MyLogging with ResPool[LDAPConnection]
+            package.scala must have type MyEnv = MyLogging with ResPool[LDAPConnection]
 
 
 * Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
 
 * Switched to MyEnv alias. All environments are avialble in the app routes.
 To add new environment just use MyEnv alias.
-
-
-LOG ROTATION SUPPORT.
-
-        object MyLogging {
-             val  MAX_LOG_FILE_SIZE = 1024 * 1024 * 10 //10M
-             val  MAX_NUMBER_ROTATED_LOGS = 4
-             ....
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
@@ -35,7 +40,7 @@ https://gitter.im/zio-tls-http
 
 ## How to run.
 
-Import https://github.com/ollls/zio-tls-http/blob/main/localhost.cer to keychain on MacOS.
+Import https://github.com/ollls/zio-tls-http/blob/master/localhost.cer to keychain on MacOS.
 Click on localhost once imported, find ">Trust", expand it, select "Always Trust".
 On Windows or any other machine, you will need to go thru similar steps.
 You can use any other cert, as long as keystore.jks is seen by the server.
@@ -53,7 +58,7 @@ To run in docker:
     https://localhost/test   JSON output example
     
     Use case examples:
-    https://github.com/ollls/zio-tls-http/blob/main/src/main/scala/MyServer.scala
+    https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/MyServer.scala
 
     
 Server will use self-signed SSL certificate, you will need to configure the browser to trust it.
@@ -61,7 +66,7 @@ Certificate resides in keystore.jks
 
 ## Quick points
 
-### Look at https://github.com/ollls/zio-tls-http/blob/main/src/main/scala/MyServer.scala
+### Look at https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/MyServer.scala
 Scroll to the bottom, you will see server startup code, then route initialization code and the actual routes ( scala partial function ) examples.
 
 ### Useful example of quick Routing shortcut, with reference to Request.
