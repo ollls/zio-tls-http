@@ -8,7 +8,7 @@
             
             val http_client_pool_L   = ResPool.makeM[HttpConnection](
                                                 () => HttpConnection.connectWithFilter( "https://localhost:443", 
-                                                                                         ZIO( r => r.hdr( "someheader", "1728.2222") ),
+                                                                                          r => ZIO( r.hdr( "someheader", "1728.2222") ),
                                                                                          "keystore.jks", "password" ),
                                                  _.close )
             
