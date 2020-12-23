@@ -269,7 +269,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
       req0 <- filter.run(req)
       r    <- parseRequest(req0)
 
-      _ <- ZIO( println( r ) )
+      //_ <- ZIO( println( r ) )
 
       _ <- ch.write(Chunk.fromArray(r.toString.getBytes))
 
