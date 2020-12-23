@@ -1,14 +1,14 @@
 # Update history.
 
-* dev branch: HttpClient can be used with connectWithFilter. Filter is executing on blocking pool ( to get OAUTH2 headers, etc... ).
+* dev branch: HttpClient can be used with connectWithFilter. Filter can be made as blocking effect ( to get OAUTH2 headers, etc... ).
 
-            HttpConnection.connectWithFilter( "https://www.scala-lang.org:443/", r => r.hdr( "someheader", "1728.2222") )
+            HttpConnection.connectWithFilter( "https://www.scala-lang.org:443/", r => ZIO( r.hdr( "someheader", "1728.2222") ) )
             
   OR
             
             val http_client_pool_L   = ResPool.makeM[HttpConnection](
                                                 () => HttpConnection.connectWithFilter( "https://localhost:443", 
-                                                                                         r => r.hdr( "someheader", "1728.2222"),
+                                                                                         ZIO( r => r.hdr( "someheader", "1728.2222") ),
                                                                                          "keystore.jks", "password" ),
                                                  _.close )
             
