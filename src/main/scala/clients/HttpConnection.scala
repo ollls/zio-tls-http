@@ -202,7 +202,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
 
       headers0 <- lines.next match {
                    case http_line(prot, code, emsg) =>
-                     ZIO.effectTotal(Headers("%prot" -> prot, "%code" -> code, "%mesage" -> emsg))
+                     ZIO.effectTotal(Headers("%prot" -> prot, "%code" -> code, "%message" -> emsg))
                    case _ => ZIO.fail(new HttpResponseHeaderError("bad response"))
 
                  }
@@ -283,7 +283,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
             "client",
             "http <<<: " + "http code = " + data.httpString + " " +
               "bytes = " + data.hdrs.get("content-length").getOrElse(0) + " text = " + data.asText
-              .substring(0, 30)
+              .substring(0, if ( data.asText.length() < 30 ) data.asText.length() else 30 )
               .replace("\n", "") + " ... "
           )
 
