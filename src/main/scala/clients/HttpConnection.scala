@@ -24,6 +24,7 @@ import zhttp.ContentType
 import zhttp.Cookie
 import zhttp.MyLogging
 import zhttp.MyLogging.MyLogging
+import zhttp.MyEnv
 
 sealed case class HttpConnectionError(msg: String)     extends Exception(msg)
 sealed case class HttpResponseHeaderError(msg: String) extends Exception(msg)
@@ -40,6 +41,9 @@ case class ClientResponse(val hdrs: Headers, val code: String, body: Chunk[Byte]
       case Right(v) => v
       case Left(v)  => throw new HttpConnectionError(s"JSON schema error: $v")
     }
+
+  //TODO - parse cookie to model.Cookie  
+  def cookie = hdrs.getMval("Set-Cookie")
 }
 
 case class ClientRequest(
@@ -67,14 +71,14 @@ case class ClientRequest(
     new ClientRequest(this.method, this.path, hdrs + ("content-type" -> type0.toString()), this.body)
 
   def cookie(cookie: Cookie) = {
-    val pair = ("Set-Cookie" -> cookie.toString())
+    val pair = ("cookie" -> cookie.toString())
     new ClientRequest(this.method, this.path, hdrs + pair, this.body)
   }
 
 }
 
 //Request to Request, enriched with headers
-case class FilterProc(run: ClientRequest => ClientRequest )
+case class FilterProc(run: ClientRequest => ZIO[ZEnv with MyEnv, Throwable, ClientRequest] )
 
 object HttpConnection {
 
@@ -128,15 +132,23 @@ object HttpConnection {
     T.map(c => new TlsChannel(c))
   }
 
-  def connect( url: String, trustKeystore: String = null, password: String = "" ) 
-      = connectWithFilter( url, req => req, trustKeystore, password )
+  def connect(
+    url: String,
+    trustKeystore: String = null,
+    password: String = ""
+  ): ZIO[ZEnv, HttpConnectionError, HttpConnection] =
+    connectWithFilter(url, req => ZIO.effectTotal(req), trustKeystore, password)
 
-  def connectWithFilter(url: String, filter: ClientRequest => ClientRequest,
-              trustKeystore: String = null, password: String = "") = {
+  def connectWithFilter(
+    url: String,
+    filter: ClientRequest => ZIO[ZEnv with MyEnv, Throwable, ClientRequest],
+    trustKeystore: String = null,
+    password: String = ""
+  ) = {
     val u    = new URI(url)
     val port = if (u.getPort == -1) 443 else u.getPort
     (if (u.getScheme().equalsIgnoreCase("https")) {
-       val ss = connectSSL(u.getHost(), port, trustKeystore, password).map(new HttpConnection(u, _, FilterProc( filter ) ))
+       val ss = connectSSL(u.getHost(), port, trustKeystore, password).map(new HttpConnection(u, _, FilterProc(filter)))
        ss
      } else {
        throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())
@@ -144,7 +156,7 @@ object HttpConnection {
   }
 }
 
-class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc ) {
+class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
 
   final val CRLF = "\r\n"
 
@@ -234,7 +246,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc ) {
   def close = ch.close
 
   ///////////////////////////////////////////////////////////////
-  def send(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
+  def send(req: ClientRequest): ZIO[zio.ZEnv with MyEnv, Throwable, ClientResponse] = {
 
     def parseRequest(req: ClientRequest) = ZIO.effect {
 
@@ -254,19 +266,26 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc ) {
 
     (for {
       //potentially blocking, if you need to talk to OAUTH2 to propagate headers ...
-      req0 <- effectBlocking( filter.run(req) )
+      req0 <- filter.run(req)
       r    <- parseRequest(req0)
+
+      _ <- ZIO( println( r ) )
 
       _ <- ch.write(Chunk.fromArray(r.toString.getBytes))
 
-      _ <- MyLogging.trace( "client", "http >>>: " + req0.method + "  " + this.uri.toString() + " ;path = " + req.path )
+      _ <- MyLogging.trace("client", "http >>>: " + req0.method + "  " + this.uri.toString() + " ;path = " + req.path)
 
       _ <- if (req.body.isDefined) ch.write(req.body.get) else ZIO.unit
 
       data <- getHTTPResponse
 
-      _ <- MyLogging.trace( "client", "http <<<: " + "http code = " + data.httpString + " " + 
-                            "bytes = " + data.hdrs.get( "content-length").getOrElse(0) + " text = " + data.asText.substring( 0, 30 ).replace( "\n", "") + " ... " )
+      _ <- MyLogging.trace(
+            "client",
+            "http <<<: " + "http code = " + data.httpString + " " +
+              "bytes = " + data.hdrs.get("content-length").getOrElse(0) + " text = " + data.asText
+              .substring(0, 30)
+              .replace("\n", "") + " ... "
+          )
 
     } yield (data)).catchAll(e => ZIO.fail(new HttpConnectionError(e.toString())))
 
