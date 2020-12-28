@@ -273,13 +273,13 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
 
       _ <- ch.write(Chunk.fromArray(r.toString.getBytes))
 
-      _ <- MyLogging.trace("client", "http >>>: " + req0.method + "  " + this.uri.toString() + " ;path = " + req.path)
+      _ <- MyLogging.debug("client", "http >>>: " + req0.method + "  " + this.uri.toString() + " ;path = " + req.path)
 
       _ <- if (req.body.isDefined) ch.write(req.body.get) else ZIO.unit
 
       data <- getHTTPResponse
 
-      _ <- MyLogging.trace(
+      _ <- MyLogging.debug(
             "client",
             "http <<<: " + "http code = " + data.httpString + " " +
               "bytes = " + data.hdrs.get("content-length").getOrElse(0) + " text = " + data.asText

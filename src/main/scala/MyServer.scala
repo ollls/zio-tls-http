@@ -158,6 +158,10 @@ object myServer extends zio.App {
       {
         req match {
 
+          case req @ POST -> Root / "app" / "update" =>
+               println(  req.bodyAsText + "\n\n" + req.headers.printHeaders ) 
+               ZIO( Response.Ok ) 
+
           case GET -> Root / "hello" / "user" / StringVar(userId) :? param1(par) =>
             val headers = Headers("procid" -> "header_value_from_server", "Content-Type" -> ContentType.Plain.toString)
 

@@ -92,15 +92,15 @@ class HttpRouter {
       ex match {
 
         case _ : UpgradeRequest =>
-           MyLogging.trace( "console", "New websocket request spawned") 
+           MyLogging.debug( "console", "New websocket request spawned") 
 
         case _: java.nio.channels.InterruptedByTimeoutException =>
           //zio.console.putStrLn(">Keep-Alive expired.")
-          MyLogging.trace( "console", "Connection closed")
+          MyLogging.debug( "console", "Connection closed")
         //c.close;
 
         case _: BadInboundDataError =>
-          MyLogging.trace( "console", "Bad request, connection closed") *>
+          MyLogging.debug( "console", "Bad request, connection closed") *>
           ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request.", true) *> IO.unit
 
         case _: HTTPHeaderTooBig =>
@@ -116,14 +116,14 @@ class HttpRouter {
           ResponseWriters.writeNoBodyResponse(c, StatusCode.Forbidden, "Access denied.", true) *> IO.unit
 
         case _: scala.MatchError =>
-          MyLogging.trace( "console", "Bad request(1)") *>
+          MyLogging.error( "console", "Bad request(1)") *>
           ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request (1).", true) *> IO.unit
 
         case _ : TLSChannelError =>
-          MyLogging.trace( "console", "Remote peer closed connection")
+          MyLogging.debug( "console", "Remote peer closed connection")
 
         case _ : java.io.IOException =>
-          MyLogging.trace( "console", "Remote peer closed connection (1)")
+          MyLogging.debug( "console", "Remote peer closed connection (1)")
    
         case e : Exception =>
            MyLogging.error( "console", e.toString() ) *>

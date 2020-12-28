@@ -31,6 +31,7 @@ object MyLogging {
 
   val  MAX_LOG_FILE_SIZE = 1024 * 1024 * 1 //1M
   val  MAX_NUMBER_ROTATED_LOGS = 5
+  var  PRINT_CONSOLE = true
 
 
   class LogRec(logName: String, var log: FileChannel, val lvl: LogLevel)
@@ -95,8 +96,8 @@ object MyLogging {
     lvl match {
       case LogLevel.Error =>  AnsiColor.RED
       case LogLevel.Info  =>  AnsiColor.WHITE
-      case LogLevel.Trace =>  AnsiColor.CYAN
-      case LogLevel.Debug =>  AnsiColor.MAGENTA
+      case LogLevel.Trace =>  AnsiColor.MAGENTA
+      case LogLevel.Debug =>  AnsiColor.CYAN
       
       case _              =>  AnsiColor.WHITE
     }   
@@ -144,7 +145,7 @@ object MyLogging {
               if (lvl >= logRec.lvl) {
                 val strLvl = lvl.render
                 val line = s"$ts [$strLvl] $log_msg\n"
-                if (log_name == "console") {
+                if (log_name == "console" && PRINT_CONSOLE == true ) {
                   val TS           = withColor(AnsiColor.GREEN, ts)
                   val MSG          = withColor(AnsiColor.YELLOW, log_msg)
                   val LVL          = withColor( colorFromLogLevel( lvl ), lvl.render )

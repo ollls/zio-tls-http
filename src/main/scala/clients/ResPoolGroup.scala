@@ -79,7 +79,7 @@ object ResPoolGroup {
               val pool_id = r._1.name
               c =>
                 r._1.closeRes(c.res) *>
-                  MyLogging.trace("console", s"ResPoolGroup: $pool_id - closing resource on shutdown")
+                  MyLogging.debug("console", s"ResPoolGroup: $pool_id - closing resource on shutdown")
             })
 
       } yield ()

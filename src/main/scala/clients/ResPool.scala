@@ -46,7 +46,7 @@ object ResPool {
       units     <- ZIO.collectAll( list.map( 
 
         rec => closeResource(rec.res) *> 
-        MyLogging.log( "console", LogLevel.Trace, s"ResPoolM: closing resource on shutdown" )
+        MyLogging.log( "console", LogLevel.Debug, s"ResPoolM: closing resource on shutdown" )
          )  )
 
      } yield( units ) 
@@ -92,13 +92,13 @@ object ResPool {
                    if (new java.util.Date().getTime() - r.timeToLive > TIME_TO_LIVE) {
                      Runtime.default.unsafeRun( 
                        closeResource(r.res) *>
-                       logSvc.log( "console", LogLevel.Trace, s"ResPoolM: $pool_id - closing expired resource" )); true
+                       logSvc.log( "console", LogLevel.Debug, s"ResPoolM: $pool_id - closing expired resource" )); true
                    } else false
                )
              }
       resource <- if (optR.isDefined) IO.succeed(optR.map(_.res).get) 
                   else {                    
-                        MyLogging.log( "console", LogLevel.Trace, s"ResPoolM: $pool_id - create new resource" ) *>
+                        MyLogging.log( "console", LogLevel.Debug, s"ResPoolM: $pool_id - create new resource" ) *>
                         createResource()
                   }        
 
@@ -119,13 +119,13 @@ object ResPool {
                    if (new java.util.Date().getTime() - r.timeToLive > TIME_TO_LIVE) {
                      closeResource(r.res);
                      Runtime.default.unsafeRun( 
-                       logSvc.log( "console", LogLevel.Trace, s"ResPool: $pool_id - closing expired resource" )); true
+                       logSvc.log( "console", LogLevel.Debug, s"ResPool: $pool_id - closing expired resource" )); true
                    } else false
                )
              }
       resource <- if (optR.isDefined) IO.succeed(optR.map(_.res).get) 
                   else {                    
-                        MyLogging.log( "console", LogLevel.Trace, s"ResPool: $pool_id - create new resource" ) *>
+                        MyLogging.log( "console", LogLevel.Debug, s"ResPool: $pool_id - create new resource" ) *>
                         effectBlocking(createResource()) 
                   }        
 
