@@ -7,7 +7,7 @@
 Note on how stuff works.
 * https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
 
-One conn. pool, use case: 
+One conn. pool, use case: ( using ZManaged is encouraged for ResPool/ResPoolGroup acquire/release ).
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
 
 Many conn. pools, use case: 
