@@ -26,7 +26,7 @@ Key points:
   
 https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
 
-* Unbound LDAP SDK wraper, search only for now i dev_svc branch:
+* Unbound LDAP SDK wraper, search only for now in dev_svc branch:
 https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/AyncLDAP.scala
 
 
