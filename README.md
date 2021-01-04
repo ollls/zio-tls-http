@@ -2,6 +2,8 @@
 
 * Updated master with new work.
 
+## Use cases.
+
 Note on how stuff works.
 * https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
 
@@ -22,17 +24,6 @@ Key points:
   
 https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
 
-
-            package.scala must have 
-            type MyEnv = MyLogging with ResPool[LDAPConnection] 
-            or 
-            type MyEnv = MyLogging with ResPoolGroup[LDAPConnection]
-
-
-* Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
-
-* Switched to MyEnv alias. All environments are avialble in the app routes.
-To add new environment just use MyEnv alias.
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
