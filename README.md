@@ -1,6 +1,6 @@
 # Update history.
 
-* Updated master with new work. ( original master is now master.2020 )
+* Updated master with new work: HttpClient and Resource Pools. ( original master is now master.2020 )
 
 ## Use cases.
 
