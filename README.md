@@ -1,7 +1,8 @@
 # Update history.
 
 * Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools. ( original master is now master.2020 )
-  MyLogging.PRINT_CONSOLE = false will supress output to terminal, data will go only to colsole.log
+  
+  "MyLogging.PRINT_CONSOLE = false" will supress output to terminal, data will go only to colsole.log
 
 ## Use cases.
 
