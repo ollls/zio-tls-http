@@ -1,19 +1,25 @@
 # Update history.
 
-* HttpClient: ( clients.HttpConnection ) looks stable. Anyone is wellcome to try.
-After the New Year will promote all client's related stuff to master. 
+* Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools. ( original master is now master.2020 )
+  MyLogging.PRINT_CONSOLE = false will supress output to terminal, data will go only to colsole.log
+
+## Use cases.
 
 Note on how stuff works.
 * https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
 
-* DEV branch only. Early prototype ( but tested with Jmetter) of embeded HTTPClient, non-blocking, ZIO-NIO ( TLS only! ) with Connection Pooling.
+One conn. pool, use case: ( using ZManaged is encouraged for ResPool/ResPoolGroup acquire/release ).
 
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
+
+Many conn. pools, use case: 
+
+https://github.com/ollls/zio-tls-http/blob/master/doc/server_httpclient_many_pool.scala
 
 Key points:
 
             ResPool.TIME_TO_LIVE < KEEP_ALIVE on remote host
-            package.scala must have  type MyEnv = MyLogging with ResPool[HttpConnection]
+            package.scala must have  type MyEnv = MyLogging with ResPool[HttpConnection] or ResPoolGroup[]
 
 
 * Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
@@ -21,14 +27,9 @@ Key points:
   
 https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
 
+* Unbound LDAP SDK wraper, search only for now in dev_svc branch:
+https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/AyncLDAP.scala
 
-            package.scala must have type MyEnv = MyLogging with ResPool[LDAPConnection]
-
-
-* Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
-
-* Switched to MyEnv alias. All environments are avialble in the app routes.
-To add new environment just use MyEnv alias.
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
