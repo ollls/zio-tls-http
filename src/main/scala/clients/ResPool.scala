@@ -19,7 +19,7 @@ object ResPool {
 
   type ResPool[R] = Has[ResPool.Service[R]]
 
-  val TIME_TO_LIVE = 1000 * 10 //  10 sec
+  var TIME_TO_LIVE = 1000 * 10 //  10 sec
 
   case class ResRec[R](res: R, timeToLive: Long = 0L)
 
@@ -38,6 +38,23 @@ object ResPool {
     connections.takeAll.map { list =>
       list.foreach(rec => closeResource(rec.res))
     }
+
+  private def cleanupM[R](connections: zio.Queue[ResRec[R]], closeResource: (R) => ZIO[ ZEnv, Exception, Unit] ) =
+  {
+     val T = for {
+      list <- connections.takeAll
+      units     <- ZIO.collectAll( list.map( 
+
+        rec => closeResource(rec.res) *> 
+        MyLogging.log( "console", LogLevel.Debug, s"ResPoolM: closing resource on shutdown" )
+         )  )
+
+     } yield( units ) 
+
+     val TT = T *> ZIO.unit
+    
+     TT.catchAll( e => ZIO.unit )
+  }
 
   def makeService[R](q: zio.Queue[ResRec[R]], createResource: () => R, closeResource: (R) => Unit) =
     new Service[R] {
@@ -60,6 +77,34 @@ object ResPool {
       def release(res: R) = q.offer(ResRec(res, new java.util.Date().getTime)).unit
     }
 
+
+  private[clients] def acquire_wrapM[R](
+    pool_id : String,
+    q: zio.Queue[ResRec[R]],
+    createResource: () => ZIO[ ZEnv, Exception, R],
+    closeResource: (R) => ZIO[ ZEnv, Exception, Unit],
+  ) =
+    for {
+      logSvc <- MyLogging.logService
+      optR   <- q.poll.repeatWhile { or =>
+               or.isDefined && or.exists(
+                 r =>
+                   if (new java.util.Date().getTime() - r.timeToLive > TIME_TO_LIVE) {
+                     Runtime.default.unsafeRun( 
+                       closeResource(r.res) *>
+                       logSvc.log( "console", LogLevel.Debug, s"ResPoolM: $pool_id - closing expired resource" )); true
+                   } else false
+               )
+             }
+      resource <- if (optR.isDefined) IO.succeed(optR.map(_.res).get) 
+                  else {                    
+                        MyLogging.log( "console", LogLevel.Debug, s"ResPoolM: $pool_id - create new resource" ) *>
+                        createResource()
+                  }        
+
+    } yield (resource)
+  
+
   private[clients] def acquire_wrap[R](
     pool_id : String,
     q: zio.Queue[ResRec[R]],
@@ -74,13 +119,13 @@ object ResPool {
                    if (new java.util.Date().getTime() - r.timeToLive > TIME_TO_LIVE) {
                      closeResource(r.res);
                      Runtime.default.unsafeRun( 
-                       logSvc.log( "console", LogLevel.Trace, s"ResPool: $pool_id - closing expired resource" )); true
+                       logSvc.log( "console", LogLevel.Debug, s"ResPool: $pool_id - closing expired resource" )); true
                    } else false
                )
              }
       resource <- if (optR.isDefined) IO.succeed(optR.map(_.res).get) 
                   else {                    
-                        MyLogging.log( "console", LogLevel.Trace, s"ResPool: $pool_id - create new resource" ) *>
+                        MyLogging.log( "console", LogLevel.Debug, s"ResPool: $pool_id - create new resource" ) *>
                         effectBlocking(createResource()) 
                   }        
 
@@ -92,6 +137,22 @@ object ResPool {
     val managedObj = ZQueue.unbounded[ResRec[R]].toManaged(q => { cleanup(q, closeResource) *> q.shutdown }).map { q =>
       new Service[R] {
         def acquire         = acquire_wrap( "default", q, createResource, closeResource)
+        def release(res: R) = q.offer(ResRec(res, new java.util.Date().getTime)).unit
+      }
+    }
+    managedObj.toLayer[ResPool.Service[R]]
+
+  }
+
+    def makeM[R]( 
+        createResource: () => ZIO[ ZEnv, Exception, R],
+        closeResource: (R) => ZIO[ ZEnv, Exception, Unit]
+      )(
+    implicit tagged: Tag[R]
+  ) = {
+    val managedObj = ZQueue.unbounded[ResRec[R]].toManaged(q => { cleanupM(q, closeResource ) *> q.shutdown }).map { q =>
+      new Service[R] {
+        def acquire         = acquire_wrapM( "default", q, createResource, closeResource)
         def release(res: R) = q.offer(ResRec(res, new java.util.Date().getTime)).unit
       }
     }

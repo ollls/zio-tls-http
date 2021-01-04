@@ -49,7 +49,7 @@ class TcpServer {
                   .flatMap(
                     channel =>
                       channel.remoteAddress.flatMap(c => {
-                        MyLogging.trace("console", "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName)
+                        MyLogging.debug("console", "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName)
                       }) *>
                         ZManaged
                           .make(ZIO.effect(new TcpChannel(channel.keepAlive(KEEP_ALIVE))))(_.close.orDie)

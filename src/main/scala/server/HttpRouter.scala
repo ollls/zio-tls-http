@@ -92,15 +92,15 @@ class HttpRouter {
       ex match {
 
         case _ : UpgradeRequest =>
-           MyLogging.trace( "console", "New websocket request spawned") 
+           MyLogging.debug( "console", "New websocket request spawned") 
 
         case _: java.nio.channels.InterruptedByTimeoutException =>
           //zio.console.putStrLn(">Keep-Alive expired.")
-          MyLogging.trace( "console", "Connection closed")
+          MyLogging.debug( "console", "Connection closed")
         //c.close;
 
         case _: BadInboundDataError =>
-          MyLogging.trace( "console", "Bad request, connection closed") *>
+          MyLogging.debug( "console", "Bad request, connection closed") *>
           ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request.", true) *> IO.unit
 
         case _: HTTPHeaderTooBig =>
@@ -116,14 +116,14 @@ class HttpRouter {
           ResponseWriters.writeNoBodyResponse(c, StatusCode.Forbidden, "Access denied.", true) *> IO.unit
 
         case _: scala.MatchError =>
-          MyLogging.trace( "console", "Bad request(1)") *>
+          MyLogging.error( "console", "Bad request(1)") *>
           ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request (1).", true) *> IO.unit
 
         case _ : TLSChannelError =>
-          MyLogging.trace( "console", "Remote peer closed connection")
+          MyLogging.debug( "console", "Remote peer closed connection")
 
         case _ : java.io.IOException =>
-          MyLogging.trace( "console", "Remote peer closed connection (1)")
+          MyLogging.debug( "console", "Remote peer closed connection (1)")
    
         case e : Exception =>
            MyLogging.error( "console", e.toString() ) *>
@@ -185,22 +185,24 @@ class HttpRouter {
   
     }
 
-  //TODO  expected size for read: contentLen = contentLen - bodyChunk.length
-  private def rd_loop2(
-    c: Channel,
-    contentLen: Int,
-    bodyChunk: Chunk[Byte]
-  ): ZIO[ZEnv, Exception, zio.Chunk[Byte]] =
-    if (contentLen > bodyChunk.length) {
-      c.read.flatMap(chunk => rd_loop2(c, contentLen, bodyChunk ++ chunk))
-    } else
-      IO.succeed(bodyChunk)
+
+  private def rd_proc( c: Channel, contentLen: Int, bodyChunk: Chunk[Byte] ) = 
+  {
+      var totalChunk = bodyChunk 
+      val loop = for {
+        chunk      <- if ( contentLen > totalChunk.length ) c.read else ZIO.succeed( Chunk[Byte]() )
+        _ <- ZIO.effectTotal{ totalChunk = totalChunk ++ chunk }
+       // _ <- zio.console.putStrLn( "read block, size= " + totalChunk.length + "cl = " + contentLen  )
+      } yield( totalChunk )
+      loop.repeatWhile(  _.length < contentLen  )
+  }
+
 
   ////////////////////////////////////////////////////////////////
   def finishBodyLoadForRequest(req: Request): ZIO[ZEnv, Exception, Request] = {
     val contentLen = req.headers.get("content-length").getOrElse("0")
 
-    rd_loop2(req.ch, contentLen.toInt, req.body).map(Request(req.headers, _, req.ch)).catchAll {
+    rd_proc(req.ch, contentLen.toInt, req.body).map(Request(req.headers, _, req.ch)).catchAll {
       case e => {
         ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.BadRequest, "Invalid content length", true) *>
           IO.fail(e)
@@ -221,7 +223,6 @@ class HttpRouter {
     } yield (resChunk)
 
   ////////////////////////////////////////////////////////////////
-  //assumption: HTTP_HEADER_SZ cannot be more then one TLS packet, which is 16 KB 
   private def getHTTPRequest(c: Channel, fetchBody: Boolean): ZIO[ZEnv, Exception, Request] = {
     val result = for {
 
@@ -274,7 +275,7 @@ class HttpRouter {
       _          <- if ( contentLenL > MAX_ALLOWED_CONTENT_LEN ) ZIO.fail( new ContentLenTooBig ) else ZIO.unit        
 
       bodyChunk <- if (fetchBody)
-                    rd_loop2(c, contentLen.toInt, firstChunk.drop(pos))
+                    rd_proc(c, contentLen.toInt, firstChunk.drop(pos))
                   else
                     IO.succeed {
                       firstChunk.drop(pos)

@@ -177,7 +177,7 @@ class Websocket(isClient: Boolean) {
             case Right(response) =>
               req.ch.remoteAddress.flatMap(
                 adr =>
-                  MyLogging.trace(
+                  MyLogging.debug(
                     "console",
                     "Webocket request initiated from: " + adr.get.toInetSocketAddress.address.canonicalHostName
                   )
@@ -200,7 +200,7 @@ class Websocket(isClient: Boolean) {
             case Right(response) =>
               req.ch.remoteAddress.flatMap(
                 adr =>
-                  MyLogging.trace(
+                  MyLogging.debug(
                     "console",
                     "Webocket request initiated from: " + adr.get.toInetSocketAddress.address.canonicalHostName
                   )

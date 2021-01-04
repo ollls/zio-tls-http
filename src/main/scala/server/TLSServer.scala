@@ -55,7 +55,7 @@ class TLSServer {
                 loop = srv.accept2.flatMap(
                     channel =>
                         channel.remoteAddress.flatMap(  
-                        c => MyLogging.trace( "console", 
+                        c => MyLogging.debug( "console", 
                           "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName ) ) *>
                       AsynchronousServerTlsByteChannel(channel, ssl_context)
                         .use(c => processor( new TlsChannel( c.keepAlive(KEEP_ALIVE ) )))

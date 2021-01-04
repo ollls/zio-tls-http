@@ -200,6 +200,9 @@ class AsynchronousSocketChannel(private val channel: JAsynchronousSocketChannel)
   final def connect(socketAddress: SocketAddress): IO[Exception, Unit] =
     wrap[JVoid](h => channel.connect(socketAddress.jSocketAddress, (), h)).unit
 
+  final def connect(socketAddress: java.net.SocketAddress): IO[Exception, Unit] =
+    wrap[JVoid](h => channel.connect( socketAddress, (), h)).unit  
+
   final private[nio] def readBuffer[A](dst: Buffer[Byte], timeout: Duration): IO[Exception, Int] =
     wrap[JInteger] { h =>
       channel.read(
@@ -264,13 +267,10 @@ class AsynchronousSocketChannel(private val channel: JAsynchronousSocketChannel)
 
 object AsynchronousSocketChannel {
 
-  def apply(): Managed[Exception, AsynchronousSocketChannel] = {
-    val open = IO
-      .effect(JAsynchronousSocketChannel.open())
+  def apply(): ZIO[ZEnv, Exception, AsynchronousSocketChannel] = {
+    IO.effect(JAsynchronousSocketChannel.open())
       .refineToOrDie[Exception]
       .map(new AsynchronousSocketChannel(_))
-
-    Managed.make(open)(_.close.orDie)
   }
 
   def apply(channelGroup: AsynchronousChannelGroup): Managed[Exception, AsynchronousSocketChannel] = {

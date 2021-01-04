@@ -15,17 +15,17 @@ import zio.ZEnv
 
 import zio.{ Chunk, IO, ZIO }
 
-
 import nio.SSLEngine
 
 sealed class TLSChannelError(msg: String) extends Exception(msg)
 
 object AsynchronousTlsByteChannel {
 
+  //no zmanaged on the client
   def apply(
     raw_ch: AsynchronousSocketChannel,
     sslContext: SSLContext
-  ): ZManaged[ZEnv, Exception, AsynchronousTlsByteChannel] = {
+  ): ZIO[ZEnv, Exception, AsynchronousTlsByteChannel] = {
     val open = for {
       ssl_engine <- IO.effect(new SSLEngine(sslContext.createSSLEngine()))
       _          <- ssl_engine.setUseClientMode(true)
@@ -34,7 +34,7 @@ object AsynchronousTlsByteChannel {
       r          <- IO.effect(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
     } yield (r)
 
-    ZManaged.make(open.refineToOrDie[Exception])(_.close)
+    open.refineToOrDie[Exception]
 
   }
 
@@ -52,10 +52,18 @@ object AsynchronousTlsByteChannel {
         _ match {
           case NEED_WRAP =>
             for {
+              //data to check in_buff to prevent unnecessary read, and let to process the rest wih sequential unwrap
+              pos_            <- in_buf.position
+              lim_            <- in_buf.limit
+              
               _               <- out_buf.clear
               result          <- ssl_engine.wrap(empty, out_buf)
               _               <- out_buf.flip
-              _               <- sequential_unwrap_flag.set(false)
+              //prevent reset to read if buffer has more data, now we can realy on underflow processing later
+              _               <- if ( pos_ > 0 && pos_ < lim_ ) IO.unit
+                                 else sequential_unwrap_flag.set(false)
+              
+        
               handshakeStatus <- raw_ch.writeBuffer(out_buf) *> IO.effect(result.getHandshakeStatus)
             } yield (handshakeStatus)
 
@@ -66,7 +74,9 @@ object AsynchronousTlsByteChannel {
                   for {
                     _      <- in_buf.clear
                     _      <- out_buf.clear
-                    _      <- raw_ch.readBuffer(in_buf)
+                    n      <- raw_ch.readBuffer(in_buf)
+                    _     <- if ( n == -1 ) ZIO.fail( new TLSChannelError( "AsynchronousTlsByteChannel: no data to unwrap") )
+                              else ZIO.unit
                     _      <- in_buf.flip
                     _      <- sequential_unwrap_flag.set(true)
                     result <- ssl_engine.unwrap(in_buf, out_buf)
@@ -78,10 +88,36 @@ object AsynchronousTlsByteChannel {
                     pos <- in_buf.position
                     lim <- in_buf.limit
 
-                    hStat <- if (pos == lim)
+                    hStat <- if (pos == lim) {
                               sequential_unwrap_flag.set(false) *> IO.succeed(NEED_UNWRAP)
-                            else
-                              ssl_engine.unwrap(in_buf, out_buf).map(_.getHandshakeStatus())
+                            } else {
+                              for {
+                                r <- ssl_engine.unwrap(in_buf, out_buf)
+                                _ <- if (r.getStatus() == javax.net.ssl.SSLEngineResult.Status.BUFFER_UNDERFLOW) {
+                                      for {
+
+                                        p1 <- in_buf.position
+                                        l1 <- in_buf.limit
+
+                                        //underflow read() append to the end, till BUF_SZ
+                                        _ <- in_buf.position(l1)
+                                        _ <- in_buf.limit(BUFF_SZ)
+
+                                        _ <- raw_ch.readBuffer(in_buf)
+
+                                        p2 <- in_buf.position //new limit
+                                        _  <- in_buf.limit(p2)
+                                        _  <- in_buf.position(p1) //back to original position, we had before read
+
+                                        r <- ssl_engine
+                                              .unwrap(in_buf, out_buf) //.map( r => { println( "SECOND " + r.toString); r })
+
+                                      } yield (r)
+
+                                    } else IO(r)
+
+                              } yield (r.getHandshakeStatus)
+                            }
                   } yield (hStat)
             )
           }
@@ -99,7 +135,7 @@ object AsynchronousTlsByteChannel {
       }
 
       _ <- loop
-            .repeat(zio.Schedule.recurWhile(c => { c != FINISHED }))
+            .repeat(zio.Schedule.recurWhile(c => { /*println(c.toString);*/ c != FINISHED }))
             .refineToOrDie[Exception]
 
     } yield ()
@@ -127,15 +163,13 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
 
   def remoteAddress: ZIO[ZEnv, Exception, Option[SocketAddress]] = channel.remoteAddress
 
+  def readBuffer(out_b: java.nio.ByteBuffer): ZIO[ZEnv, Exception, Unit] = {
 
-  def readBuffer( out_b : java.nio.ByteBuffer ) : ZIO[ZEnv, Exception, Unit] = 
-  {
+    val out = Buffer.byte(out_b)
 
-     val out = Buffer.byte( out_b )
+    val result = for {
 
-     val result = for {
-
-      in  <- IO.effectTotal(new nio.ByteBuffer(IN_J_BUFFER)) //reuse carryover buffer from previous read(), buffer was compacted with compact(), only non-processed data left
+      in <- IO.effectTotal(new nio.ByteBuffer(IN_J_BUFFER)) //reuse carryover buffer from previous read(), buffer was compacted with compact(), only non-processed data left
 
       nb <- channel.readBuffer(in, Duration(READ_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS))
 
@@ -159,7 +193,7 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
       //****compact, some data may be carried over for next read call
       _ <- in.compact
 
-    } yield ( out )
+    } yield (out)
 
     result.unit.refineToOrDie[Exception]
 
@@ -174,7 +208,7 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
       in  <- IO.effectTotal(new nio.ByteBuffer(IN_J_BUFFER)) //reuse carryover buffer from previous read(), buffer was compacted with compact(), only non-processed data left
 
       //_   <- zio.console.putStrLn( "before read " + expected_size + " " + OUT_BUF_SZ )
-   
+
       nb <- channel.readBuffer(in, Duration(READ_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS))
 
       _ <- if (nb == -1) IO.fail(new TLSChannelError("AsynchronousServerTlsByteChannel#read() with -1 "))
