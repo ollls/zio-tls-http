@@ -1,34 +1,15 @@
 # Update history.
 
-* dev branch: HttpClient can be used with connectWithFilter. Filter can be made as blocking effect ( to get OAUTH2 headers, etc... ).
-
-            HttpConnection.connectWithFilter( "https://www.scala-lang.org:443/", r => ZIO( r.hdr( "someheader", "1728.2222") ) )
-            
-  OR
-            
-            val http_client_pool_L   = ResPool.makeM[HttpConnection](
-                                                () => HttpConnection.connectWithFilter( "https://localhost:443", 
-                                                                                          r =>  ZIO( r.hdr( "someheader", "1728.2222")),
-                                                                                         "keystore.jks", "password" ),
-                                                 _.close )
-            
-* HttpClient has separate logging. To get the log, please add "client" to log environment. ( without "client" it will work just fine, just no data captured ).
-Feel free to use any named logs for your purposes.
-            
-            .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), 
-                                                   ("access" -> LogLevel.Info ), 
-                                                   "client" -> LogLevel.Trace ))
-
-
-* HttpClient on dev branch ( clients.HttpConnection ) looks stable ( underflow status gave me hard time, pls look at commit diff on dev). Anyone is wellcome to try.
-Whoever is reading it, Happy Holidays and Happy New 2021.
+* Updated master with new work.
 
 Note on how stuff works.
 * https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
 
-* DEV branch only. Early prototype ( but tested with Jmetter) of embeded HTTPClient, non-blocking, ZIO-NIO ( TLS only! ) with Connection Pooling.
-
+One conn. pool, use case: 
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
+
+Many conn. pools, use case: 
+https://github.com/ollls/zio-tls-http/blob/master/doc/server_httpclient_many_pool.scala
 
 Key points:
 
@@ -42,7 +23,10 @@ Key points:
 https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
 
 
-            package.scala must have type MyEnv = MyLogging with ResPool[LDAPConnection]
+            package.scala must have 
+            type MyEnv = MyLogging with ResPool[LDAPConnection] 
+            or 
+            type MyEnv = MyLogging with ResPoolGroup[LDAPConnection]
 
 
 * Resource Pool support submitted to master ( use case with Unbound's LDAP SDK is in dev_svc ).
