@@ -123,7 +123,7 @@ object ResPoolGroup {
 
         def acquire(pool_id: String) =
           queues.find(_._1.name == pool_id) match {
-            case Some(q) => ResPool.acquire_wrapM(q._1.name, q._2, q._1.createRes, q._1.closeRes).map( r => { println( "TTTTT"); r })
+            case Some(q) => ResPool.acquire_wrapM(q._1.name, q._2, q._1.createRes, q._1.closeRes)
             case None    => ZIO.fail(new java.util.NoSuchElementException(s"ResPoolGroup pool_id: $pool_id not found"))
           }
 
