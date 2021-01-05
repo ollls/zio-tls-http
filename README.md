@@ -1,6 +1,7 @@
 # Update history.
 * Dev only: local environment now is made as a type parameter for Server and Server Router. 
   This will allow to release stadalone jar. Environment must have MyLogging service.
+  No more package object with Env aliase!
   
        type MyEnv3 = MyLogging
        val myHttp = new TLSServer[MyEnv3]
