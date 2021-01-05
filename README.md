@@ -1,6 +1,9 @@
 # Update history.
 * Dev only: local environment now is made as a type parameter for Server and Server Router. 
-  This will allow to release stadalone jar. Environment must have MyLogging service.
+  This will allow to release stadalone jar. Environment must have MyLogging service. 
+  
+        class TLSServer[R <: Has[MyLogging.Service]]
+        
   No more package object with env. alias!
   
        type MyEnv3 = MyLogging
