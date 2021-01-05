@@ -1,4 +1,10 @@
 # Update history.
+* Dev only: local environment now is made as a type parameter for Server and Server Router. 
+  This will allow to release stadalone jar. Environment must have MyLogging service.
+  
+       type MyEnv3 = MyLogging
+       val myHttp = new TLSServer[MyEnv3]
+       val myHttpRouter = new HttpRouter[MyEnv3]
 
 * Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools. ( original master is now master.2020 )
   
