@@ -25,8 +25,6 @@ object myServer extends zio.App {
 
   val ROOT_CATALOG = "/app/web_root"
 
-  val myHttpRouter = new HttpRouter
-
   //////////////////////////////////
   def run(args: List[String]) = {
 
