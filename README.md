@@ -1,10 +1,6 @@
 # Update history.
 * Dev only: local environment now is made as a type parameter for Server and Server Router. 
   This will allow to release stadalone jar. Environment must have MyLogging service. 
-  new example:
-  
-  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_many_pool.scala
-  
   
         class TLSServer[R <: Has[MyLogging.Service]]
         
