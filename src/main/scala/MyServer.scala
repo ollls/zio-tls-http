@@ -14,6 +14,8 @@ import Method._
 import zio.json._
 import zio.Chunk
 
+import MyLogging.MyLogging
+
 object param1 extends QueryParam("param1")
 
 
@@ -29,12 +31,17 @@ case class DataBlock(val name: String, val address: String, val colors : Chunk[S
 
 object myServer extends zio.App {
 
+type MyEnv3 = MyLogging
+
+    val myHttp = new TLSServer[MyEnv3]
+    val myHttpRouter = new HttpRouter[MyEnv3]
+
+
+
   HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
   HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
 
   val ROOT_CATALOG = "/app/web_root"
-
-  val myHttpRouter = new HttpRouter
 
   //pre proc examples, aka web filters
   val proc0 = WebFilterProc((_) => ZIO(Response.Error(StatusCode.NotImplemented)))
@@ -205,9 +212,6 @@ object myServer extends zio.App {
 
     myHttpRouter.addAppRoute( ws_route2 )
 
-    val T : MyEnv = null
- 
-    val myHttp = new TLSServer
     //server
     myHttp.KEYSTORE_PATH = "keystore.jks"
     myHttp.KEYSTORE_PASSWORD = "password"

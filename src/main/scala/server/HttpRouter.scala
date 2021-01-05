@@ -1,60 +1,52 @@
 package zhttp
 
-
 import nio.channels.TLSChannelError
 import zio.{ Chunk, IO, ZEnv, ZIO }
 import scala.util.Try
 
 import scala.io.Source
-import scala.reflect.runtime.universe._
+import zio.Has
 
+sealed trait HTTPError                            extends Exception
+sealed case class BadInboundDataError()           extends HTTPError
+sealed case class HTTPHeaderTooBig()              extends HTTPError
+sealed case class AccessDenied()                  extends HTTPError
+sealed case class ContentLenTooBig()              extends HTTPError
+sealed case class UpgradeRequest()                extends HTTPError
+sealed case class MediaEncodingError(msg: String) extends Exception(msg)
 
-
-sealed trait      HTTPError             extends Exception
-sealed case class BadInboundDataError() extends HTTPError
-sealed case class HTTPHeaderTooBig()    extends HTTPError
-sealed case class AccessDenied()        extends HTTPError
-sealed case class ContentLenTooBig() extends HTTPError
-sealed case class UpgradeRequest()   extends HTTPError
-sealed case class MediaEncodingError( msg: String ) extends Exception( msg )
-
-
-
-object HttpRouter
-{
-  val _METHOD = "%%%http_method%%%" 
-  val _PATH   = "%%%http_path%%%" 
-  val _PROTO  = "%%%http_protocol%%%" 
+object HttpRouter {
+  val _METHOD = "%%%http_method%%%"
+  val _PATH   = "%%%http_path%%%"
+  val _PROTO  = "%%%http_protocol%%%"
 }
 
-
-class HttpRouter {
+class HttpRouter[R <: Has[MyLogging.Service]] {
   //MAX SIZE for current implementation: 16676 ( one TLS app packet ) - do not exceed.
-  val HTTP_HEADER_SZ  = 8096 * 2
+  val HTTP_HEADER_SZ          = 8096 * 2
   val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
-                    
-  private var appRoutes     = List[HttpRoutes[Response]]()
 
-  private var channelRoutes = List[HttpRoutes[Response]]()
+  private var appRoutes = List[HttpRoutes[R]]()
+
+  private var channelRoutes = List[HttpRoutes[R]]()
 
   //direct channel routes, where user route function is responsible
   //for reading the body and sending requests
-  def addChannelRoute(rt: HttpRoutes[Response]): Unit =
+  def addChannelRoute(rt: HttpRoutes[R]): Unit =
     channelRoutes = rt :: channelRoutes
 
   //Normal auto map route where Request body is pre-read and
   //Response will be processed by server in post routine.
-  def addAppRoute(rt: HttpRoutes[Response]): Unit =
+  def addAppRoute(rt: HttpRoutes[R]): Unit =
     appRoutes = rt :: appRoutes
 
- 
-  def route( c : Channel ): ZIO[ ZEnv with MyEnv, Exception, Unit] = {
-    val T : ZIO[ZEnv with MyEnv, Any, Unit] = for {
+  def route(c: Channel): ZIO[ZEnv with R, Exception, Unit] = {
+    val T: ZIO[ZEnv with R, Any, Unit] = for {
       req <- getHTTPRequest(c, false) /* don't try to read body of request now */
 
       res <- (for {
-              response <- route_go(req, channelRoutes )
-              _        <- response_processor(req, response._1 )
+              response <- route_go(req, channelRoutes)
+              _        <- response_processor(req, response._1)
 
             } yield (response)).map(Option(_)).catchAll {
               case None    => IO.succeed(None)
@@ -65,16 +57,16 @@ class HttpRouter {
             case None =>
               finishBodyLoadForRequest(req).flatMap { r =>
                 for {
-                  response <- route_go(r, appRoutes ).catchAll {
+                  response <- route_go(r, appRoutes).catchAll {
                                case None =>
-                                 IO.succeed( ( Response.Error(StatusCode.NotFound), HttpRoutes.defaultPostProc) ) 
+                                 IO.succeed((Response.Error(StatusCode.NotFound), HttpRoutes.defaultPostProc))
                                case Some(e) => IO.fail(e)
                              }
-                  //_.2 is postProc procedure _.1 is Response  
-                  //response processor will get response with injected/extended attributes from PostProc         
-                  response2 <- IO.effectTotal( response._2( response._1 ) )
+                  //_.2 is postProc procedure _.1 is Response
+                  //response processor will get response with injected/extended attributes from PostProc
+                  response2 <- IO.effectTotal(response._2(response._1))
                   _ <- response_processor(req, response2).catchAll { e =>
-                        ZIO.fail( e )
+                        ZIO.fail(e)
                       }
                 } yield (response)
 
@@ -86,48 +78,47 @@ class HttpRouter {
 
     } yield ()
 
-
     //keep-alive until times out with exception
     T.forever.catchAll(ex => {
       ex match {
 
-        case _ : UpgradeRequest =>
-           MyLogging.debug( "console", "New websocket request spawned") 
+        case _: UpgradeRequest =>
+          MyLogging.debug("console", "New websocket request spawned")
 
         case _: java.nio.channels.InterruptedByTimeoutException =>
           //zio.console.putStrLn(">Keep-Alive expired.")
-          MyLogging.debug( "console", "Connection closed")
+          MyLogging.debug("console", "Connection closed")
         //c.close;
 
         case _: BadInboundDataError =>
-          MyLogging.debug( "console", "Bad request, connection closed") *>
-          ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request.", true) *> IO.unit
+          MyLogging.debug("console", "Bad request, connection closed") *>
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request.", true) *> IO.unit
 
         case _: HTTPHeaderTooBig =>
-          MyLogging.error( "console", "HTTP header exceeds allowed limit") *>
-          ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad HTTP header.", true) *> IO.unit
+          MyLogging.error("console", "HTTP header exceeds allowed limit") *>
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad HTTP header.", true) *> IO.unit
 
         case _: java.io.FileNotFoundException =>
-          MyLogging.error( "console", "File not found") *>
-          ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit
+          MyLogging.error("console", "File not found") *>
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit
 
         case _: AccessDenied =>
-          MyLogging.error( "console", "Access denied") *>
-          ResponseWriters.writeNoBodyResponse(c, StatusCode.Forbidden, "Access denied.", true) *> IO.unit
+          MyLogging.error("console", "Access denied") *>
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.Forbidden, "Access denied.", true) *> IO.unit
 
         case _: scala.MatchError =>
-          MyLogging.error( "console", "Bad request(1)") *>
-          ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request (1).", true) *> IO.unit
+          MyLogging.error("console", "Bad request(1)") *>
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request (1).", true) *> IO.unit
 
-        case _ : TLSChannelError =>
-          MyLogging.debug( "console", "Remote peer closed connection")
+        case _: TLSChannelError =>
+          MyLogging.debug("console", "Remote peer closed connection")
 
-        case _ : java.io.IOException =>
-          MyLogging.debug( "console", "Remote peer closed connection (1)")
-   
-        case e : Exception =>
-           MyLogging.error( "console", e.toString() ) *>
-           ResponseWriters.writeNoBodyResponse(c, StatusCode.InternalServerError, "", true ) *> IO.unit
+        case _: java.io.IOException =>
+          MyLogging.debug("console", "Remote peer closed connection (1)")
+
+        case e: Exception =>
+          MyLogging.error("console", e.toString()) *>
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.InternalServerError, "", true) *> IO.unit
       }
     })
   }
@@ -135,25 +126,27 @@ class HttpRouter {
   //route functions with response_processor()
   private def route_go(
     req: Request,
-    appRoutes: List[HttpRoutes[Response] ]
-  ): ZIO[ZEnv with MyEnv, Option[Exception], ( Response, HttpRoutes.PostProc )]=
-     appRoutes match {
+    appRoutes: List[HttpRoutes[R]]
+  ): ZIO[ZEnv with R, Option[Exception], (Response, HttpRoutes.PostProc)] =
+    appRoutes match {
       case h :: tail => {
         for {
-          response <- h.run(req).map( r => ( r, h.postProc )).catchAll {
+          response <- h.run(req).map(r => (r, h.postProc)).catchAll {
                        case None => {
-                         route_go(req, tail ) //None - we need another one
+                         route_go(req, tail) //None - we need another one
                        }
                        case Some(e) =>
                          ZIO.fail(Some(e))
                      }
-        } yield ( response )
+        } yield (response)
       }
       case Nil => ZIO.fail(None)
     }
 
- 
-  private def response_processor[A](req: Request, resp: Response ): ZIO[ZEnv with MyEnv, Exception, Int] =
+  private def response_processor[A](
+    req: Request,
+    resp: Response
+  ): ZIO[ZEnv with R, Exception, Int] =
     if (resp == NoResponse) {
 
       IO.succeed(0)
@@ -161,9 +154,9 @@ class HttpRouter {
     } else {
 
       val contType = ContentType(resp.headers.get("content-type").getOrElse(""))
-     
+
       val status = resp.code
-      val body   = resp.body.getOrElse( Chunk[Byte]() )
+      val body   = resp.body.getOrElse(Chunk[Byte]())
 
       val T = if (status.isSuccess) {
         ResponseWriters.writeFullResponse(req.ch, resp, resp.code, new String(body.toArray), false)
@@ -182,21 +175,18 @@ class HttpRouter {
       } else ResponseWriters.writeNoBodyResponse(req.ch, status, new String(body.toArray), true)
 
       (Logs.log_access(req, status, body.size) *> T).refineToOrDie[Exception]
-  
+
     }
 
-
-  private def rd_proc( c: Channel, contentLen: Int, bodyChunk: Chunk[Byte] ) = 
-  {
-      var totalChunk = bodyChunk 
-      val loop = for {
-        chunk      <- if ( contentLen > totalChunk.length ) c.read else ZIO.succeed( Chunk[Byte]() )
-        _ <- ZIO.effectTotal{ totalChunk = totalChunk ++ chunk }
-       // _ <- zio.console.putStrLn( "read block, size= " + totalChunk.length + "cl = " + contentLen  )
-      } yield( totalChunk )
-      loop.repeatWhile(  _.length < contentLen  )
+  private def rd_proc(c: Channel, contentLen: Int, bodyChunk: Chunk[Byte]) = {
+    var totalChunk = bodyChunk
+    val loop = for {
+      chunk <- if (contentLen > totalChunk.length) c.read else ZIO.succeed(Chunk[Byte]())
+      _     <- ZIO.effectTotal { totalChunk = totalChunk ++ chunk }
+      // _ <- zio.console.putStrLn( "read block, size= " + totalChunk.length + "cl = " + contentLen  )
+    } yield (totalChunk)
+    loop.repeatWhile(_.length < contentLen)
   }
-
 
   ////////////////////////////////////////////////////////////////
   def finishBodyLoadForRequest(req: Request): ZIO[ZEnv, Exception, Request] = {
@@ -239,7 +229,9 @@ class HttpRouter {
 
       requestMap <- lines.next match {
                      case http_line(method, path, prot) =>
-                       IO.effectTotal(Headers( HttpRouter._METHOD -> method, HttpRouter._PATH -> path, HttpRouter._PROTO -> prot))
+                       IO.effectTotal(
+                         Headers(HttpRouter._METHOD -> method, HttpRouter._PATH -> path, HttpRouter._PROTO -> prot)
+                       )
                      case _ => IO.fail(new BadInboundDataError())
 
                    }
@@ -262,17 +254,15 @@ class HttpRouter {
       pos0 = new String(firstChunk.toArray).indexOf("\r\n\r\n")
       pos  = pos0 + 4
 
-                  
+      contentLen <- if (pos0 == -1) ZIO.fail(new HTTPHeaderTooBig)
+                   else
+                     IO.effect {
+                       requestMapWithAttributes.get("content-length").getOrElse("0")
+                     }
 
-      contentLen <-     if( pos0 == -1 )  ZIO.fail( new HTTPHeaderTooBig ) 
-                        else IO.effect {
-                          requestMapWithAttributes.get("content-length").getOrElse("0")
-                        }  
-                   
-                     
-       contentLenL <- ZIO.fromTry( Try( contentLen.toLong ) )
+      contentLenL <- ZIO.fromTry(Try(contentLen.toLong))
 
-      _          <- if ( contentLenL > MAX_ALLOWED_CONTENT_LEN ) ZIO.fail( new ContentLenTooBig ) else ZIO.unit        
+      _ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
 
       bodyChunk <- if (fetchBody)
                     rd_proc(c, contentLen.toInt, firstChunk.drop(pos))

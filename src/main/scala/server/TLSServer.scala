@@ -13,12 +13,13 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.KeyManagerFactory
 import zio.Schedule
 import zio.ExitCode
+import zio.Has
 
-import zhttp.MyLogging._
+import zhttp.MyLogging.Service
 
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
-class TLSServer {
+class TLSServer[R <: Has[MyLogging.Service]] {
 
   var KEYSTORE_PATH     = "/app/keystore.jks"
   var KEYSTORE_PASSWORD = "password"
@@ -27,10 +28,10 @@ class TLSServer {
   var KEEP_ALIVE: Long  = 15000 //ms, good if short for testing with broken site's snaphosts with 404 pages
   var SERVER_PORT       = 8084
 
-  private var processor: Channel => ZIO[ZEnv with MyEnv, Exception, Unit] = null
+  private var processor: Channel => ZIO[ZEnv with R, Exception, Unit] = null
 
   /////////////////////////////////
-  def myAppLogic: ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
+  def myAppLogic: ZIO[ZEnv with R, Throwable, ExitCode] =
     for {
 
       metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.metrics)
@@ -75,7 +76,7 @@ class TLSServer {
     } yield (ExitCode(0))
 
   //////////////////////////////////////////////////
-  def run(proc: Channel => ZIO[ZEnv with MyEnv, Exception, Unit]) = {
+  def run(proc: Channel => ZIO[ZEnv with R, Exception, Unit]) = {
 
     processor = proc
 

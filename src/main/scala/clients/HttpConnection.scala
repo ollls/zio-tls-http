@@ -24,7 +24,7 @@ import zhttp.ContentType
 import zhttp.Cookie
 import zhttp.MyLogging
 import zhttp.MyLogging.MyLogging
-import zhttp.MyEnv
+
 
 sealed case class HttpConnectionError(msg: String)     extends Exception(msg)
 sealed case class HttpResponseHeaderError(msg: String) extends Exception(msg)
@@ -78,7 +78,7 @@ case class ClientRequest(
 }
 
 //Request to Request, enriched with headers
-case class FilterProc(run: ClientRequest => ZIO[ZEnv with MyEnv, Throwable, ClientRequest] )
+case class FilterProc(run: ClientRequest => ZIO[ZEnv with MyLogging, Throwable, ClientRequest] )
 
 object HttpConnection {
 
@@ -141,7 +141,7 @@ object HttpConnection {
 
   def connectWithFilter(
     url: String,
-    filter: ClientRequest => ZIO[ZEnv with MyEnv, Throwable, ClientRequest],
+    filter: ClientRequest => ZIO[ZEnv with MyLogging, Throwable, ClientRequest],
     trustKeystore: String = null,
     password: String = ""
   ) = {
@@ -246,7 +246,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
   def close = ch.close
 
   ///////////////////////////////////////////////////////////////
-  def send(req: ClientRequest): ZIO[zio.ZEnv with MyEnv, Throwable, ClientResponse] = {
+  def send(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
 
     def parseRequest(req: ClientRequest) = ZIO.effect {
 
