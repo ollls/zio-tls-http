@@ -1,11 +1,11 @@
 # Update history.
 * local environment now is made as a type parameter for Server and Server Router. 
-  No more environment alias - scala package object required.
-  This will allow to release stadalone jar. Environment must have MyLogging service. 
+  No more environment alias or scala package object required, all examples had been updated accordingly.
+  This is a milestone change, it will allow to release stadalone jar. 
 
   Please, just update your local server code to have at least [MyLogging] as type param.
   
-       type MyEnv3 = MyLogging   
+      type MyEnv3 = MyLogging   
       val myHttp = new TLSServer[MyEnv3]
       val myHttpRouter = new HttpRouter[MyEnv3]
     
