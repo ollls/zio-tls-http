@@ -2,13 +2,8 @@
 * Dev only: local environment now is made as a type parameter for Server and Server Router. 
   This will allow to release stadalone jar. Environment must have MyLogging service. 
   
-        class TLSServer[R <: Has[MyLogging.Service]]
-        
-  No more package object with env. alias!
-  
-       type MyEnv3 = MyLogging
-       val myHttp = new TLSServer[MyEnv3]
-       val myHttpRouter = new HttpRouter[MyEnv3]
+  Simple example for new custom env provided as a type parameter, no issues so far, will be sumbmitted to master soon.
+  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
 
 * Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools. ( original master is now master.2020 )
   
