@@ -13,12 +13,13 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.KeyManagerFactory
 import zio.Schedule
 import zio.ExitCode
+import zio.Has
 
-import zhttp.MyLogging._
+import zhttp.MyLogging.Service
 
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
-class TLSServer {
+class TLSServer[MyEnv <: Has[MyLogging.Service]] {
 
   var KEYSTORE_PATH     = "/app/keystore.jks"
   var KEYSTORE_PASSWORD = "password"

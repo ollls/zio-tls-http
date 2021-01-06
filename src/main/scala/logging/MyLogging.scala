@@ -107,12 +107,15 @@ object MyLogging {
     def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit]
   }
 
+
   def log(name: String, lvl: LogLevel, msg: String): ZIO[ ZEnv with MyLogging, Exception, Unit] =
-    ZIO.accessM[ZEnv with MyLogging](logenv => logenv.asInstanceOf[MyLogging].get.log(name, lvl, msg ) ) 
+  {
+      ZIO.accessM[ZEnv with MyLogging](logenv => logenv.get[MyLogging.Service].log(name, lvl, msg ) ) 
+  }
 
  def logService: ZIO[ ZEnv with MyLogging, Exception, MyLogging.Service] =
  {
-      ZIO.access[ZEnv with MyLogging]( logenv => logenv.asInstanceOf[MyLogging].get )
+      ZIO.access[ZEnv with MyLogging]( logenv => logenv.get[ MyLogging.Service] )
  }   
  
 

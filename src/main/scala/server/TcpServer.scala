@@ -8,12 +8,13 @@ import nio.channels._
 
 import zio.Schedule
 import zio.ExitCode
+import zio.Has
 
-import zhttp.MyLogging._
+import zhttp.MyLogging.Service
 
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
-class TcpServer {
+class TcpServer[ MyEnv <: Has[MyLogging.Service]] {
 
   var BINDING_SERVER_IP = "127.0.0.1" //make sure certificate has that IP on SAN's list
   var KEEP_ALIVE: Long  = 15000 //ms, good if short for testing with broken site's snaphosts with 404 pages
@@ -67,7 +68,7 @@ class TcpServer {
     } yield (ExitCode(0))
 
   //////////////////////////////////////////////////
-  def run(proc: Channel => ZIO[ZEnv with MyLogging.MyLogging, Exception, Unit]) = {
+  def run(proc: Channel => ZIO[ZEnv with MyEnv, Exception, Unit]) = {
 
     processor = proc
 

@@ -16,15 +16,14 @@ import zio.Chunk
 import zhttp.clients._
 import MyLogging.MyLogging
 import zhttp.clients.ResPoolGroup.RPDM
-
+import zhttp.clients.ResPoolGroup.ResPoolGroup
 
 
 object myServer extends zio.App {
 
+  type MyEnv3 = MyLogging with ResPoolGroup[HttpConnection]
 
   val ROOT_CATALOG = "/app/web_root"
-
-  val myHttpRouter = new HttpRouter
 
   //////////////////////////////////
   def run(args: List[String]) = {
@@ -50,8 +49,8 @@ object myServer extends zio.App {
 
   
 
-    val myHttp = new TLSServer
-    val myHttpRouter = new HttpRouter
+    val myHttp = new TLSServer[MyEnv3]
+    val myHttpRouter = new HttpRouter[MyEnv3]
 
     //app routes
     myHttpRouter.addAppRoute( app_route_JSON )
