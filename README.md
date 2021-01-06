@@ -2,6 +2,8 @@
 * local environment now is made as a type parameter for Server and Server Router. 
   No more environment alias or scala package object required, all examples had been updated accordingly.
   This is a milestone change, it will allow to release stadalone jar. 
+  
+  **Branch master.2020 has original server only( no client support) code - if any issues.**
 
   Please, just update your local server code to have at least [MyLogging] as type param.
   
