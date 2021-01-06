@@ -15,6 +15,9 @@ import zio.json._
 import zio.Chunk
 import zhttp.clients._
 import MyLogging.MyLogging
+import clients.ResPool.ResPool
+import clients.HttpConnection
+
 
 
 
@@ -23,7 +26,6 @@ object myServer extends zio.App {
 
   val ROOT_CATALOG = "/app/web_root"
 
-  val myHttpRouter = new HttpRouter
 
   //////////////////////////////////
   def run(args: List[String]) = {
@@ -48,9 +50,10 @@ object myServer extends zio.App {
       }
 
   
+    type MyEnv = MyLogging with ResPool[HttpConnection]  
 
-    val myHttp = new TLSServer
-    val myHttpRouter = new HttpRouter
+    val myHttp = new TLSServer[MyEnv]
+    val myHttpRouter = new HttpRouter[MyEnv]
 
     //app routes
     myHttpRouter.addAppRoute( app_route_JSON )
