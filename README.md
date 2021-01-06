@@ -7,6 +7,8 @@
 
   Please, just update your local server code to have at least [MyLogging] as type param.
   
+      import zhttp.MyLogging.MyLogging
+      
       type MyEnv3 = MyLogging   
       val myHttp = new TLSServer[MyEnv3]
       val myHttpRouter = new HttpRouter[MyEnv3]
