@@ -7,7 +7,7 @@ import zio.{ ZEnv, ZIO }
 import zio.Has
 
 //normal app routes - A is Request
-final case class HttpRoutes[ MyEnv <: Has[MyLogging.Service]](
+final case class HttpRoutes[ -MyEnv <: Has[MyLogging.Service]](
   run: Request => ZIO[ZEnv with MyEnv, Option[Exception], Response],
   postProc: HttpRoutes.PostProc
 )

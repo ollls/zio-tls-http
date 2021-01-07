@@ -4,6 +4,7 @@ import zio.ZIO
 import zio.ZEnv
 import zhttp._
 import zhttp.dsl._
+import zio.Has
 
 import java.time.ZonedDateTime
 
@@ -31,7 +32,7 @@ case class DataBlock(val name: String, val address: String, val colors : Chunk[S
 
 object myServer extends zio.App {
 
-type MyEnv3 = MyLogging
+type MyEnv3 = MyLogging with Has[String]
 
     val myHttp = new TLSServer[MyEnv3]
     val myHttpRouter = new HttpRouter[MyEnv3]
@@ -50,6 +51,13 @@ type MyEnv3 = MyLogging
     (_) => ZIO(Response.Ok.hdr("Injected-Header-Value" -> "1234").hdr("Injected-Header-Value" -> "more"))
   )
 
+
+   val proc11 = WebFilterProc(
+    (_) => for {
+       a    <- ZIO.access[Has[String]]( attr => attr  ) 
+    } yield( Response.Ok.hdr( "StringFromEnv" -> a.get ))
+  )
+
   val proc2 = WebFilterProc(
     req =>
       ZIO {
@@ -59,7 +67,7 @@ type MyEnv3 = MyLogging
       }
   )
 
-  val proc3 = proc1 <> proc2   //combine two web filters into one
+  val proc3 = proc1 <> proc2 <> proc11  //combine two web filters into one
 
   //post PROC TO propagate extra headers
   val openCORS: HttpRoutes.PostProc = (r) =>
@@ -212,6 +220,9 @@ type MyEnv3 = MyLogging
 
     myHttpRouter.addAppRoute( ws_route2 )
 
+
+    val AttributeLayer = ZIO.succeed( "flag#1").toLayer
+
     //server
     myHttp.KEYSTORE_PATH = "keystore.jks"
     myHttp.KEYSTORE_PASSWORD = "password"
@@ -222,7 +233,7 @@ type MyEnv3 = MyLogging
 
     myHttp
       .run(myHttpRouter.route)
-      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info )))
+      .provideSomeLayer[ZEnv with MyLogging]( AttributeLayer).provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info )))
       .exitCode
   }
 }
