@@ -7,7 +7,7 @@ import zio.Has
 
 
 //normal app routes - A is Request
-final case class HttpRoutes[R <: Has[MyLogging.Service]](run: Request => ZIO[ZEnv with R, Option[Exception], Response], postProc: HttpRoutes.PostProc)
+final case class HttpRoutes[-R <: Has[MyLogging.Service]](run: Request => ZIO[ZEnv with R, Option[Exception], Response], postProc: HttpRoutes.PostProc)
 
 object HttpRoutes {
 
