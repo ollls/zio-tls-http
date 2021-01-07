@@ -29,6 +29,7 @@ Note on how stuff works.
 * https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
 
 One conn. pool, use case: ( using ZManaged is encouraged for ResPool/ResPoolGroup acquire/release ).
+
 ResPool.TIME_TO_LIVE < KEEP_ALIVE on remote host
 
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
