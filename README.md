@@ -1,5 +1,5 @@
 # Update history.
-* local environment now is made as a type parameter for Server and Server Router. 
+* Your local ZIO environment now is made as a type parameter for Server and Server Router. 
   No more environment alias or scala package object required, all examples had been updated accordingly.
   This is a milestone change, it will allow to release stadalone jar. 
   
