@@ -19,9 +19,9 @@
        val myHttpRouter = new HttpRouter[MyLogging]
     
 
-* Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools. ( original master is now master.2020 )
+* Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools.
   
-  "MyLogging.PRINT_CONSOLE = false" will supress output to terminal, data will go only to colsole.log
+      "MyLogging.PRINT_CONSOLE = false" will supress output to terminal, data will go only to colsole.log
 
 ## Use cases.
 
