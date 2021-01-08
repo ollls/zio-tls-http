@@ -1,27 +1,43 @@
 # Update history.
+* Your local ZIO environment now is made as a type parameter for Server and Server Router. 
+  No more environment alias or scala package object required, all examples had been updated accordingly.
+  This is a milestone change, it will allow to release stadalone jar. 
+  
+  **Branch master.2020 has original server only( no client support) code - if any issues.**
 
-* Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools. ( original master is now master.2020 )
-  MyLogging.PRINT_CONSOLE = false will supress output to terminal, data will go only to colsole.log
+  Please, just update your local server code to have at least [MyLogging] as type param.
+  
+      import zhttp.MyLogging.MyLogging
+      
+      type MyEnv3 = MyLogging   
+      val myHttp = new TLSServer[MyEnv3]
+      val myHttpRouter = new HttpRouter[MyEnv3]
+    
+    or just
+    
+       val myHttp = new TLSServer[MyLogging]
+       val myHttpRouter = new HttpRouter[MyLogging]
+    
+
+* Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools.
+  
+      "MyLogging.PRINT_CONSOLE = false" will supress output to terminal, data will go only to colsole.log
 
 ## Use cases.
 
-Note on how stuff works.
-* https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
+* Note on how stuff works.
+ https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
 
-One conn. pool, use case: ( using ZManaged is encouraged for ResPool/ResPoolGroup acquire/release ).
+* One conn. pool, use case: ( using ZManaged is encouraged for ResPool/ResPoolGroup acquire/release ).
 
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
 
-Many conn. pools, use case: 
+     ResPool.TIME_TO_LIVE < KEEP_ALIVE on remote host
+
+* Many conn. pools, use case: 
 
 https://github.com/ollls/zio-tls-http/blob/master/doc/server_httpclient_many_pool.scala
-
-Key points:
-
-            ResPool.TIME_TO_LIVE < KEEP_ALIVE on remote host
-            package.scala must have  type MyEnv = MyLogging with ResPool[HttpConnection] or ResPoolGroup[]
-
-
+ 
 * Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
   Original example MyServer cluttered with too many use cases.
   
