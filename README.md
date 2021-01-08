@@ -1,4 +1,13 @@
 # Update history.
+
+* ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
+
+       val proc11 = WebFilterProc(
+          (_) => for {
+          a    <- ZIO.access[Has[String]]( attr => attr  ) 
+        } yield( Response.Ok.hdr( "StringFromEnv" -> a.get ))
+  etc... please see MyServer.scala to learn more.
+
 * Your local ZIO environment now is made as a type parameter for Server and Server Router. 
   No more environment alias or scala package object required, all examples had been updated accordingly.
   This is a milestone change, it will allow to release stadalone jar. 
