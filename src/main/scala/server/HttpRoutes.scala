@@ -6,27 +6,25 @@ import MyLogging.MyLogging
 import zio.{ ZEnv, ZIO }
 import zio.Has
 
-//normal app routes - A is Request
-final case class HttpRoutes[ -MyEnv <: Has[MyLogging.Service]](
+final case class HttpRoutes[-MyEnv <: Has[MyLogging.Service]](
   run: Request => ZIO[ZEnv with MyEnv, Option[Exception], Response],
   postProc: HttpRoutes.PostProc
 )
 
 object HttpRoutes {
 
-  case class WebFilterProc[ -MyEnv <: Has[MyLogging.Service]](
+  case class WebFilterProc[-MyEnv <: Has[MyLogging.Service]](
     run: Request => ZIO[ZEnv with MyEnv, Throwable, Response]
   ) {
-    def <> [MyEnv0 <: Has[MyLogging.Service]](another: WebFilterProc[MyEnv0]) = combine[MyEnv0](another.run)
+    def <> [MyEnv0 <: MyEnv](another: WebFilterProc[MyEnv0]) = combine[MyEnv0](another.run)
 
-    def <> [MyEnv0 <: Has[MyLogging.Service]](another: Request => ZIO[ZEnv with MyEnv0, Throwable, Response]) =
-      combine[MyEnv0](another)
+    def <> [MyEnv0 <: MyEnv](another: Request => ZIO[ZEnv with MyEnv0, Throwable, Response]) = combine[MyEnv0](another)
 
     ////////////////////////////////////////////////////////////////////////////////////////vb
-    def combine[MyEnv0 <: Has[MyLogging.Service]](
+    def combine[MyEnv0 <: MyEnv](
       another: Request => ZIO[ZEnv with MyEnv0, Throwable, Response]
-    ): WebFilterProc[MyEnv with MyEnv0] = {
-      def new_proc(req: Request): ZIO[ZEnv with MyEnv with MyEnv0, Throwable, Response] =
+    ): WebFilterProc[MyEnv0] = {
+      def new_proc(req: Request): ZIO[ZEnv with MyEnv0, Throwable, Response] =
         run(req).flatMap(
           resp0 => {
             //transfer custom headers from filter1 response to filter2 request
@@ -36,7 +34,7 @@ object HttpRoutes {
             else ZIO.succeed(resp0)
           }
         )
-      WebFilterProc[MyEnv with MyEnv0](new_proc)
+      WebFilterProc[MyEnv0](new_proc)
     }
 
   }
@@ -53,13 +51,13 @@ object HttpRoutes {
       case None    => ZIO.fromOption(None)
     }
 
-  // def __filter[ MyEnv <: Has[MyLogging.Service ] ( WebFilterProc[MyEnv]) =
+  private var _filter             = WebFilterProc((_) => ZIO(Response.Ok))
+  private var _postProc: PostProc = (r: Response) => r
 
-  private var _filter: WebFilterProc[MyLogging] = WebFilterProc((_) => ZIO(Response.Ok))
-  private var _postProc: PostProc               = (r: Response) => r
-
-  def defaultFilter                                                 = _filter.run
-  def defaultFilter(ft0: Request => ZIO[ZEnv, Throwable, Response]) = _filter = WebFilterProc(ft0)
+  //default flter ony with MyLogging, supporting all envs will incur serious chnages.
+  //not sure how to share a variable with type parameters, can use only predef MyLogging
+  def defaultFilter(ft0: Request => ZIO[ZEnv with MyLogging, Throwable, Response]) =
+    _filter = WebFilterProc(ft0)
 
   def defaultPostProc                 = _postProc
   def defaultPostProc(proc: PostProc) = _postProc = proc
@@ -78,7 +76,7 @@ object HttpRoutes {
   )(pf: PartialFunction[Request, ZIO[ZEnv with MyEnv, Throwable, Response]]): HttpRoutes[MyEnv] = {
 
     //preceded with default filter first
-    val filter = if (filter0 != _filter) _filter <> filter0 else filter0
+    val filter = if (filter0 != _filter) _filter.combine[MyEnv](filter0.run) else filter0
 
     // default post proc called last, defaultPostProc ( mypostProc( response )
     val postProc = if (postProc0 != _postProc) _postProc.compose(postProc0) else postProc0

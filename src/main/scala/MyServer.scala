@@ -221,7 +221,7 @@ type MyEnv3 = MyLogging with Has[String]
     myHttpRouter.addAppRoute( ws_route2 )
 
 
-    val AttributeLayer = ZIO.succeed( "flag#1").toLayer
+    val AttributeLayer = ZIO.succeed( "flag#1-1").toLayer
 
     //server
     myHttp.KEYSTORE_PATH = "keystore.jks"
