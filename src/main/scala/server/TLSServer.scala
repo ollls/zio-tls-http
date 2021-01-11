@@ -15,8 +15,6 @@ import zio.Schedule
 import zio.ExitCode
 import zio.Has
 
-import zhttp.MyLogging.Service
-
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
 class TLSServer[MyEnv <: Has[MyLogging.Service]] {
@@ -36,8 +34,14 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]] {
 
       metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.metrics)
 
-      _    <- MyLogging.info( "console", s"TLS HTTP Service started on " + SERVER_PORT + ", ZIO concurrency lvl: " + metr.get.concurrency + " threads")
-      _    <- MyLogging.info( "console", "Listens: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms")
+      _ <- MyLogging.info(
+            "console",
+            s"TLS HTTP Service started on " + SERVER_PORT + ", ZIO concurrency lvl: " + metr.get.concurrency + " threads"
+          )
+      _ <- MyLogging.info(
+            "console",
+            "Listens: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms"
+          )
 
       executor <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.asECES)
 
@@ -53,19 +57,23 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]] {
 
                 _ <- srv.bind(address)
 
-                loop = srv.accept2.flatMap(
+                loop = srv.accept2
+                  .flatMap(
                     channel =>
-                        channel.remoteAddress.flatMap(  
-                        c => MyLogging.debug( "console", 
-                          "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName ) ) *>
-                      AsynchronousServerTlsByteChannel(channel, ssl_context)
-                        .use(c => processor( new TlsChannel( c.keepAlive(KEEP_ALIVE ) )))
-                        .catchAll( _ => {
-                          //e.printStackTrace; println("***" + e.toString); /*group.shutdownNow *>*/
-                          IO.succeed(0)
-                        }) 
-                        .fork ).catchAll( _ =>  IO.succeed(0) )
-                  
+                      channel.remoteAddress.flatMap(
+                        c =>
+                          MyLogging
+                            .debug("console", "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName)
+                      ) *>
+                        AsynchronousServerTlsByteChannel(channel, ssl_context)
+                          .use(c => processor(new TlsChannel(c.keepAlive(KEEP_ALIVE))))
+                          .catchAll(_ => {
+                            //e.printStackTrace; println("***" + e.toString); /*group.shutdownNow *>*/
+                            IO.succeed(0)
+                          })
+                          .fork
+                  )
+                  .catchAll(_ => IO.succeed(0))
 
                 _ <- loop.repeat(Schedule.forever)
 
@@ -82,7 +90,7 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]] {
 
     val T = myAppLogic.fold(e => {
       e.printStackTrace(); zio.ExitCode(1)
-    }, _ => zio.ExitCode(0)) 
+    }, _ => zio.ExitCode(0))
 
     T
   }

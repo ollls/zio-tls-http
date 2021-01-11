@@ -22,8 +22,10 @@ lazy val root = (project in file("."))
   )
 
 // Refine scalac params from tpolecat
-scalacOptions --= Seq(
-  "-Xfatal-warnings"
+scalacOptions ++= Seq(
+  "-Wunused:imports",
+  "-Xfatal-warnings",
+  "-deprecation", 
 )
 
 //addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full)

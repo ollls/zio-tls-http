@@ -12,7 +12,6 @@ import zio.ZQueue
 
 import zhttp.MyLogging
 import zhttp.MyLogging.MyLogging
-import zio.Runtime._
 import zhttp.LogLevel
 
 object ResPoolGroup {

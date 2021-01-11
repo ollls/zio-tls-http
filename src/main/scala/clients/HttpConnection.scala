@@ -2,7 +2,6 @@ package zhttp.clients
 
 import zio.ZIO
 import zio.ZEnv
-import zio.blocking.Blocking
 import zio.Chunk
 import zio.blocking.effectBlocking
 import zio.json._
