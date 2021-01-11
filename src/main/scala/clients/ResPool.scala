@@ -1,6 +1,5 @@
 package zhttp.clients
 
-import zio.ZLayer
 import zio.ZEnv
 import zio.Has
 import zio.ZQueue

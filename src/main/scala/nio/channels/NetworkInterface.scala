@@ -1,10 +1,11 @@
+
 package nio
 
 import java.net.{ SocketException, NetworkInterface => JNetworkInterface }
 
 import zio.IO
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class NetworkInterface private[nio] (private[nio] val jNetworkInterface: JNetworkInterface) {
 

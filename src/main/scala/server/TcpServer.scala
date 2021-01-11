@@ -10,8 +10,6 @@ import zio.Schedule
 import zio.ExitCode
 import zio.Has
 
-import zhttp.MyLogging.Service
-
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
 class TcpServer[ MyEnv <: Has[MyLogging.Service]] {
