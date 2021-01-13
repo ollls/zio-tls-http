@@ -1,3 +1,5 @@
+Appreciate any feedback negative or postive, please use, my email or open issue, or use https://gitter.im/zio-tls-http.
+
 # Update history.
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
