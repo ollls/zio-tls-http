@@ -1,4 +1,5 @@
 Appreciate any feedback negative or postive, please use, my email or open issue, or use https://gitter.im/zio-tls-http.
+We plan for release of standalone jar, also embeded LRU eviction cache as ZIO env in the plans.
 
 # Update history.
 
