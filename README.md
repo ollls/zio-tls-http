@@ -6,7 +6,7 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 * It has been decided that we try to build a cache based on home grown fixed SkipList. Initial tests are very positive. 
   Maybe it's a bit unusual:  but whole idea is based on simple preposition: for paralialel programming you don't need anything else but "java.util.concurrent.atomic" and single linked lists :). 
  "The Art of Multiprocessor Programming" - chapter 13.3 - describes almost the same ( but more specialized data structure ). 
- So, why not use to more general approach for 100% LockFree HashMap implementation - https://github.com/ollls/mycac.
+ So, why not use to more general approach for 100% LockFree HashMap implementation - https://github.com/ollls/mycas
  Stay tuned.
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
