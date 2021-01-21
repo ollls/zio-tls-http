@@ -7,7 +7,7 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
   Maybe it's a bit unusual:  but whole idea is based on simple preposition: for parallel programming you don't need anything else but "java.util.concurrent.atomic" and single linked lists :). 
  "The Art of Multiprocessor Programming" - chapter 13.3 - describes almost the same ( but more specialized data structure ). 
  So, why not use to more general approach for 100% LockFree HashMap implementation - https://github.com/ollls/mycas.
- Stay tuned.  ( in memory DB table with primary/secondary quick index seacrh also can be done as ZLayer - at leat we will try )
+ Stay tuned.  ( in memory DB table with primary/secondary quick index seacrh also can be done as ZLayer - at least we will try )
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
 
