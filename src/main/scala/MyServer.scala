@@ -19,6 +19,8 @@ import MyLogging.MyLogging
 
 object param1 extends QueryParam("param1")
 
+import zhttp.clients.util.SkipList
+
 
 object DataBlock {
 
@@ -31,6 +33,9 @@ case class DataBlock(val name: String, val address: String, val colors : Chunk[S
 
 
 object myServer extends zio.App {
+
+
+val sylo = new SkipList[ String ]  
 
 type MyEnv3 = MyLogging with Has[String]
 
@@ -153,8 +158,15 @@ type MyEnv3 = MyLogging with Has[String]
 
     val app_route_JSON = HttpRoutes.ofWithFilter(proc1) { 
 
-       case GET -> Root / "test2" =>
-         ZIO(Response.Ok.asTextBody( "Health Check" ) )
+       case POST -> Root / "container" / StringVar( name ) =>
+               sylo.add( name ).map( b => Response.Ok.asTextBody( b.toString()) )
+
+       case GET -> Root / "container" =>
+               ZIO(Response.Ok.asTextBody( sylo.debug_print( new StringBuilder ).toString + "\n\n" + sylo.debug_print_layers( new StringBuilder).toString ) )
+
+       case DELETE -> Root / "container" / StringVar( name ) =>
+               sylo.remove( name ).map( b => Response.Ok.asTextBody( b.toString())  )
+               //ZIO(Response.Ok.asTextBody( sylo.remove( name ).toString ) )        
 
         
        case GET -> Root / "test" =>
