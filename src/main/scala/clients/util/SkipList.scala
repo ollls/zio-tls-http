@@ -38,7 +38,7 @@ object StringIgnoreCaseValuePair {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-class ValuePair[A, B](val key: A, val value: B)(implicit ord: A => Ordered[A]) extends Ordered[ValuePair[A, B]] {
+class ValuePair[A, B](val key: A, val value: B) (implicit ord: A => Ordered[A]) extends Ordered[ValuePair[A, B]] {
 
   override def compare(that: ValuePair[A, B]): Int =
     key.compare(that.key)
@@ -322,8 +322,13 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
   def count(): Int =
     OrderedList.count[A](vals)
 
+
   //////////////////////////////////////////////////////////////////////
-  def get(a: A): Option[A] = {
+  
+  def u_get( a : A ) : UIO[Option[A]] = UIO( get(a) )
+
+  //////////////////////////////////////////////////////////////////////
+  def get(a: A): Option[A] = { 
     val list = findClosestLT(a).getReference
 
     if (list.isLast || list.isFirst) None
