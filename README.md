@@ -5,7 +5,7 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 
 * DEV: Proper logs for ResPoolCache layer, MyLogging layer shows fiber number now, cleanup
 
-* DEV Early working example of ResPoolCache, complete stack with ZIO layers ( pooling/caching - depenedcy injection). 
+* DEV: Early working example of ResPoolCache, complete stack with ZIO layers ( pooling/caching - depenedcy injection). 
   Example will require AsyncLDAP ( also present in doc folder ) ( no evictons for cache yet )
   
   https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala
