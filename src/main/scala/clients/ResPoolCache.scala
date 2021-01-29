@@ -11,6 +11,7 @@ import zio.Tag
 import zio.ZManaged
 
 import zio.Promise
+
 import zhttp.clients.util.SkipList
 import zhttp.clients.util.ValuePair
 
@@ -23,10 +24,9 @@ object ResPoolCache {
     def timeStampIt = ts = java.time.Instant.now().toEpochMilli();
 
     //////////////////////////////////////////////////////////////
-    def isExpired(seconds: Int): Boolean = {
-      val mills = seconds * 1000
+    def isExpired( mills: Int): Boolean = {
       val now   = java.time.Instant.now().toEpochMilli()
-      if (now + mills > ts) true else false
+      if ( now - ts > mills ) true else false
     }
   }
 
@@ -40,8 +40,8 @@ object ResPoolCache {
     ZIO.accessM[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].get(key))
 
   def make[K, V, R](
-    TIME_TO_LIVE_SEC: Int,
-    updatef: (R, K) => ZIO[ZEnv with ResPoolCache[K, V, R] with MyLogging, Throwable, V]
+    timeToLiveMs: Int,
+    updatef: (R, K) => ZIO[ZEnv with MyLogging, Throwable, V]
   )(
     implicit ord: K => Ordered[K],
     tagged: Tag[R],
@@ -62,23 +62,25 @@ object ResPoolCache {
               .use(resource => {
                 for {
                   entry <- cache_tbl.u_get(ValuePair[K, CacheEntry[V]](key))
+                  _     <- ZIO( println( "get from cache " + entry.toString() ) )
                   r <- entry match {
                         //refresh or read value from cache
                         //--------------------------------------------------
                         case Some(pair) =>
                           val cached_entry = pair.value
-                          if (cached_entry.isExpired(TIME_TO_LIVE_SEC)) {
+                          if (cached_entry.isExpired( timeToLiveMs )) {
+                            println( "EXPIRED")
                             for {
                               pttt    <- acquirePromise(key)
                               aquired = pttt._1
                               promise = pttt._2
                               _ <- if (aquired == true) {
+                                    println( "aquired on cached")
                                     updatef(resource, key)
                                       .flatMap(v => {
                                         cached_entry.cached_val = v
                                         cached_entry.timeStampIt
-                                        promise.succeed(true);
-                                        dropPromise(key);
+                                        promise.succeed(true) *> dropPromise(key);
                                       })
 
                                   } else {
@@ -96,14 +98,16 @@ object ResPoolCache {
                             aquired = pttt._1
                             promise = pttt._2
                             v <- if (aquired == true) {
+                                  println( "aquired on new")
                                   updatef(resource, key)
                                     .flatMap(v => {
-                                      val entry = new CacheEntry(v)
-                                      entry.timeStampIt
-                                      cache_tbl.add(ValuePair(key, entry))
-                                      promise.succeed(true);
-                                      dropPromise(key);
-                                      ZIO.succeed(v);
+                                      for { 
+                                      entry  <- ZIO.effect( new CacheEntry(v) )
+                                      _      <- ZIO.effect( entry.timeStampIt )
+                                      res <- cache_tbl.add(ValuePair(key, entry)) 
+                                      _   <- promise.succeed( res );
+                                      _   <-  dropPromise(key)
+                                      } yield( v )                                
                                     })
                                 } else {
                                   for {

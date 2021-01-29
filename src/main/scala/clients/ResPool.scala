@@ -18,8 +18,6 @@ object ResPool {
 
   type ResPool[R] = Has[ResPool.Service[R]]
 
-  var TIME_TO_LIVE = 1000 * 10 //  10 sec
-
   case class ResRec[R](res: R, timeToLive: Long = 0L)
 
   trait Service[R] {
@@ -55,7 +53,8 @@ object ResPool {
      TT.catchAll( e => ZIO.unit )
   }
 
-  def makeService[R](q: zio.Queue[ResRec[R]], createResource: () => R, closeResource: (R) => Unit) =
+  /*
+  def makeService2[R](q: zio.Queue[ResRec[R]], createResource: () => R, closeResource: (R) => Unit) =
     new Service[R] {
 
       def acquire =
@@ -64,7 +63,7 @@ object ResPool {
                    or.isDefined &&
                    or.exists(
                      r =>
-                       if (new java.util.Date().getTime() - r.timeToLive > TIME_TO_LIVE) {
+                       if (new java.util.Date().getTime() - r.timeToLive > TIME_TO_LIVE_MS) {
                          closeResource(r.res); true
                        } else false
                    )
@@ -74,10 +73,11 @@ object ResPool {
         } yield (resource)
 
       def release(res: R) = q.offer(ResRec(res, new java.util.Date().getTime)).unit
-    }
+    }*/
 
 
   private[clients] def acquire_wrapM[R](
+    timeToLiveMs : Int,
     pool_id : String,
     q: zio.Queue[ResRec[R]],
     createResource: () => ZIO[ ZEnv, Exception, R],
@@ -88,7 +88,7 @@ object ResPool {
       optR   <- q.poll.repeatWhile { or =>
                or.isDefined && or.exists(
                  r =>
-                   if (new java.util.Date().getTime() - r.timeToLive > TIME_TO_LIVE) {
+                   if (new java.util.Date().getTime() - r.timeToLive > timeToLiveMs ) {
                      Runtime.default.unsafeRun( 
                        closeResource(r.res) *>
                        logSvc.log( "console", LogLevel.Debug, s"ResPoolM: $pool_id - closing expired resource" )); true
@@ -105,6 +105,7 @@ object ResPool {
   
 
   private[clients] def acquire_wrap[R](
+    timeToLiveMs : Int,
     pool_id : String,
     q: zio.Queue[ResRec[R]],
     createResource: () => R,
@@ -115,7 +116,7 @@ object ResPool {
       optR   <- q.poll.repeatWhile { or =>
                or.isDefined && or.exists(
                  r =>
-                   if (new java.util.Date().getTime() - r.timeToLive > TIME_TO_LIVE) {
+                   if (new java.util.Date().getTime() - r.timeToLive > timeToLiveMs ) {
                      closeResource(r.res);
                      Runtime.default.unsafeRun( 
                        logSvc.log( "console", LogLevel.Debug, s"ResPool: $pool_id - closing expired resource" )); true
@@ -130,12 +131,12 @@ object ResPool {
 
     } yield (resource)
 
-  def make[R](createResource: () => R, closeResource: (R) => Unit)(
+  def make[R]( timeToLiveMs : Int, createResource: () => R, closeResource: (R) => Unit)(
     implicit tagged: Tag[R]
   ) = {
     val managedObj = ZQueue.unbounded[ResRec[R]].toManaged(q => { cleanup(q, closeResource) *> q.shutdown }).map { q =>
       new Service[R] {
-        def acquire         = acquire_wrap( "default", q, createResource, closeResource)
+        def acquire         = acquire_wrap( timeToLiveMs, "default", q, createResource, closeResource)
         def release(res: R) = q.offer(ResRec(res, new java.util.Date().getTime)).unit
       }
     }
@@ -144,6 +145,7 @@ object ResPool {
   }
 
     def makeM[R]( 
+        timeToLiveMs : Int, 
         createResource: () => ZIO[ ZEnv, Exception, R],
         closeResource: (R) => ZIO[ ZEnv, Exception, Unit]
       )(
@@ -151,7 +153,7 @@ object ResPool {
   ) = {
     val managedObj = ZQueue.unbounded[ResRec[R]].toManaged(q => { cleanupM(q, closeResource ) *> q.shutdown }).map { q =>
       new Service[R] {
-        def acquire         = acquire_wrapM( "default", q, createResource, closeResource)
+        def acquire         = acquire_wrapM( timeToLiveMs, "default", q, createResource, closeResource)
         def release(res: R) = q.offer(ResRec(res, new java.util.Date().getTime)).unit
       }
     }
