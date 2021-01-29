@@ -4,7 +4,7 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 # Update history.
 
 * Early working example of complete stack with ZIO layers ( pooling/caching - depenedcy injection). This is submitted to dev, stress tests are not finished.
-  Example will require AsyncLDAP ( also present in doc folder ). Example with HTTPConnection will be provided.
+  Example will require AsyncLDAP ( also present in doc folder ). Example with HTTPConnection will be provided. ( no evictons for cache yet )
   
   https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala
 
