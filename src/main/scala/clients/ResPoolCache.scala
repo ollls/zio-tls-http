@@ -11,9 +11,12 @@ import zio.Tag
 import zio.ZManaged
 
 import zio.Promise
-
 import zhttp.clients.util.SkipList
 import zhttp.clients.util.ValuePair
+
+import zhttp.MyLogging.MyLogging
+import zhttp.MyLogging
+import zhttp.LogLevel
 
 import scala.volatile
 
@@ -62,29 +65,31 @@ object ResPoolCache {
               .use(resource => {
                 for {
                   entry <- cache_tbl.u_get(ValuePair[K, CacheEntry[V]](key))
-                  _     <- ZIO( println( "get from cache " + entry.toString() ) )
                   r <- entry match {
                         //refresh or read value from cache
                         //--------------------------------------------------
                         case Some(pair) =>
                           val cached_entry = pair.value
                           if (cached_entry.isExpired( timeToLiveMs )) {
-                            println( "EXPIRED")
                             for {
+                              _       <- MyLogging.log( "console", LogLevel.Trace, "ResPoolCache: key = " + key.toString() + " expired with " + cached_entry.ts )  
                               pttt    <- acquirePromise(key)
                               aquired = pttt._1
                               promise = pttt._2
                               _ <- if (aquired == true) {
-                                    println( "aquired on cached")
+                                    
                                     updatef(resource, key)
                                       .flatMap(v => {
                                         cached_entry.cached_val = v
                                         cached_entry.timeStampIt
                                         promise.succeed(true) *> dropPromise(key);
-                                      })
+                                      }) *>  MyLogging.log( "console", 
+                                              LogLevel.Trace, "ResPoolCache: key = " + key.toString() + " promise acquired, value refreshed" ) 
 
                                   } else {
-                                    promise.await
+                                    promise.await *>
+                                    MyLogging.log( "console", 
+                                              LogLevel.Trace, "ResPoolCache: key = " + key.toString() + " wait on promise succeeded, value received" )
                                   }
                             } yield (cached_entry.cached_val)
                           } else
@@ -94,11 +99,11 @@ object ResPoolCache {
                         case None =>
                           //nothing cached for the key
                           for { //obtain shared promise for the key, promise owner or client
+                             _       <- MyLogging.log( "console", LogLevel.Trace, "ResPoolCache: key = " + key.toString() + " attempt to cache a new value" ) 
                             pttt    <- acquirePromise(key)
                             aquired = pttt._1
                             promise = pttt._2
                             v <- if (aquired == true) {
-                                  println( "aquired on new")
                                   updatef(resource, key)
                                     .flatMap(v => {
                                       for { 
@@ -107,12 +112,16 @@ object ResPoolCache {
                                       res <- cache_tbl.add(ValuePair(key, entry)) 
                                       _   <- promise.succeed( res );
                                       _   <-  dropPromise(key)
+                                      _   <- MyLogging.log( "console", 
+                                                LogLevel.Trace, "ResPoolCache: key = " + key.toString() + " promise acquired, new value cached" ) 
                                       } yield( v )                                
-                                    })
+                                    }) 
                                 } else {
                                   for {
                                     _   <- promise.await
                                     opt <- cache_tbl.u_get(ValuePair(key))
+                                    _   <- MyLogging.log( "console", 
+                                              LogLevel.Trace, "ResPoolCache: key = " + key.toString() + " wait on promise for new value succeeded" )
                                   } yield (opt.get.value.cached_val) //if exception - something wrong with the code
 
                                 }

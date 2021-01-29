@@ -133,7 +133,8 @@ object MyLogging {
     log_name: String,
     lvl: LogLevel,
     log_msg: String,
-    date: OffsetDateTime
+    date: OffsetDateTime,
+    fiberId: zio.Fiber.Id
   ): ZIO[ZEnv, Throwable, Unit] =
     for {
       ts <- IO.effectTotal(LogDatetimeFormatter.humanReadableDateTimeFormatter.format(date))
@@ -141,12 +142,14 @@ object MyLogging {
             {
               if (lvl >= logRec.lvl) {
                 val strLvl = lvl.render
-                val line   = s"$ts [$strLvl] $log_msg\n"
+                val fiberNum = fiberId.seqNumber
+                val line   = s"$ts [$strLvl] [$fiberNum] $log_msg\n"
                 if (log_name == "console" && PRINT_CONSOLE == true) {
                   val TS           = withColor(AnsiColor.GREEN, ts)
                   val MSG          = withColor(AnsiColor.YELLOW, log_msg)
                   val LVL          = withColor(colorFromLogLevel(lvl), lvl.render)
-                  val console_line = s"$TS [$LVL] $MSG"
+                  val FIBER        = withColor(AnsiColor.GREEN, fiberNum.toString )
+                  val console_line = s"$TS [$LVL] [$FIBER] $MSG"
                   println(console_line)
                 }
                 logRec.write_rotate(line)
@@ -189,20 +192,21 @@ object MyLogging {
       //here for perfomance reasons we use dropping queue, some messages under stress load will be lost, once it exceeds a queue
       //you always can switch off access log and avoid issue entirely
       //.unbounded[(String, LogLevel, String, OffsetDateTime)]   //<--- uncomment for unlimited, no loss queue
-        .dropping[(String, LogLevel, String, OffsetDateTime)](5000)
-        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4)).forever.forkDaemon)
+        .dropping[(String, LogLevel, String, OffsetDateTime, zio.Fiber.Id )](5000)
+        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5 )).forever.forkDaemon)
         .toManaged(c => c.shutdown)
         .map(
           q =>
             new Service {
               override def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit] =
                 for {
+                  fiberId <- ZIO.fiberId
                   time <- currentDateTime.orDie
                   _ <- logs.get(log) match {
                         case None => IO.unit
                         case Some(logRec) =>
                           if (logRec.lvl <= lvl) {
-                            q.offer((log, lvl, msg, time)).unit
+                            q.offer((log, lvl, msg, time, fiberId )).unit
                           } else IO.unit
                       }
                 } yield ()

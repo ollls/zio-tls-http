@@ -53,28 +53,6 @@ object ResPool {
      TT.catchAll( e => ZIO.unit )
   }
 
-  /*
-  def makeService2[R](q: zio.Queue[ResRec[R]], createResource: () => R, closeResource: (R) => Unit) =
-    new Service[R] {
-
-      def acquire =
-        for {
-          optR <- q.poll.repeatWhile { or =>
-                   or.isDefined &&
-                   or.exists(
-                     r =>
-                       if (new java.util.Date().getTime() - r.timeToLive > TIME_TO_LIVE_MS) {
-                         closeResource(r.res); true
-                       } else false
-                   )
-                 }
-          resource <- if (optR.isDefined) IO.succeed(optR.map(_.res).get) else effectBlocking(createResource())
-
-        } yield (resource)
-
-      def release(res: R) = q.offer(ResRec(res, new java.util.Date().getTime)).unit
-    }*/
-
 
   private[clients] def acquire_wrapM[R](
     timeToLiveMs : Int,
