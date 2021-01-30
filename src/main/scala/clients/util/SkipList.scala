@@ -4,15 +4,9 @@
 
 package zhttp.clients.util
 
-import zio.UIO
-
-//import annotation.tailrec
-//import java.util.concurrent.atomic.AtomicInteger
-//import java.util.concurrent.atomic.AtomicMarkableReference
 import java.util.concurrent.atomic.AtomicReference
-//import java.lang.ThreadLocal
-
 import scala.collection.mutable.ListBuffer
+import zio.UIO
 
 class ValReference[A](var a: A)
 
@@ -38,11 +32,10 @@ object StringIgnoreCaseValuePair {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-class ValuePair[A, B](val key: A, val value: B) (implicit ord: A => Ordered[A]) extends Ordered[ValuePair[A, B]] {
+class ValuePair[A, B](val key: A, val value: B)(implicit ord: A => Ordered[A]) extends Ordered[ValuePair[A, B]] {
 
   override def compare(that: ValuePair[A, B]): Int =
     key.compare(that.key)
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,7 +182,7 @@ class TwoKeysMultiValuePairOrd[A1, A2, B](val key1: A1, val key2: A2, val value:
 //////////////////////////////////////////////////////////////////////////////////
 class SkipList[A](implicit ord: A => Ordered[A]) {
 
-  var FACTOR = 2
+  var FACTOR = 5
 
   //MARKERS
   //static sentinel nodes, we share all the last nodes across all the layers
@@ -322,13 +315,10 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
   def count(): Int =
     OrderedList.count[A](vals)
 
+  def u_get(a: A) = UIO(get(a))
 
   //////////////////////////////////////////////////////////////////////
-  
-  def u_get( a : A ) : UIO[Option[A]] = UIO( get(a) )
-
-  //////////////////////////////////////////////////////////////////////
-  def get(a: A): Option[A] = { 
+  def get(a: A): Option[A] = {
     val list = findClosestLT(a).getReference
 
     if (list.isLast || list.isFirst) None
@@ -380,45 +370,16 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
   }
 
   ////////////////////////////////////////////////////////////////////////////
-  def copyRange(From: A, While: A => Boolean, Filter: A => Boolean = (_) => true): Seq[A] = {
+  def copyRange(From: A, While: A => Boolean, Filter: A => Boolean = (_) => true) = {
 
     val res = ListBuffer[A]()
     val p   = (a: A) => { res += a; () }
 
     foreachFrom(From, p, While, Filter)
 
-    res.toSeq
+    res
 
   }
-
-  ///////////////////////////////////////////////////////////////////////////
-  //deprecated - TODO switch to scala LazyList
-  /*
-   def toStream( a : A ) : Stream[A] =
-   {
-      val head = findClosestLT( a ).getReference
-
-      def fromNode( from : Node[ A ]) : Stream[A] =
-      {
-         val marked = Array[Boolean](false)
-
-         var next = from
-         do {
-            next = next.get( marked )
-         }  while(  marked(0) == true )
-
-          next match {
-             case  `_lastRef` => Stream.empty
-             case  _          => next.a #:: fromNode( next)
-          }
-
-      }
-
-      val stream : Stream[A] = head.a #:: fromNode( head )
-
-      stream
-
-   } */
 
   ///////////////////////////////////////////////////////////////////////////
   private def findClosestLT(a: A): Node[A] = {
@@ -450,36 +411,54 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     }
   }
 
-  ///////////////////////////////////////////////////////////////////
-  final def add(a: A): UIO[Boolean] = {
+  final def u_add(a: A) = UIO(add(a))
 
+  ///////////////////////////////////////////////////////////////////
+  final def add(a: A): Boolean = {
+
+    var cntr      = 0;
     val newTopRef = Array[Node[A]](null)
     val origRef   = Array[Node[A]](null)
     val added     = Array[Boolean](false)
 
-    val repeat_add = for {
-      _      <- UIO(newTopRef(0) = null)
-      status <- _add(top.get(), _lastRef, newTopRef, origRef, added, a)
+    var status1 = false
+    while (status1 == false) {
+      cntr = cntr + 1
+      /*
+       if ( cntr == 700000 ) {
+         debug_validate()
+         debug_print()
+         System.exit( 23 )
+       }*/
+      newTopRef(0) = null
+      status1 = _add(top.get(), _lastRef, newTopRef, origRef, added, a)
 
-    } yield (status)
+    }
 
-    repeat_add.repeatWhile(_ == false) *>
-      UIO {
-        if (newTopRef(0) != null) {
-          val old_top = top.get()
-          if (isEmpty(old_top) == false) {
-            val new_top = NodeRef.constructEmptyEx[A](external_next_last = _lastRef, ref_first = old_top)
-            top.compareAndSet(old_top, new_top) //no issues if we could not do that, some other parallel thread did
-          }
+    if (newTopRef(0) != null) {
 
-        }
-      } *>
-      UIO(added(0))
+      //println("New Top")
+      val old_top = top.get()
 
+      if (isEmpty(old_top) == false) {
+
+        val new_top = NodeRef.constructEmptyEx[A](external_next_last = _lastRef, ref_first = old_top)
+
+        top.compareAndSet(old_top, new_top) //no issues if we could not do that, some other parallel thread did
+      }
+
+    }
+
+    //add_stat_do( cntr )
+
+    added(0)
   }
 
+  final def u_remove(a: A) = UIO(remove(a))
+
   ///////////////////////////////////////////////////////////////////
-  final def remove(a: A): UIO[Boolean] = {
+  final def remove(a: A): Boolean = {
+
     var cntr = 0;
     //status variable for recursion
     val merge       = Array[Boolean](false) //merge means that we need to remove one item from upper layer
@@ -495,44 +474,49 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
 
     var status1 = false
 
-    val rm_io = _remove(
-      top.get(),
-      _lastRef,
-      aa,
-      merge,
-      removed,
-      removeFinal = removeFinal,
-      removedFrom,
-      colapse,
-      layerOnly,
-      newSplit
-    ).map(status => {
+    while (status1 == false) {
 
+      aa.a = a
+
+      status1 = _remove(
+        top.get(),
+        _lastRef,
+        aa,
+        merge,
+        removed,
+        removeFinal = removeFinal,
+        removedFrom,
+        colapse,
+        layerOnly,
+        newSplit
+      )
       merge(0) = false
       colapse(0) = false
       removed(0) = false
       removedFrom(0) = null
+
+      //if it's true at least one time across many repetions.
+      //We repeat after successful delete in order to be able to count elements in range
+      //We need to count elements to decide if we need to merge ranges into one.
       if (removeFinal(0) == true) result_removed_or_not = true
-      status
-    })
 
-    rm_io.repeatWhile(_ == false) *>
-      UIO {
-        if (newSplit(0) != null) {
+      //if( status1 == false ) println( "Repeat on remove " + a + " with status " +  removeFinal(0) )
 
-          val old_top = top.get()
+    }
 
-          if (isEmpty(old_top) == false) {
+    if (newSplit(0) != null) {
 
-            val new_top = NodeRef.constructEmptyEx[A](external_next_last = _lastRef, ref_first = old_top)
+      // println("New Top on remove")
+      val old_top = top.get()
 
-            top.compareAndSet(old_top, new_top) //no issues if we could not do that, some other parallel thread did
-          }
-        }
+      if (isEmpty(old_top) == false) {
 
-        result_removed_or_not
+        val new_top = NodeRef.constructEmptyEx[A](external_next_last = _lastRef, ref_first = old_top)
+
+        top.compareAndSet(old_top, new_top) //no issues if we could not do that, some other parallel thread did
       }
-
+    }
+    result_removed_or_not
   }
 
   //////////////////////////////////////////////////////////////////
@@ -543,165 +527,50 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     origRef: Array[Node[A]],
     added: Array[Boolean],
     a: A
-  ): UIO[Boolean] = {
+  ): Boolean = {
     val marked = Array[Boolean](false)
     val count  = Array[Int](0)
 
     if (from.hasRef == false) {
-      UIO {
-        origRef(0) = null
-        newTopRef(0) = null
-        val added_loc = Array[Boolean](false)
-        val status =
-          OrderedList.insertInRange(from, from, to, Node(a, null), count, FACTOR, newTopRef, added_loc, false)
+      origRef(0) = null
+      newTopRef(0) = null
+      val added_loc = Array[Boolean](false)
+      val status    = OrderedList.insertInRange(from, from, to, Node(a, null), count, FACTOR, newTopRef, added_loc, false)
 
-        origRef(0) = newTopRef(0)
-        added(0) = added_loc(0)
+      origRef(0) = newTopRef(0)
+      added(0) = added_loc(0)
 
-        status
-      }
+      status
     } else {
-      for {
-        closestTop <- UIO(OrderedList.findClosestLesserValue2(from, from, null, a))
-        status1 <- if (closestTop == null) UIO(false)
-                  // val lowerNodeFrom = closestTop.getRef
-                  //val lowerNodeTo = closestTop.getReference.getRef
-                  else _add(closestTop.getRef, closestTop.getReference.getRef, newTopRef, origRef, added, a)
+      val closestTop = OrderedList.findClosestLesserValue2(from, from, null, a)
 
-        status <- if (status1 == true && newTopRef(0) != null) {
-                   UIO {
-                     val newNode =
-                       if (newTopRef(0).hasRef == false)
-                         NodeRef(newTopRef(0).a, newTopRef(0), null, origRef(0))
-                       else
-                         NodeRef(newTopRef(0).a, newTopRef(0), null, newTopRef(0).getOrig)
+      if (closestTop == null) false
+      else {
+        val lowerNodeFrom = closestTop.getRef
+        val lowerNodeTo   = closestTop.getReference.getRef
 
-                     newTopRef(0) = null
-                     count(0) = 0
-                     val added_layer = Array[Boolean](false)
-                     val status =
-                       OrderedList.insertInRange(from, from, to, newNode, count, FACTOR, newTopRef, added_layer, false)
+        val status = _add(lowerNodeFrom, lowerNodeTo, newTopRef, origRef, added, a)
 
-                     status
-                   }
-                 } else UIO(status1)
+        if (status == true && newTopRef(0) != null) {
+          if (newTopRef(0).a == null) {
+            println("catch")
+          }
 
-      } yield (status)
+          val newNode =
+            if (newTopRef(0).hasRef == false)
+              NodeRef(newTopRef(0).a, newTopRef(0), null, origRef(0))
+            else
+              NodeRef(newTopRef(0).a, newTopRef(0), null, newTopRef(0).getOrig)
 
+          newTopRef(0) = null
+          count(0) = 0
+          val added_layer = Array[Boolean](false)
+          val status      = OrderedList.insertInRange(from, from, to, newNode, count, FACTOR, newTopRef, added_layer, false)
+
+          status
+        } else status
+      }
     }
-  }
-
-  private def ref_remove(
-    from: Node[A],
-    to: Node[A],
-    al: ValReference[A],
-    merge: Array[Boolean],
-    remove: Array[Boolean],
-    removeFinal: Array[Boolean],
-    removeFrom: Array[Node[A]],
-    colapse: Array[Boolean],
-    layerOnly: Array[Boolean],
-    newSplit: Array[Node[A]]
-  ): UIO[Boolean] = {
-    val predValueToClosestLesser = Array[Node[A]](null)
-    val count                    = Array[Int](0)
-
-    var prev_removedFrom: Node[A]     = null
-    var prev_merge_requested: Boolean = false
-    var prev_split: Node[A]           = null
-
-    for {
-      closestTop <- UIO(OrderedList.findClosestLesserValue2(from, from, predValueToClosestLesser, al.a))
-      status2 <- if (closestTop != null && closestTop.isLast == false) {
-
-                  val lowerNodeFrom = closestTop.getRef
-                  val lowerNodeTo   = closestTop.getReference.getRef
-                  merge(0) = false
-                  remove(0) = false
-                  removeFrom(0) = null
-                  newSplit(0) = null
-
-                  _remove(
-                    lowerNodeFrom,
-                    lowerNodeTo,
-                    al,
-                    merge,
-                    remove,
-                    removeFinal,
-                    removeFrom,
-                    colapse,
-                    layerOnly,
-                    newSplit
-                  )
-
-                } else UIO(false)
-
-      status3 <- if (status2 == true && colapse(0) == false) {
-
-                  prev_removedFrom = removeFrom(0) //if item wasn't removed ( not found ), removeFrom will have closest node anyway, so we can recover.
-                  prev_merge_requested = merge(0)
-
-                  prev_split = newSplit(0)
-
-                  merge(0) = false
-                  remove(0) = false
-                  count(0) = 0
-                  removeFrom(0) = null
-                  newSplit(0) = null
-
-                  UIO(
-                    OrderedList.removeFromRange(
-                      from,
-                      from,
-                      to,
-                      al.a,
-                      count,
-                      FACTOR,
-                      merge,
-                      remove,
-                      removeFrom,
-                      done = false,
-                      abort = false,
-                      newSplit
-                    )
-                  )
-
-                } else if (colapse(0) == true) UIO(true)
-                else (UIO(false))
-
-      status4 <- if (status3) {
-
-                  if (prev_split != null) {
-                    count(0) = 0
-                    val newNode =
-                      if (prev_split.hasRef == false) NodeRef(prev_split.a, prev_split, null, prev_split)
-                      else NodeRef(prev_split.a, prev_split, null, prev_split.getOrig)
-                    val added2 = Array[Boolean](false)
-                    OrderedList.insertInRange(
-                      from,
-                      from,
-                      to,
-                      newNode,
-                      count,
-                      FACTOR,
-                      new Array[Node[A]](1),
-                      added2,
-                      false
-                    )
-                  } else {
-                    if (isEmpty(from)) {
-                      if (removeLayer(from.getRef)) colapse(0) = true
-                    }
-                  }
-
-                  if (colapse(0) == false && prev_merge_requested == true)
-                    UIO(merge_layer(closestTop, al, removeFrom, layerOnly, colapse, predValueToClosestLesser))
-                  else
-                    UIO(true)
-
-                } else UIO(false)
-
-    } yield (status4)
 
   }
 
@@ -717,17 +586,71 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     colapse: Array[Boolean],
     layerOnly: Array[Boolean],
     newSplit: Array[Node[A]]
-  ): UIO[Boolean] = {
+  ): Boolean = {
 
     val count = Array[Int](0)
 
     if (from.hasRef == false) {
-      UIO {
+
+      merge(0) = false
+      remove(0) = false
+      count(0) = 0
+      val status = if (layerOnly(0) == false) {
+        val temp = OrderedList.removeFromRange(
+          from,
+          from,
+          to,
+          al.a,
+          count,
+          FACTOR,
+          merge,
+          remove,
+          removeFrom,
+          done = false,
+          abort = false,
+          newSplit
+        )
+        //println( "----------------->" + remove(0) + " status=" + temp )
+        //preserve info if real remove happened in the data layer
+        removeFinal(0) = remove(0)
+        temp
+      } else true
+
+      status
+
+    } else {
+      val predValueToClosestLesser = Array[Node[A]](null)
+
+      val closestTop = OrderedList.findClosestLesserValue2(from, from, predValueToClosestLesser, al.a)
+
+      if (closestTop == null || closestTop.isLast) return false
+
+      if (closestTop != null) {
+        val lowerNodeFrom = closestTop.getRef
+        val lowerNodeTo   = closestTop.getReference.getRef
+
         merge(0) = false
         remove(0) = false
-        count(0) = 0
-        val status = if (layerOnly(0) == false) {
-          val temp = OrderedList.removeFromRange(
+        removeFrom(0) = null
+        newSplit(0) = null
+        var status =
+          _remove(lowerNodeFrom, lowerNodeTo, al, merge, remove, removeFinal, removeFrom, colapse, layerOnly, newSplit)
+
+        if (colapse(0) == true) return true; //we done, ignore the rest of layers - they have been cut-off
+
+        if (status == true) {
+          val prev_removedFrom     = removeFrom(0) //if item wasn't removed ( not found ), removeFrom will have closest node anyway, so we can recover.
+          val prev_merge_requested = merge(0)
+          //val prev_remove = remove(0)
+          val prev_split = newSplit(0)
+
+          merge(0) = false
+          remove(0) = false
+          count(0) = 0
+          removeFrom(0) = null
+          newSplit(0) = null
+
+          status = OrderedList.removeFromRange(
             from,
             from,
             to,
@@ -741,19 +664,37 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
             abort = false,
             newSplit
           )
-          //println( "----------------->" + remove(0) + " status=" + temp )
-          //preserve info if real remove happened in the data layer
-          removeFinal(0) = remove(0)
-          temp
-        } else true
+          if (status == false) {
+            return false
+          }
 
+          if (prev_split != null) {
+            count(0) = 0
+            val newNode =
+              if (prev_split.hasRef == false)
+                NodeRef(prev_split.a, prev_split, null, prev_split)
+              else {
+                NodeRef(prev_split.a, prev_split, null, prev_split.getOrig)
+              }
+            val added2 = Array[Boolean](false)
+            OrderedList.insertInRange(from, from, to, newNode, count, FACTOR, new Array[Node[A]](1), added2, false)
+          } else {
+
+            if (isEmpty(from)) {
+              //println("4Remove empty layer for:" + al.a)
+              if (removeLayer(from.getRef))
+                colapse(0) = true
+              return true
+            }
+          }
+
+          if (prev_merge_requested == true) {
+            //status = true
+            status = merge_layer(closestTop, al, removeFrom, layerOnly, colapse, predValueToClosestLesser)
+          }
+        }
         status
-      }
-
-    } else {
-
-      ref_remove(from, to, al, merge, remove, removeFinal, removeFrom, colapse, layerOnly, newSplit)
-
+      } else false
     }
   }
 
