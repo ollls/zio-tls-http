@@ -159,13 +159,13 @@ type MyEnv3 = MyLogging with Has[String]
     val app_route_JSON = HttpRoutes.ofWithFilter(proc1) { 
 
        case POST -> Root / "container" / StringVar( name ) =>
-               sylo.add( name ).map( b => Response.Ok.asTextBody( b.toString()) )
+               sylo.u_add( name ).map( b => Response.Ok.asTextBody( b.toString()) )
 
        case GET -> Root / "container" =>
                ZIO(Response.Ok.asTextBody( sylo.debug_print( new StringBuilder ).toString + "\n\n" + sylo.debug_print_layers( new StringBuilder).toString ) )
 
        case DELETE -> Root / "container" / StringVar( name ) =>
-               sylo.remove( name ).map( b => Response.Ok.asTextBody( b.toString())  )
+               sylo.u_remove( name ).map( b => Response.Ok.asTextBody( b.toString())  )
                //ZIO(Response.Ok.asTextBody( sylo.remove( name ).toString ) )        
 
         
