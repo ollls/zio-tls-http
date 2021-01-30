@@ -3,6 +3,8 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 
 # Update history.
 
+* DEV: important stability fixes for ResPoolCache, stress tested with 10K records / 32 threads from remote JMeter machine.
+
 * DEV: Proper logs for ResPoolCache layer, MyLogging layer shows fiber number now, cleanup
 
 * DEV: Early working example of ResPoolCache, complete stack with ZIO layers ( pooling/caching - depenedcy injection). 
