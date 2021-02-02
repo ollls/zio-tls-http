@@ -219,7 +219,11 @@ object ResPoolCache {
                 } yield (r)
               })
 
-          //////////////////////////////////////////////////////////////////    
+          //////////////////////////////////////////////////////////////////
+          //what happens here is that many parallel requests compete for one
+          //lru_head, but we don't really worry if cache size will grow +- n items
+          //eventualy it will be consistent.... maybe ZQueue many to one ( offer/take is better ).
+          //will see, so far no issues with tests.
           private def cleanLRU(key: K, entry: CacheEntry[V]): Boolean = {
             var res: Boolean = false
             while (lru_tbl.count > limit) {
