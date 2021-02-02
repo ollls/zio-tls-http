@@ -225,9 +225,8 @@ object ResPoolCache {
             while (lru_tbl.count > limit) {
               res = true
               val lru_head = lru_tbl.head
-              lru_tbl.remove(lru_head)
               cache_tbl.remove(ValuePair(lru_head.key))
-              //println( "no space")
+              lru_tbl.remove(lru_head)
               //println(lru_tbl.count + "  ->  " + cache_tbl.count)
             }
             res
