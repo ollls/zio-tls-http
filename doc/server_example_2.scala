@@ -131,7 +131,7 @@ object ServerExample extends zio.App {
       ResPool.make[LDAPConnection](timeToLiveMs = 20 * 1000, AsyncLDAP.ldap_con_ssl, AsyncLDAP.ldap_con_close)
 
     val cache_L = ResPoolCache.make(
-      timeToLiveMs = 7 * 1000,
+      timeToLiveMs = 7 * 1000, limit = 5000,
       (c: LDAPConnection, uid: String) => AsyncLDAP.a_search(c, "o=company.com", s"uid=$uid", ATTRIBUTES: _*)
     )
 
