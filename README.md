@@ -3,7 +3,7 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 
 # Update history.
 
-* DEV, limit parameter on ResPoolCache make, which limits the number of entries in cache, extra entries get evicted by timestamp. ( least recently used ).
+* DEV: limit parameter on ResPoolCache make, which limits the number of entries in cache, extra entries get evicted by timestamp. ( least recently used ).
 Tested ( 100K record runs/ 32 threads ). Opportunistic algorithm to tie cache table and lru table, but works stable. 100% no locks of any kind everywhere.
 
 * DEV: important stability fixes for ResPoolCache, stress tested with 10K records / 32 threads from remote JMeter machine.
