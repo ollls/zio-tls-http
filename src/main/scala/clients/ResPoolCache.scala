@@ -49,7 +49,7 @@ object ResPoolCache {
   class LRUListWithCounter[K] {
     private val lru_tbl   = new SkipList[LRUQEntry[K]]
     private val lru_count = new AtomicInteger(0)
-    lru_tbl.FACTOR = 30
+    lru_tbl.FACTOR = 100
 
     def add(e: LRUQEntry[K]) = {
       val b = lru_tbl.add(e)
@@ -72,10 +72,16 @@ object ResPoolCache {
 
   trait Service[K, V, R] {
     def get(key: K): ZIO[zio.ZEnv with ResPoolCache[K, V, R] with MyLogging, Throwable, V]
+
+    def info: ZIO[ZEnv, Throwable, String]
+  
   }
 
   def get[K, V, R](key: K)(implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
     ZIO.accessM[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].get(key))
+
+  def info[K, V, R](implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
+    ZIO.accessM[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].info )
 
   def make[K, V, R](
     timeToLiveMs: Int,
@@ -92,7 +98,7 @@ object ResPoolCache {
         new Service[K, V, R] {
 
           val cache_tbl = new SkipList[ValuePair[K, CacheEntry[V]]]
-          cache_tbl.FACTOR = 12
+          cache_tbl.FACTOR = 80
           val p_tbl = new SkipList[ValuePair[K, Promise[Throwable, Boolean]]]
           p_tbl.FACTOR = 50
 
@@ -101,6 +107,8 @@ object ResPoolCache {
           //val lru_tbl   = new SkipList[LRUQEntry[K]]
           //val lru_count = new AtomicInteger(0)
           //lru_tbl.FACTOR = 30
+
+          def info = ZIO{ cache_tbl.debug_print_layers( new StringBuilder() ).toString }
 
           /////////////////////////////////////////////////////////////////////////////////////
           def get(key: K): ZIO[zio.ZEnv with ResPoolCache[K, V, R] with MyLogging, Throwable, V] =
