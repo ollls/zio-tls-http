@@ -7,7 +7,7 @@ cache function used for tests:
 * DEV: FACTOR parameter adjusted for LRU table and cache table, all tests passed with 2M records cap/limit, 32/64 threads remote Jmeter.
 Absolutely, no issues. For 2M runs JVM memory needs to be adjusted for SBT with SBT_OPTS. Test example will be submitted soon.
 
-test cache function used:  "( _, number : String  ) => ZIO.succeed( number ) )"
+    test cache function used:  "( _, number : String  ) => ZIO.succeed( number )"
 
 * DEV: limit parameter on ResPoolCache make, which limits the number of entries in cache, extra entries get evicted by timestamp. ( least recently used ).
 Tested ( 100K record runs/ 32 - 300 threads ( JMetter) ). Opportunistic algorithm to tie cache table and lru table, but works stable. 100% no locks of any kind everywhere.
