@@ -12,10 +12,6 @@ Absolutely, no issues. For 2M runs JVM memory needs to be adjusted for SBT with 
 * DEV: limit parameter on ResPoolCache make, which limits the number of entries in cache, extra entries get evicted by timestamp. ( least recently used ).
 Tested ( 100K record runs/ 32 - 300 threads ( JMetter) ). Opportunistic algorithm to tie cache table and lru table, but works stable. 100% no locks of any kind everywhere.
 
-* DEV: important stability fixes for ResPoolCache, stress tested with 10K records / 32 threads from remote JMeter machine.
-
-* DEV: Proper logs for ResPoolCache layer, MyLogging layer shows fiber number now, cleanup
-
 * DEV: Early working example of ResPoolCache, complete stack with ZIO layers ( pooling/caching - depenedcy injection). 
   Example will require AsyncLDAP ( also present in doc folder ) ( no evictons for cache yet )
   
