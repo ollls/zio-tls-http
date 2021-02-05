@@ -388,19 +388,8 @@ object OrderedList {
     }
     status
   }
-  /*
-      else {
-        if ( count(0) < 2 * factor ) {
-          newSplit(0) = null  //range too small, hide split
-        }
-        if ( abort == true ) {
-          //abort is not used
-          false
-        }
-        else true
-      } */
-  //  status
-  // }
+  
+
 
 //////////////////////////////////////////////////////////////////////////////
   //we use extra abort flag, to show the difference between removal of non-existing item and failed removal
@@ -459,9 +448,8 @@ object OrderedList {
               removeFrom(0) = pred //save the node before removed one. we may need it for substitution in case if node was removed from reference layers
             else
               removeFrom(0) = null //nothing to give, pred is very first already, we cannot be out of bound
-            //true
 
-            if (from.eq(to) == false && curr.isLast == false)
+            if ( curr.eq(to) == false && curr.isLast == false)
               removeFromRange_t(
                 start,
                 curr.getReference(),
