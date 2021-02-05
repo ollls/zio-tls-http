@@ -4,18 +4,16 @@ cache function used for tests:
 
 # Update history.
 
-* DEV: FACTOR parameter adjusted for LRU table and cache table, all tests passed with 2M records cap/limit, 32/64 threads remote Jmeter.
-Absolutely, no issues. For 2M runs JVM memory needs to be adjusted for SBT with SBT_OPTS. Test example will be submitted soon.
-
-    test cache function used:  "( _, number : String  ) => ZIO.succeed( number )"
-
-* DEV: limit parameter on ResPoolCache make, which limits the number of entries in cache, extra entries get evicted by timestamp. ( least recently used ).
-Tested ( 100K record runs/ 32 - 300 threads ( JMetter) ). Opportunistic algorithm to tie cache table and lru table, but works stable. 100% no locks of any kind everywhere.
-
-* DEV: Early working example of ResPoolCache, complete stack with ZIO layers ( pooling/caching - depenedcy injection). 
-  Example will require AsyncLDAP ( also present in doc folder ) ( no evictons for cache yet )
+ * ResPoolCache ZIO Layer is stable, 5 mil runs and more: evictions/searches/refreshes.
+ There will be one more thing ( ZQueue to limit fibers who want to perform evictions ).
+ FACTORS on LRU and Cache can be lower ( 12 - 30 ). Factor here is a number of linear searches in a single linked list.
+ 
+ Test server used to test mem cacher with JMetter. (random and seq keys).
+ https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
+ 
+ * ResPoolCache ZIO Layer: Example with AsyncLDAP with Unbound's LDAP SDK )
   
-  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala
+ https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
 
