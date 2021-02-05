@@ -11,8 +11,7 @@ cache function used for tests:
  Test server used to test mem cacher with JMetter. (random and seq keys).<br>
  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
  
- * ResPoolCache ZIO Layer: Example with AsyncLDAP with Unbound's LDAP SDK )
-  
+ * ResPoolCache ZIO Layer: Example with AsyncLDAP with Unbound's LDAP SDK )<br>
  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
