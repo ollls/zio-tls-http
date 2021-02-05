@@ -4,7 +4,7 @@ cache function used for tests:
 
 # Update history.
 
- * ResPoolCache ZIO Layer is stable, 5 mil runs and more: evictions/searches/refreshes.
+ * ResPoolCache ZIO Layer is stable, it is a massivley parallell memory cache, 5 mil runs and more: evictions/searches/refreshes.
  There will be one more thing ( ZQueue to limit fibers who want to perform evictions ).
  FACTORS on LRU and Cache can be lower ( 12 - 30 ). Factor here is a number of linear searches in a single linked list.
  
