@@ -3,7 +3,7 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 cache function used for tests:
 
 # Update history.
-
+ * 10 mil records with various scenarious tested.
  * DEV branch: ResPoolCache ZIO Layer is stable, it is a massivley parallell memory cache, 5 mil records and more: evictions/searches/refreshes.
  FACTORS on LRU and Cache can be lower ( 12 - 30 ). Factor here is a 2*number of linear searches in a single linked list. 
  For 15 mil DB - factors probably need to be around 50 - 100. ( to keep thing flat ). Do not forget about: export SBT_OPTS="-Xmx5G" or more ...
