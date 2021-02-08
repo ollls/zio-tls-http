@@ -6,7 +6,7 @@ cache function used for tests:
 
  * DEV branch: ResPoolCache ZIO Layer is stable, it is a massivley parallell memory cache, 5 mil records and more: evictions/searches/refreshes.
  FACTORS on LRU and Cache can be lower ( 12 - 30 ). Factor here is a 2*number of linear searches in a single linked list. 
- For 15 mil DB - factors probably need to be around 100 - 200. ( to keep thing flat ). Do not forget about: export SBT_OPTS="-Xmx5G" or more ...
+ For 15 mil DB - factors probably need to be around 50 - 100. ( to keep thing flat ). Do not forget about: export SBT_OPTS="-Xmx5G" or more ...
  Very roughly 1 mil is 500Mb ( it should much less of cause but this needs to be measured ).
  
   Test server used to test mem cacher with JMetter. (random and seq keys).<br>
