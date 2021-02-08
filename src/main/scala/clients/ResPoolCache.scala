@@ -9,6 +9,7 @@ import zhttp.MyLogging.MyLogging
 import zhttp.clients.ResPool
 import zio.Tag
 import zio.ZManaged
+import zio.blocking.effectBlocking
 
 import zio.Promise
 
@@ -110,7 +111,7 @@ object ResPoolCache {
             val sb = new StringBuilder()
             sb.append("*Cache table*\n")
             //cache_tbl.debug_print_layers(sb)
-            cache_tbl.print( sb )
+            cache_tbl.print(sb)
             sb.append("\n*LRU table*\n")
             lru_tbl.stat(sb).toString()
           }
@@ -192,16 +193,8 @@ object ResPoolCache {
                                         _     <- ZIO.effect(entry.timeStampIt)
                                         res   <- cache_tbl.u_add(ValuePair(key, entry))
                                         _     <- ZIO.effect(lru_tbl.add(new LRUQEntry[K](entry.ts, key)))
-                                        _ <- ZIO.effect(cleanLRU(key, entry)).flatMap { b =>
-                                              if (b)
-                                                MyLogging.log(
-                                                  "console",
-                                                  LogLevel.Trace,
-                                                  "ResPoolCache: key = " + key
-                                                    .toString() + " space freed, least recently element removed"
-                                                )
-                                              else ZIO.unit
-                                            }
+
+                                        _ <- cleanLRU2( key ).fork
 
                                         _ <- promise.succeed(res);
                                         _ <- dropPromise(key)
@@ -232,16 +225,29 @@ object ResPoolCache {
                 } yield (r)
               })
 
+          ///////////////////////////////////////////////////////////////////
+          private def cleanLRU2( key: K) =
+            for {
+              b <- effectBlocking(cleanLRU )
+              _ <- MyLogging
+                    .log(
+                      "console",
+                      LogLevel.Trace,
+                      "ResPoolCache: key = " + key
+                        .toString() + " space freed, least recently element removed"
+                    ).when(b)
+            } yield ()
+
           //////////////////////////////////////////////////////////////////
           //what happens here is that many parallel requests compete for one
           //lru_head, but we don't really worry if cache size will grow +- n items
           //eventualy it will be consistent.... maybe ZQueue many to one ( offer/take is better ).
           //will see, so far no issues with tests.
-          private def cleanLRU(key: K, entry: CacheEntry[V]): Boolean = {
+          private def cleanLRU : Boolean = {
             var res: Boolean = false
-           //cache the count or we never finish
+            //cache the count or we never finish
             var cntr = lru_tbl.count
-            while ( cntr > limit) {
+            while (cntr > limit) {
               res = true
               val lru_head = lru_tbl.head
               cache_tbl.remove(ValuePair(lru_head.key))
