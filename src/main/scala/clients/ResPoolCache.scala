@@ -49,7 +49,7 @@ object ResPoolCache {
   class LRUListWithCounter[K] {
     private val lru_tbl   = new SkipList[LRUQEntry[K]]
     private val lru_count = new AtomicInteger(0)
-    lru_tbl.FACTOR = 100
+    lru_tbl.FACTOR = 14
 
     def add(e: LRUQEntry[K]) = {
       val b = lru_tbl.add(e)
@@ -66,6 +66,8 @@ object ResPoolCache {
     def count = lru_count.get
 
     def head = lru_tbl.head
+
+    def stat(sb: StringBuilder) = lru_tbl.print(sb)
   }
 
   type ResPoolCache[K, V, R] = Has[ResPoolCache.Service[K, V, R]]
@@ -74,14 +76,14 @@ object ResPoolCache {
     def get(key: K): ZIO[zio.ZEnv with ResPoolCache[K, V, R] with MyLogging, Throwable, V]
 
     def info: ZIO[ZEnv, Throwable, String]
-  
+
   }
 
   def get[K, V, R](key: K)(implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
     ZIO.accessM[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].get(key))
 
   def info[K, V, R](implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
-    ZIO.accessM[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].info )
+    ZIO.accessM[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].info)
 
   def make[K, V, R](
     timeToLiveMs: Int,
@@ -98,17 +100,20 @@ object ResPoolCache {
         new Service[K, V, R] {
 
           val cache_tbl = new SkipList[ValuePair[K, CacheEntry[V]]]
-          cache_tbl.FACTOR = 80
+          cache_tbl.FACTOR = 14
           val p_tbl = new SkipList[ValuePair[K, Promise[Throwable, Boolean]]]
           p_tbl.FACTOR = 50
 
           val lru_tbl = new LRUListWithCounter[K]
 
-          //val lru_tbl   = new SkipList[LRUQEntry[K]]
-          //val lru_count = new AtomicInteger(0)
-          //lru_tbl.FACTOR = 30
-
-          def info = ZIO{ cache_tbl.debug_print_layers( new StringBuilder() ).toString }
+          def info = ZIO {
+            val sb = new StringBuilder()
+            sb.append("*Cache table*\n")
+            //cache_tbl.debug_print_layers(sb)
+            cache_tbl.print( sb )
+            sb.append("\n*LRU table*\n")
+            lru_tbl.stat(sb).toString()
+          }
 
           /////////////////////////////////////////////////////////////////////////////////////
           def get(key: K): ZIO[zio.ZEnv with ResPoolCache[K, V, R] with MyLogging, Throwable, V] =
@@ -145,7 +150,7 @@ object ResPoolCache {
                                           cached_entry.cached_val = v
                                           cached_entry.timeStampIt
                                           lru_tbl.add(new LRUQEntry[K](cached_entry.ts, key))
-                                        } 
+                                        }
                                         promise.succeed(true) *> dropPromise(key);
                                       }) *> MyLogging.log(
                                       "console",
@@ -234,11 +239,14 @@ object ResPoolCache {
           //will see, so far no issues with tests.
           private def cleanLRU(key: K, entry: CacheEntry[V]): Boolean = {
             var res: Boolean = false
-            while (lru_tbl.count > limit) {
+           //cache the count or we never finish
+            var cntr = lru_tbl.count
+            while ( cntr > limit) {
               res = true
               val lru_head = lru_tbl.head
               cache_tbl.remove(ValuePair(lru_head.key))
               lru_tbl.remove(lru_head)
+              cntr = cntr - 1
               //println(lru_tbl.count + "  ->  " + cache_tbl.count)
             }
             res

@@ -277,10 +277,56 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     out
   }
 
+  def print(out: StringBuilder) = {
+
+    var uper_layer: Node[A] = null
+    var cur_layer: Node[A]  = top.get()
+
+    var maxRangeCount = 0
+    var totalCount    = 0
+    var ln            = 0
+
+    var maxToNode: Node[A] = null
+
+    while (cur_layer.hasRef) {
+      totalCount = OrderedList.count[A](cur_layer)
+      if (uper_layer == null) maxRangeCount = totalCount
+      else {
+        var node = uper_layer
+        while (node.isLast == false) {
+          val lowerNodeFrom = node.getRef
+          val lowerNodeTo   = node.getReference.getRef
+
+          val c = OrderedList.countRange(lowerNodeFrom, lowerNodeTo)
+          if (c > maxRangeCount) {
+            maxRangeCount = c; maxToNode = lowerNodeTo
+          }
+
+          node = node.getReference()
+        }
+      }
+
+      val o_stat = if (maxToNode != null) {
+        val orig = maxToNode.getOrig
+        (orig == null || orig.isMarked())
+      } else false
+
+      out.append("Layer " + ln + ": " + totalCount + "(" + maxRangeCount + ") " + !o_stat + "\n")
+      maxRangeCount = 0
+
+      uper_layer = cur_layer
+      cur_layer = cur_layer.getRef
+      ln = ln + 1
+
+    }
+
+    out.append("Bottom: " + OrderedList.count[A](cur_layer) + "\n")
+  }
+
   //////////////////////////////////////////////////////////////////////
   def debug_print_layers(out: StringBuilder) = {
 
-    var cur: Node[A] = top.get();
+    var cur: Node[A] = top.get()
     var ln           = 0;
 
     while (cur.hasRef) {

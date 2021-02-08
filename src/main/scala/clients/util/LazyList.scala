@@ -146,6 +146,23 @@ object OrderedList {
     count
   }
 
+  ////////////////////////////////////////
+  def countRange[A](from: Node[A], to: Node[A]): Integer = {
+
+    var curr   = from
+    var count  = 0;
+    val marked = Array[Boolean](false)
+
+    curr.get(marked)
+
+    while (!curr.isLast && curr != to) {
+      curr = curr.get(marked)
+      count += 1
+    }
+
+    count
+  }
+
   //////////////////////////////////////////////
   def foreach[A](list: Node[A], p: (A) => Unit): Unit = {
     val marked = Array[Boolean](false)
@@ -383,13 +400,11 @@ object OrderedList {
       if (count(0) < factor / 2) merge(0) = true
       else merge(0) = false
     }
-    if (count(0) < 2 * factor) {
+    if (count(0) > factor * 10 || count(0) < 2 * factor) {
       newSplit(0) = null //range too small, hide split
     }
     status
   }
-  
-
 
 //////////////////////////////////////////////////////////////////////////////
   //we use extra abort flag, to show the difference between removal of non-existing item and failed removal
@@ -416,6 +431,8 @@ object OrderedList {
     //curr has no succ
 
     if (curr == null) return true
+
+    if (count(0) > factor * 10) return true
 
     if (pred.eq(to) == false && curr.isLast == false) {
 
@@ -449,7 +466,7 @@ object OrderedList {
             else
               removeFrom(0) = null //nothing to give, pred is very first already, we cannot be out of bound
 
-            if ( curr.eq(to) == false && curr.isLast == false)
+            if (curr.eq(to) == false && curr.isLast == false)
               removeFromRange_t(
                 start,
                 curr.getReference(),
