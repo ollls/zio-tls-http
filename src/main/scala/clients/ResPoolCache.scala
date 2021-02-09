@@ -107,13 +107,43 @@ object ResPoolCache {
 
           val lru_tbl = new LRUListWithCounter[K]
 
+          //metrics
+          val total   = new AtomicInteger(0)
+          val refresh = new AtomicInteger(0)
+          val hits    = new AtomicInteger(0)
+          val adds    = new AtomicInteger(0)
+          val evcts   = new AtomicInteger(0)
+
           def info = ZIO {
             val sb = new StringBuilder()
             sb.append("*Cache table*\n")
-            //cache_tbl.debug_print_layers(sb)
+
             cache_tbl.print(sb)
             sb.append("\n*LRU table*\n")
-            lru_tbl.stat(sb).toString()
+            lru_tbl.stat(sb)
+
+            val t = total.get()
+            val h = hits.get()
+            val r = refresh.get()
+
+            sb.append("\n*Metrics*")
+            sb.append("\nLimit:       " + limit)
+            sb.append("\nTTL:         " + timeToLiveMs + " ms\n")
+
+            sb.append("\nTotal:       " + t)
+            sb.append("\nHits:        " + h)
+            sb.append("\nRefresh:     " + r)
+            sb.append("\nAdds:        " + adds.get())
+            sb.append("\nEvicts:      " + evcts.get())
+
+            val usage  = if (t != 0) 100 * h / t else 0
+            val tusage = if (t != 0) 100 * (h + r) / t else 0
+
+            sb.append("\n\nUsage:       " + usage + "%\n")
+            sb.append("Total usage: " + tusage + "%")
+
+            sb.toString()
+
           }
 
           /////////////////////////////////////////////////////////////////////////////////////
@@ -122,6 +152,7 @@ object ResPoolCache {
               .make(rp.acquire)(c => rp.release(c).catchAll(_ => ZIO.unit))
               .use(resource => {
                 for {
+                  _ <- ZIO.succeed(total.incrementAndGet())
                   //_  <- ZIO ( println( key ) )
                   entry <- cache_tbl.u_get(ValuePair[K, CacheEntry[V]](key))
                   r <- entry match {
@@ -130,6 +161,7 @@ object ResPoolCache {
                         case Some(pair) =>
                           val cached_entry = pair.value
                           if (cached_entry.isExpired(timeToLiveMs)) {
+                            refresh.incrementAndGet()
                             val old_ts = cached_entry.ts
                             for {
                               _ <- MyLogging.log(
@@ -170,12 +202,13 @@ object ResPoolCache {
                                   }
                             } yield (cached_entry.cached_val)
                           } else
-                            ZIO.succeed(entry.get.value.cached_val)
+                            ZIO.succeed { hits.incrementAndGet(); entry.get.value.cached_val }
                         // read and cache the value
                         //--------------------------------------------------
                         case None =>
                           //nothing cached for the key
                           for { //obtain shared promise for the key, promise owner or client
+                            _ <- ZIO.succeed(adds.incrementAndGet())
                             _ <- MyLogging.log(
                                   "console",
                                   LogLevel.Trace,
@@ -194,7 +227,7 @@ object ResPoolCache {
                                         res   <- cache_tbl.u_add(ValuePair(key, entry))
                                         _     <- ZIO.effect(lru_tbl.add(new LRUQEntry[K](entry.ts, key)))
 
-                                        _ <- cleanLRU2( key ).fork
+                                        _ <- cleanLRU2(key).fork
 
                                         _ <- promise.succeed(res);
                                         _ <- dropPromise(key)
@@ -226,16 +259,17 @@ object ResPoolCache {
               })
 
           ///////////////////////////////////////////////////////////////////
-          private def cleanLRU2( key: K) =
+          private def cleanLRU2(key: K) =
             for {
-              b <- effectBlocking(cleanLRU )
+              b <- effectBlocking(cleanLRU)
               _ <- MyLogging
                     .log(
                       "console",
                       LogLevel.Trace,
                       "ResPoolCache: key = " + key
                         .toString() + " space freed, least recently element removed"
-                    ).when(b)
+                    )
+                    .when(b)
             } yield ()
 
           //////////////////////////////////////////////////////////////////
@@ -243,7 +277,7 @@ object ResPoolCache {
           //lru_head, but we don't really worry if cache size will grow +- n items
           //eventualy it will be consistent.... maybe ZQueue many to one ( offer/take is better ).
           //will see, so far no issues with tests.
-          private def cleanLRU : Boolean = {
+          private def cleanLRU: Boolean = {
             var res: Boolean = false
             //cache the count or we never finish
             var cntr = lru_tbl.count
@@ -255,6 +289,7 @@ object ResPoolCache {
               cntr = cntr - 1
               //println(lru_tbl.count + "  ->  " + cache_tbl.count)
             }
+            if (res == true) evcts.incrementAndGet()
             res
           }
 
