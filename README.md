@@ -3,15 +3,8 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 cache function used for tests:
 
 # Update history.
- * DEV branch: ResPoolCache - 10 mil records, various scenarious tested. JMetter 100-200 threads remote, up to 11k tps/with 40-50% CPU.
- * DEV branch: ResPoolCache ZIO Layer is stable, it is a massivley parallell memory cache, 5 mil records and more: evictions/searches/refreshes.
- FACTORS on LRU and Cache can be lower ( 12 - 30 ). Factor here is a 2*number of linear searches in a single linked list. 
- For 15 mil DB - factors probably need to be around 50 - 100. ( to keep thing flat ). Do not forget about: export SBT_OPTS="-Xmx5G" or more ...
- Very roughly 1 mil is 500Mb ( it should much less of cause but this needs to be measured ). Test server used to test mem cacher with JMetter. (random and seq keys).<br>Cache function: (u: Unit, number: String) => ZIO.succeed(number))<br>
-  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
- 
- * ResPoolCache ZIO Layer: Example with AsyncLDAP with Unbound's LDAP SDK )<br>
- https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala
+
+* DEV branch: ResPoolCache is on hold for now. don't use.
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
 
