@@ -4,7 +4,7 @@ cache function used for tests:
 
 # Update history.
 
-* DEV branch: ResPoolCache is on hold for now. don't use. Some rewrite work required, will update soon.
+* DEV branch: ResPoolCache is OK. Testing is on going.
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
 
