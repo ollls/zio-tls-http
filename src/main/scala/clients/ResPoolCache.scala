@@ -245,13 +245,41 @@ object ResPoolCache {
                                   for {
                                     _   <- promise.await
                                     opt <- cache_tbl.u_get(ValuePair(key))
+
                                     _ <- MyLogging.log(
                                           "console",
                                           LogLevel.Trace,
                                           "ResPoolCache: key = " + key
                                             .toString() + " wait on promise for new value succeeded"
-                                        ) //TODO - if none - call caching func once again
-                                  } yield (opt.get.value.cached_val) //if exception - something wrong with the code
+                                        )
+             
+                                    res <- if (opt.isDefined) ZIO(opt.get.value.cached_val)
+                                          else {  //rare, but can happen - when LRU rotation removes the enry
+                                            updatef(resource, key)
+                                              .flatMap(v => {
+                                                for {
+                                                  entry <- ZIO.effect(new CacheEntry(v))
+                                                  _     <- ZIO.effect(entry.timeStampIt)
+                                                  res   <- cache_tbl.u_add(ValuePair(key, entry))
+                                                  _     <- ZIO.effect(lru_tbl.add(new LRUQEntry[K](entry.ts, key)))
+
+                                                  _ <- cleanLRU2(key).fork
+
+                                                  _ <- promise.succeed(res);
+
+                                                  _ <- dropPromise(key)
+
+                                                  _ <- MyLogging.log(
+                                                        "console",
+                                                        LogLevel.Trace,
+                                                        "ResPoolCache: key = " + key
+                                                          .toString() + " promise acquired, new value cached"
+                                                      )
+                                                } yield (v)
+                                              })
+                                          }
+
+                                  } yield (res)
 
                                 }
                           } yield (v)
