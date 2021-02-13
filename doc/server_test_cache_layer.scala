@@ -14,14 +14,10 @@ import zhttp.clients.ResPool.ResPool
 import zhttp.Response
 import zhttp.Method._
 
-import zio.App
 import zio.ZIO
 import zio.ZEnv
-import zio.Chunk
-import zio.json._
 
-import com.unboundid.ldap.sdk.LDAPConnection
-import com.unboundid.ldap.sdk.SearchResultEntry
+
 import clients.ResPoolCache
 import clients.ResPoolCache.ResPoolCache
 
