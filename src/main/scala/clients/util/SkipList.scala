@@ -6,8 +6,6 @@ package zhttp.clients.util
 
 import java.util.concurrent.atomic.AtomicReference
 import scala.collection.mutable.ListBuffer
-import zio.UIO
-import java.util.concurrent.atomic.AtomicInteger
 import zio.blocking.effectBlocking
 
 class ValReference[A](var a: A)
