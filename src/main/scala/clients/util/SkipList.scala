@@ -7,6 +7,8 @@ package zhttp.clients.util
 import java.util.concurrent.atomic.AtomicReference
 import scala.collection.mutable.ListBuffer
 import zio.UIO
+import java.util.concurrent.atomic.AtomicInteger
+import zio.blocking.effectBlocking
 
 class ValReference[A](var a: A)
 
@@ -306,12 +308,23 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
         }
       }
 
+      val stat = if (maxToNode != null) {
+        maxToNode.isMarked()
+      } else false
+
       val o_stat = if (maxToNode != null) {
         val orig = maxToNode.getOrig
         (orig == null || orig.isMarked())
       } else false
 
-      out.append("Layer " + ln + ": " + totalCount + "(" + maxRangeCount + ") " + !o_stat + "\n")
+      val r_stat = if (maxToNode != null) {
+        val ref = maxToNode.getRef
+        (ref == null || ref.isMarked())
+      } else false
+
+      out.append(
+        "Layer " + ln + ": " + totalCount + "(" + maxRangeCount + ") " + !stat + " " + !r_stat + " " + !o_stat + "\n"
+      )
       maxRangeCount = 0
 
       uper_layer = cur_layer
@@ -361,7 +374,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
   def count(): Int =
     OrderedList.count[A](vals)
 
-  def u_get(a: A) = UIO(get(a))
+  def u_get(a: A) = effectBlocking(get(a))
 
   //////////////////////////////////////////////////////////////////////
   def get(a: A): Option[A] = {
@@ -457,7 +470,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     }
   }
 
-  final def u_add(a: A) = UIO(add(a))
+  final def u_add(a: A) = effectBlocking(add(a))
 
   ///////////////////////////////////////////////////////////////////
   final def add(a: A): Boolean = {
@@ -466,6 +479,8 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     val newTopRef = Array[Node[A]](null)
     val origRef   = Array[Node[A]](null)
     val added     = Array[Boolean](false)
+
+    var result = false
 
     var status1 = false
     while (status1 == false) {
@@ -478,6 +493,8 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
        }*/
       newTopRef(0) = null
       status1 = _add(top.get(), _lastRef, newTopRef, origRef, added, a)
+
+      if (added(0) == true) result = true
 
     }
 
@@ -497,10 +514,10 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
 
     //add_stat_do( cntr )
 
-    added(0)
+    result
   }
 
-  final def u_remove(a: A) = UIO(remove(a))
+  final def u_remove(a: A) = effectBlocking(remove(a))
 
   ///////////////////////////////////////////////////////////////////
   final def remove(a: A): Boolean = {
@@ -546,8 +563,6 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
       //We need to count elements to decide if we need to merge ranges into one.
       if (removeFinal(0) == true) result_removed_or_not = true
 
-      //if( status1 == false ) println( "Repeat on remove " + a + " with status " +  removeFinal(0) )
-
     }
 
     if (newSplit(0) != null) {
@@ -574,6 +589,8 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     added: Array[Boolean],
     a: A
   ): Boolean = {
+
+    // println( "_A" )
     val marked = Array[Boolean](false)
     val count  = Array[Int](0)
 

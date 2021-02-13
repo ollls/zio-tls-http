@@ -184,8 +184,8 @@ object ResPoolCache {
                                           cached_entry.timeStampIt
                                           lru_tbl.add(new LRUQEntry[K](cached_entry.ts, key))
                                         }
-                                        promise.succeed(true) *> dropPromise(key);
-                                      }) *> MyLogging.log(
+                                        promise.succeed(true)
+                                      }) *> dropPromise(key) *> MyLogging.log(
                                       "console",
                                       LogLevel.Trace,
                                       "ResPoolCache: key = " + key.toString() + " promise acquired, value refreshed"
@@ -230,7 +230,9 @@ object ResPoolCache {
                                         _ <- cleanLRU2(key).fork
 
                                         _ <- promise.succeed(res);
+
                                         _ <- dropPromise(key)
+
                                         _ <- MyLogging.log(
                                               "console",
                                               LogLevel.Trace,
@@ -248,7 +250,7 @@ object ResPoolCache {
                                           LogLevel.Trace,
                                           "ResPoolCache: key = " + key
                                             .toString() + " wait on promise for new value succeeded"
-                                        )
+                                        ) //TODO - if none - call caching func once again
                                   } yield (opt.get.value.cached_val) //if exception - something wrong with the code
 
                                 }
@@ -297,7 +299,7 @@ object ResPoolCache {
           def dropPromise(key: K) = p_tbl.u_remove(ValuePair(key))
 
           ///////////////////////////////////////////////////////////////////////////////////////
-          def acquirePromise(key: K): UIO[(Boolean, Promise[Throwable, Boolean])] = {
+          def acquirePromise(key: K) = {
             val T = for {
               val1 <- p_tbl.u_get(ValuePair[K, Promise[Throwable, Boolean]](key, null))
               result <- val1 match {
