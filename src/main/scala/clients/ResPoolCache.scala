@@ -262,13 +262,6 @@ object ResPoolCache {
                                                   _     <- ZIO.effect(entry.timeStampIt)
                                                   res   <- cache_tbl.u_add(ValuePair(key, entry))
                                                   _     <- ZIO.effect(lru_tbl.add(new LRUQEntry[K](entry.ts, key)))
-
-                                                  _ <- cleanLRU2(key).fork
-
-                                                  _ <- promise.succeed(res);
-
-                                                  _ <- dropPromise(key)
-
                                                   _ <- MyLogging.log(
                                                         "console",
                                                         LogLevel.Trace,
