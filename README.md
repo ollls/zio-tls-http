@@ -3,10 +3,6 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 cache function used for tests:
 
 # Update history.
-
-* DEV branch: Great stability and performance for ResPoolCache/lock-free Skip List, this will go to release very soon. 
-  SkipList factors can be shorter: 6-12, it even works with 3 ( even though it doesn't make sense ). 
-  Generally speaking factor correlates with number of CPU cores, you don't want to have many conflicts on one skip list range. ( but it works and fixes itself with conflicts ).
   
 * DEV branch: ResPoolCache is OK. Testing is on going.
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
