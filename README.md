@@ -4,9 +4,10 @@ cache function used for tests:
 
 # Update history.
 
+* DEV Env. Great stability and performance for ResPoolCache/lock-free Skip List, this will go to release very soon. 
+  12K TPS - 32 core CPU, on cache with refresh and evictions.
 * DEV branch: ResPoolCache is OK. Testing is on going.
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
-
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
 
