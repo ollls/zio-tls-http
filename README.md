@@ -4,7 +4,7 @@ cache function used for tests:
 
 # Update history.
 
-* DEV Env. Great stability and performance for ResPoolCache/lock-free Skip List, this will go to release very soon. 
+* DEV branch: Great stability and performance for ResPoolCache/lock-free Skip List, this will go to release very soon. 
 * DEV branch: ResPoolCache is OK. Testing is on going.
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
 
