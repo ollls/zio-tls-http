@@ -443,8 +443,8 @@ object OrderedList {
       if (marked(0) == true || done == true) {
         val marked_s = Array[Boolean](false)
 
-        from.get(marked_s)
-        if (marked_s(0) == true) return false
+        //from.get(marked_s)
+        //if (marked_s(0) == true) return false
 
         if (marked(0)) pred.compareAndSet(curr, succ, false, false)
 
@@ -455,10 +455,13 @@ object OrderedList {
         val tmp_cmp = Node(a, null) //for gen cases we cannot use "==", just reuse Ordered by applying Node as wrapper
         /* COMPARE */
         if (curr.compareTo(tmp_cmp) == 0) {
-          remove(0) = curr.compareAndSet(succ, succ, false, true)
-          if (remove(0) == true) {
+          /*remove(0) = */
+          curr.set(succ, true) //.compareAndSet(succ, succ, false, true)
+          // if (remove(0) == true) {
 
-            pred.compareAndSet(curr, succ, false, false)
+          remove(0) = pred.compareAndSet(curr, succ, false, false)
+
+          if (remove(0) == true) {
 
             count(0) = count(0) - 1
             if (start.eq(pred) == false)
@@ -484,7 +487,20 @@ object OrderedList {
             else true
           } else {
             count(0) = 0;
-            //removeFromRange(start, start, to, a, count, factor, merge, remove, removeFrom, done=false, abort=false, newSplit )
+            removeFromRange(
+              start,
+              start,
+              to,
+              a,
+              count,
+              factor,
+              merge,
+              remove,
+              removeFrom,
+              done = false,
+              abort = false,
+              newSplit
+            )
             return false
           }
         } else {
