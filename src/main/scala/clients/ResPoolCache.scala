@@ -25,6 +25,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 object ResPoolCache {
 
+  val COMMON_FACTOR = 14
+
   class CacheEntry[T](@volatile var cached_val: T, @volatile var ts: Long = 0L) {
     //////////////////////////////////////////////////////////////
     def timeStampIt = ts = java.time.Instant.now().toEpochMilli();
@@ -50,7 +52,7 @@ object ResPoolCache {
   class LRUListWithCounter[K] {
     private val lru_tbl   = new SkipList[LRUQEntry[K]]
     private val lru_count = new AtomicInteger(0)
-    lru_tbl.FACTOR = 14
+    lru_tbl.FACTOR = COMMON_FACTOR 
 
     def add(e: LRUQEntry[K]) = {
       val b = lru_tbl.add(e)
@@ -69,6 +71,8 @@ object ResPoolCache {
     def head = lru_tbl.head
 
     def stat(sb: StringBuilder) = lru_tbl.print(sb)
+
+    def factor = lru_tbl.FACTOR
   }
 
   type ResPoolCache[K, V, R] = Has[ResPoolCache.Service[K, V, R]]
@@ -101,7 +105,7 @@ object ResPoolCache {
         new Service[K, V, R] {
 
           val cache_tbl = new SkipList[ValuePair[K, CacheEntry[V]]]
-          cache_tbl.FACTOR = 14
+          cache_tbl.FACTOR = COMMON_FACTOR 
           val p_tbl = new SkipList[ValuePair[K, Promise[Throwable, Boolean]]]
           p_tbl.FACTOR = 50
 
@@ -127,8 +131,10 @@ object ResPoolCache {
             val r = refresh.get()
 
             sb.append("\n*Metrics*")
-            sb.append("\nLimit:       " + limit)
-            sb.append("\nTTL:         " + timeToLiveMs + " ms\n")
+            sb.append("\nLimit:        " + limit)
+            sb.append("\nTTL:          " + timeToLiveMs + " ms\n")
+            sb.append("\nCache factor: " + cache_tbl.FACTOR)
+            sb.append("\nLRU factor:   " + lru_tbl.factor)
 
             sb.append("\nTotal:       " + t)
             sb.append("\nHits:        " + h)
@@ -208,7 +214,6 @@ object ResPoolCache {
                         case None =>
                           //nothing cached for the key
                           for { //obtain shared promise for the key, promise owner or client
-                            _ <- ZIO.succeed(adds.incrementAndGet())
                             _ <- MyLogging.log(
                                   "console",
                                   LogLevel.Trace,
@@ -225,6 +230,7 @@ object ResPoolCache {
                                         entry <- ZIO.effect(new CacheEntry(v))
                                         _     <- ZIO.effect(entry.timeStampIt)
                                         res   <- cache_tbl.u_add(ValuePair(key, entry))
+                                        _     <- ZIO.succeed(adds.incrementAndGet()).when(res == true)
                                         _     <- ZIO.effect(lru_tbl.add(new LRUQEntry[K](entry.ts, key)))
 
                                         _ <- cleanLRU2(key).fork
@@ -252,9 +258,9 @@ object ResPoolCache {
                                           "ResPoolCache: key = " + key
                                             .toString() + " wait on promise for new value succeeded"
                                         )
-             
+
                                     res <- if (opt.isDefined) ZIO(opt.get.value.cached_val)
-                                          else {  //rare, but can happen - when LRU rotation removes the enry
+                                          else { //rare, but can happen - when LRU rotation removes the enry
                                             updatef(resource, key)
                                               .flatMap(v => {
                                                 for {

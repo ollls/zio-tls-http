@@ -320,8 +320,9 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
         (ref == null || ref.isMarked())
       } else false
 
+      var maxRangeCountShow = if ( maxRangeCount > FACTOR * 10 ) "*" else maxRangeCount.toString
       out.append(
-        "Layer " + ln + ": " + totalCount + "(" + maxRangeCount + ") " + !stat + " " + !r_stat + " " + !o_stat + "\n"
+        "Layer " + ln + ": " + totalCount + "(" + maxRangeCountShow + ") " + !stat + " " + !r_stat + " " + !o_stat + "\n"
       )
       maxRangeCount = 0
 
