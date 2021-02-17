@@ -320,7 +320,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
         (ref == null || ref.isMarked())
       } else false
 
-      var maxRangeCountShow = if ( maxRangeCount > FACTOR * 10 ) "*" else maxRangeCount.toString
+      var maxRangeCountShow = if (maxRangeCount > FACTOR * 10) "*" else maxRangeCount.toString
       out.append(
         "Layer " + ln + ": " + totalCount + "(" + maxRangeCountShow + ") " + !stat + " " + !r_stat + " " + !o_stat + "\n"
       )
@@ -478,6 +478,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     val newTopRef = Array[Node[A]](null)
     val origRef   = Array[Node[A]](null)
     val added     = Array[Boolean](false)
+    val layerOnly = Array[Boolean](false)
 
     var result = false
 
@@ -491,7 +492,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
          System.exit( 23 )
        }*/
       newTopRef(0) = null
-      status1 = _add(top.get(), _lastRef, newTopRef, origRef, added, a)
+      status1 = _add(top.get(), _lastRef, newTopRef, origRef, added, layerOnly, a)
 
       if (added(0) == true) result = true
 
@@ -591,6 +592,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     newTopRef: Array[Node[A]],
     origRef: Array[Node[A]],
     added: Array[Boolean],
+    layerOnly: Array[Boolean],
     a: A
   ): Boolean = {
 
@@ -602,10 +604,13 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
       origRef(0) = null
       newTopRef(0) = null
       val added_loc = Array[Boolean](false)
-      val status    = OrderedList.insertInRange(from, from, to, Node(a, null), count, FACTOR, newTopRef, added_loc, false)
-
-      origRef(0) = newTopRef(0)
-      added(0) = added_loc(0)
+      var status    = false
+      if (layerOnly(0) == false) {
+        status = OrderedList.insertInRange(from, from, to, Node(a, null), count, FACTOR, newTopRef, added_loc, false)
+        origRef(0) = newTopRef(0)
+        added(0) = added_loc(0)
+        layerOnly(0) = added_loc(0)
+      } else status = true
 
       status
     } else {
@@ -638,7 +643,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
 
         //////
 
-        val status = _add(lowerNodeFrom, lowerNodeTo, newTopRef, origRef, added, a)
+        val status = _add(lowerNodeFrom, lowerNodeTo, newTopRef, origRef, added, layerOnly, a)
 
         if (status == true && newTopRef(0) != null) {
           if (newTopRef(0).a == null) {
