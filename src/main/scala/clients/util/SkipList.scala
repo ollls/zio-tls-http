@@ -312,12 +312,12 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
 
       val o_stat = if (maxToNode != null) {
         val orig = maxToNode.getOrig
-        (orig == null || orig.isMarked())
+        ( maxToNode.isLast == false && ( orig == null || orig.isMarked() ) )
       } else false
 
       val r_stat = if (maxToNode != null) {
         val ref = maxToNode.getRef
-        (ref == null || ref.isMarked())
+        ( maxToNode.isLast == false && ( ref == null || ref.isMarked() ) )
       } else false
 
       var maxRangeCountShow = if (maxRangeCount > FACTOR * 10) "*" else maxRangeCount.toString
@@ -473,26 +473,15 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
 
   ///////////////////////////////////////////////////////////////////
   final def add(a: A): Boolean = {
-
-    var cntr      = 0;
     val newTopRef = Array[Node[A]](null)
-    val origRef   = Array[Node[A]](null)
     val added     = Array[Boolean](false)
-    val layerOnly = Array[Boolean](false)
 
     var result = false
 
     var status1 = false
     while (status1 == false) {
-      cntr = cntr + 1
-      /*
-       if ( cntr == 700000 ) {
-         debug_validate()
-         debug_print()
-         System.exit( 23 )
-       }*/
       newTopRef(0) = null
-      status1 = _add(top.get(), _lastRef, newTopRef, origRef, added, layerOnly, a)
+      status1 = _add(top.get(), _lastRef, newTopRef, added, a)
 
       if (added(0) == true) result = true
 
@@ -590,82 +579,65 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     from: Node[A],
     to: Node[A],
     newTopRef: Array[Node[A]],
-    origRef: Array[Node[A]],
     added: Array[Boolean],
-    layerOnly: Array[Boolean],
     a: A
   ): Boolean = {
 
-    // println( "_A" )
     val marked = Array[Boolean](false)
     val count  = Array[Int](0)
-
+    var status = false
     if (from.hasRef == false) {
-      origRef(0) = null
-      newTopRef(0) = null
-      val added_loc = Array[Boolean](false)
-      var status    = false
-      if (layerOnly(0) == false) {
-        status = OrderedList.insertInRange(from, from, to, Node(a, null), count, FACTOR, newTopRef, added_loc, false)
-        origRef(0) = newTopRef(0)
-        added(0) = added_loc(0)
-        layerOnly(0) = added_loc(0)
-      } else status = true
 
+      if (added(0) == false) {
+        status = OrderedList.insertInRange(from, from, to, Node(a, null), count, FACTOR, newTopRef, added, false)
+      } else status = true
+      
       status
+
     } else {
       val closestTop = OrderedList.findClosestLesserValue2(from, from, null, a)
 
-      if (closestTop == null) false
-      else {
+      if (closestTop == null) return false
 
-        //////
-        val closestTopGetReference = closestTop.getReference
-        val lowerNodeFrom          = closestTop.getRef
-        val lowerNodeTo            = closestTopGetReference.getRef
+      //////
+      val closestTopGetReference = closestTop.getReference
+      val lowerNodeFrom          = closestTop.getRef
+      val lowerNodeTo            = closestTopGetReference.getRef
 
-        val lowerNodeFrom_o = closestTop.getOrig
-        val lowerNodeTo_o   = closestTopGetReference.getOrig
+      val lowerNodeFrom_o = closestTop.getOrig
+      val lowerNodeTo_o   = closestTopGetReference.getOrig
 
-        //  println( lowerNodeTo.isLast + ">" + lowerNodeTo.hasRef + "  "  + lowerNodeFrom_o   + "   " +  lowerNodeTo_o )
-
-        if (lowerNodeFrom.isMarked() || (!lowerNodeFrom.isFirst && lowerNodeFrom.hasRef && lowerNodeFrom_o.isMarked)) {
-          if (closestTop.isFirst == false && closestTop.isLast == false)
-            closestTop.set(closestTop.getReference(), true)
-          return false
-        }
-
-        if (lowerNodeTo.isMarked() || (!lowerNodeTo.isLast && lowerNodeTo.hasRef && lowerNodeTo_o.isMarked())) {
-          if (closestTopGetReference.isFirst == false && closestTopGetReference.isLast == false)
-            closestTopGetReference.set(closestTopGetReference.getReference(), true)
-          return false
-        }
-
-        //////
-
-        val status = _add(lowerNodeFrom, lowerNodeTo, newTopRef, origRef, added, layerOnly, a)
-
-        if (status == true && newTopRef(0) != null) {
-          if (newTopRef(0).a == null) {
-            println("catch")
-          }
-
-          val newNode =
-            if (newTopRef(0).hasRef == false)
-              NodeRef(newTopRef(0).a, newTopRef(0), null, origRef(0))
-            else
-              NodeRef(newTopRef(0).a, newTopRef(0), null, newTopRef(0).getOrig)
-
-          newTopRef(0) = null
-          count(0) = 0
-          val added_layer = Array[Boolean](false)
-          val status      = OrderedList.insertInRange(from, from, to, newNode, count, FACTOR, newTopRef, added_layer, false)
-
-          status
-        } else status
+      if (lowerNodeFrom.isMarked() || (!lowerNodeFrom.isFirst && lowerNodeFrom.hasRef && lowerNodeFrom_o.isMarked)) {
+        if (closestTop.isFirst == false && closestTop.isLast == false)
+          closestTop.set(closestTop.getReference(), true)
+        return false
       }
-    }
 
+      if (lowerNodeTo.isMarked() || (!lowerNodeTo.isLast && lowerNodeTo.hasRef && lowerNodeTo_o.isMarked())) {
+        if (closestTopGetReference.isFirst == false && closestTopGetReference.isLast == false)
+          closestTopGetReference.set(closestTopGetReference.getReference(), true)
+        return false
+      }
+      //////
+      val status = _add(lowerNodeFrom, lowerNodeTo, newTopRef, added, a)
+
+      if (status == false) return false
+
+      if (newTopRef(0) != null) {
+        val newNode =
+          if (newTopRef(0).hasRef == false) {
+            NodeRef(newTopRef(0).a, newTopRef(0), null, newTopRef(0) )
+          } else {
+            if ( newTopRef(0).getOrig == null ) throw new Exception("AAA")
+            NodeRef(newTopRef(0).a, newTopRef(0), null, newTopRef(0).getOrig)
+          }  
+
+        newTopRef(0) = null
+        count(0) = 0
+        val added_layer = Array[Boolean](false)
+        OrderedList.insertInRange(from, from, to, newNode, count, FACTOR, newTopRef, added_layer, false)
+      } else status
+    }
   }
 
   ///////////////////////////////////////////////////////////////////////

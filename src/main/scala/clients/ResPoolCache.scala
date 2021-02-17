@@ -23,9 +23,11 @@ import zhttp.LogLevel
 import scala.volatile
 import java.util.concurrent.atomic.AtomicInteger
 
+import java.lang.Runtime
+
 object ResPoolCache {
 
-  val COMMON_FACTOR = 14
+  val COMMON_FACTOR = 8
 
   class CacheEntry[T](@volatile var cached_val: T, @volatile var ts: Long = 0L) {
     //////////////////////////////////////////////////////////////
@@ -146,7 +148,10 @@ object ResPoolCache {
             val tusage = if (t != 0) 100 * (h + r) / t else 0
 
             sb.append("\n\nUsage:       " + usage + "%\n")
-            sb.append("Total usage: " + tusage + "%")
+            sb.append("Total usage: " + tusage + "%\n")
+
+            sb.append( "\nFree memory: " + Runtime.getRuntime().freeMemory() / 1000000 + " mb" )
+            sb.append( "\nMax memory: "  + Runtime.getRuntime().maxMemory / 1000000 + " mb")
 
             sb.toString()
 
@@ -267,6 +272,7 @@ object ResPoolCache {
                                                   entry <- ZIO.effect(new CacheEntry(v))
                                                   _     <- ZIO.effect(entry.timeStampIt)
                                                   res   <- cache_tbl.u_add(ValuePair(key, entry))
+                                                  _     <- ZIO.succeed(adds.incrementAndGet()).when(res == true)
                                                   _     <- ZIO.effect(lru_tbl.add(new LRUQEntry[K](entry.ts, key)))
                                                   _ <- MyLogging.log(
                                                         "console",
