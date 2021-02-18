@@ -7,6 +7,9 @@ cache function used for tests:
 * DEV branch in the pre-release state, please use it. If any issues there, it will be posted immedaitely. 
   ResPoolCache tested with 10-15 mill records, no issues. ( ResPoolCache is a ZIO layer which depends on ResPool Layer( resource/connection pooling )).
   
+  Use case example for connection pooling/caching.
+  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala
+  
 * DEV branch: ResPoolCache is OK. Testing is on going.
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
 
