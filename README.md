@@ -5,7 +5,7 @@ cache function used for tests:
 # Update history.
   
 * DEV branch in the pre-release state, please use it. If any issues there, it will be posted immedaitely. 
-  ResPoolCache tested with 10-15 mill records, no issues. ( ResPoolCache is a ZIO layer which depends on ResPool Layer( resourse or connection pooling ).
+  ResPoolCache tested with 10-15 mill records, no issues. ( ResPoolCache is a ZIO layer which depends on ResPool Layer( resourse or connection pooling )).
   
 * DEV branch: ResPoolCache is OK. Testing is on going.
 https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
