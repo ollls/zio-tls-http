@@ -3,7 +3,9 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 cache function used for tests:
 
 # Update history.
-  
+
+* DEV branch: semaphore based sync, a lot of hard work and testing to avoid _any_ random racing and inconsitencies.
+
 * DEV branch in the pre-release state, please use it. If any issues there, it will be posted immedaitely. 
   ResPoolCache tested with 10-15 mill records, no issues. ( ResPoolCache is a ZIO layer which depends on ResPool Layer( resource/connection pooling )).
   
