@@ -281,11 +281,11 @@ object ResPoolCache {
       private def cleanLRU(key: K) =
         for {
           cntr <- ZIO(lru_tbl.count)
-          _ <- MyLogging.log(
-                "console",
-                LogLevel.Trace,
-                "ResPoolCache: Remove LRU entry to free space for the key = " + key.toString()
-              )
+          //_ <- MyLogging.log(
+          //      "console",
+          //      LogLevel.Trace,
+          //      "ResPoolCache: Remove LRU entry to free space for the key = " + key.toString()
+          //    )
           _ <- q.offer(key).when(lru_tbl.count > limit)
         } yield ()
 
