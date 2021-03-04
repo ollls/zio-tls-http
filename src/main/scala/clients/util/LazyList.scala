@@ -146,6 +146,7 @@ object OrderedList {
     count
   }
 
+ 
   ////////////////////////////////////////
   def countRange[A](from: Node[A], to: Node[A]): Integer = {
 
@@ -153,11 +154,11 @@ object OrderedList {
     var count  = 0;
     val marked = Array[Boolean](false)
 
-    curr.get(marked)
+    curr = curr.get(marked)
 
     while (!curr.isLast && curr != to) {
+      if ( marked(0) == false ) count += 1
       curr = curr.get(marked)
-      count += 1
     }
 
     count
@@ -188,6 +189,41 @@ object OrderedList {
     }
 
     result
+  }
+
+
+
+  /////////////////////////////////////////////////////////////////////
+  @tailrec
+  def removeNext2[A](list: Node[A], removedNode : Array[Node[A]] ): Boolean = {
+    val marked = Array[Boolean](false)
+
+    val pred = list
+    val curr = pred.get(marked)
+
+    removedNode(0) = null
+
+    //marked(0) = true;
+
+    if (marked(0) == false) {
+
+      val succ = curr.getReference
+
+      if (curr.isLast) return true //nothing to remove but true
+
+      if (curr.compareAndSet(succ, succ, false, true) == false) {
+        list.get(marked)
+        if (marked(0) == false) {
+          removeNext2(list, removedNode )
+        } else {
+          false
+        }
+      } else {
+        val res = pred.compareAndSet(curr, succ, false, false)
+        if ( res == true ) removedNode( 0 ) = curr
+        res
+      }
+    } else false
   }
 
   /////////////////////////////////////////////////////////////////////
@@ -222,7 +258,7 @@ object OrderedList {
   ////////////////////////////////////////////////////////////////////////
   //we need to preserve - start node, to be able to retry recursively
   @tailrec
-  def findClosestLesserValue2[A](list: Node[A], repeat: Node[A], pred2: Array[Node[A]], a: A): Node[A] = {
+  def findClosestLesserValue2[A](list: Node[A], repeat: Node[A], pred2: Array[Node[A]], a: A)(implicit ord: A => Ordered[A]): Node[A] = {
 
     if (list.isLast) return null
 
@@ -232,6 +268,9 @@ object OrderedList {
     val pred        = list
 
     val curr = pred.getReference()
+
+    val Node_a = Node(a, null) 
+   // if ( list.isFirst == false && Node_a.lt( list.a )) return null
 
     if (curr == null) {
 
@@ -270,7 +309,6 @@ object OrderedList {
       repeat.get(marked)
       //start node, is it still there ?
       if (marked(0) == false) {
-
         findClosestLesserValue2(repeat, repeat, pred2, a) //repeat the whole thing from start node
       } else {
         /*println( "findClosestLesserValue2 - cannot repeat" ); */
@@ -392,9 +430,14 @@ object OrderedList {
     abort: Boolean,
     newSplit: Array[Node[A]]
   )(implicit ord: A => Ordered[A]): Boolean = {
-    val status = removeFromRange_t(start, from, to, a, count, factor, merge, remove, removeFrom, done, abort, newSplit)
 
-    //if ( status == false )  return false
+    val Node_a = Node(a, null) //for gen cases we cannot use "==", just reuse Ordered by applying Node as wrapper
+
+    
+    if ( start.isFirst == false && Node_a.lt( start.a ) ) { return false }
+    if ( to.isLast == false && to.lt( a )) { return false }
+
+    val status = removeFromRange_t(start, from, to, Node_a, count, factor, merge, remove, removeFrom, done, abort, newSplit)
 
     if (remove(0) == true) {
       if (count(0) < factor / 2) merge(0) = true
@@ -413,7 +456,7 @@ object OrderedList {
     start: Node[A],
     from: Node[A],
     to: Node[A],
-    a: A,
+    Node_a: Node[A],
     count: Array[Int],
     factor: Int,
     merge: Array[Boolean],
@@ -428,11 +471,9 @@ object OrderedList {
     val pred   = from
     val curr   = pred.getReference
 
-    //curr has no succ
+    if ( pred.isLast ) return false
 
-    if (curr == null) return true
-
-    if (count(0) > factor * 10) return true
+    if (count(0) > factor * 10) return false
 
     if (pred.eq(to) == false && curr.isLast == false) {
 
@@ -450,11 +491,10 @@ object OrderedList {
 
         if (marked(0) == false) count(0) = count(0) + 1
 
-        removeFromRange_t(start, curr, to, a, count, factor, merge, remove, removeFrom, done, false, newSplit)
+        removeFromRange_t(start, curr, to, Node_a, count, factor, merge, remove, removeFrom, done, false, newSplit)
       } else {
-        val tmp_cmp = Node(a, null) //for gen cases we cannot use "==", just reuse Ordered by applying Node as wrapper
         /* COMPARE */
-        if (curr.compareTo(tmp_cmp) == 0) {
+        if (curr.compareTo( Node_a ) == 0) {
           remove(0) = curr.compareAndSet(succ, succ, false, true)
           if (remove(0) == true) {
 
@@ -471,7 +511,7 @@ object OrderedList {
                 start,
                 curr.getReference(),
                 to,
-                a,
+                Node_a,
                 count,
                 factor,
                 merge,
@@ -484,17 +524,17 @@ object OrderedList {
             else true
           } else {
             count(0) = 0;
-            //removeFromRange(start, start, to, a, count, factor, merge, remove, removeFrom, done=false, abort=false, newSplit )
+    
             return false
           }
         } else {
           count(0) = count(0) + 1 //go next
 
           //in case if element was removed already (not found), we still provide closest node info
-          if (pred.lt(a) == true && curr.lt(a) == false) {
+          if (pred.lt( Node_a.a ) == true && curr.lt( Node_a.a) == false) {
             removeFrom(0) = pred //pred less then "a" but curr already more then "a", so save the border line pred
           }
-          removeFromRange_t(start, curr, to, a, count, factor, merge, remove, removeFrom, false, false, newSplit)
+          removeFromRange_t(start, curr, to, Node_a, count, factor, merge, remove, removeFrom, false, false, newSplit)
         }
       }
 
