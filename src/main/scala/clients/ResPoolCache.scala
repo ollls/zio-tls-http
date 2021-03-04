@@ -268,7 +268,7 @@ object ResPoolCache {
                                         "console",
                                         LogLevel.Trace,
                                         "ResPoolCache: key = " + key
-                                          .toString() + " promise acquired, new value cached"
+                                          .toString() + " new value cached"
                                       )
                                 } yield (v)
                               })
