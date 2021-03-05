@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicInteger
 
 import java.lang.Runtime
-import zio.blocking.Blocking
+
 
 object ResPoolCache {
 
@@ -88,7 +88,7 @@ object ResPoolCache {
 
     def info: ZIO[ZEnv, Throwable, String]
 
-    def doFreeSpace: ZIO[Blocking, Throwable, Unit]
+    def doFreeSpace: ZIO[ zio.ZEnv with MyLogging, Throwable, Unit]
 
   }
 
@@ -292,6 +292,11 @@ object ResPoolCache {
       private def cleanLRU3_par(e: LRUQEntry[K]) = {
      
         val T = for {
+           _ <- MyLogging.log(
+                "console",
+                LogLevel.Trace,
+                "ResPoolCache: Remove LRU entry = " + e.key.toString()
+              )
           b <- ZIO(lru_tbl.remove(e))
           _ <- ZIO { cache_tbl.remove(ValuePair(e.key)) }.when(b == true)
           _ <- ZIO(evcts.incrementAndGet())
