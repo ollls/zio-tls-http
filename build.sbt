@@ -4,11 +4,13 @@ val Specs2Version = "4.7.0"
 resolvers += Resolver.sonatypeRepo("releases")
 resolvers += Resolver.sonatypeRepo("snapshots")
 
-lazy val root = (project in file("."))
+
+
+  lazy val root = (project in file("."))
   .settings(
-    organization := "ZIO",
+    organization := "com.ols",
     name := "zio-tls-http",
-    version := "0.0.1",
+    version := "1.1.0-m1",
     scalaVersion := "2.13.1",
     maxErrors := 3,
     retrieveManaged := true,
@@ -20,6 +22,20 @@ lazy val root = (project in file("."))
     ),
      testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
+
+  lazy val example = (project in file("examples/start")).settings(
+    organization := "com.ols",
+    name := "zio-tls-http-exampe",
+    version := "0.0.1",
+    scalaVersion := "2.13.1",
+    maxErrors := 3,
+    libraryDependencies ++= Seq(
+    ),
+    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")) ).dependsOn( root )
+
+  
+
+// lazy val distro = (project in file("build"))
 
 // Refine scalac params from tpolecat
 scalacOptions ++= Seq(
