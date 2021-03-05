@@ -4,6 +4,8 @@ cache function used for tests:
 
 # Update history.
 
+* DEV branch: Example is done as a separate module, use "sbt example/run"
+
 * DEV branch: mem cache Zlayer - semaphore based sync, a lot of hard work and testing to avoid _any_ random racing and inconsitencies.
 
 * DEV branch: in the pre-release state, please use it. If any issues there, it will be posted immedaitely. 
