@@ -553,7 +553,11 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     while (status1 == false) {
 
       c += 1
-      if (c % 1000 == 0) println(c)
+      //not a real issue 
+      //but with special test scenarious with many threads doing the same removal
+      //we want to break thru a mutual deadlock
+      //https://github.com/ollls/mycas - total removal test case with 4 mils entries needs it
+      if (c > 133) { return false }
 
       aa.a = a
 
