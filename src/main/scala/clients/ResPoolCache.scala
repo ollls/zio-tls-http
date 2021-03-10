@@ -1,4 +1,4 @@
-package clients
+package zhttp.clients
 
 import zio.ZIO
 import zio.UIO
