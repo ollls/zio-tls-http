@@ -4,6 +4,8 @@ cache function used for tests:
 
 # Update history.
 
+* DEV Apparently (who knew!) people need non-TLS version of the server, here is example: https://github.com/ollls/hello-http.
+
 * DEV branch: Hello World example with Maven artifact for zio-tls-http: https://github.com/ollls/hello-https.
 
 * DEV branch: Example is done as a separate module, use "sbt example/run"
