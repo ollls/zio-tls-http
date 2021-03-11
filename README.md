@@ -4,6 +4,8 @@ cache function used for tests:
 
 # Update history.
 
+* DEV branch: Hello World example with Maven artifact for zio-tls-http: https://github.com/ollls/hello-https.
+
 * DEV branch: Example is done as a separate module, use "sbt example/run"
 
 * DEV branch: mem cache Zlayer - semaphore based sync, a lot of hard work and testing to avoid _any_ random racing and inconsitencies.
