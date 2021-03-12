@@ -189,6 +189,10 @@ type MyEnv3 = MyLogging with Has[String]
                println(  req.bodyAsText + "\n\n" + req.headers.printHeaders ) 
                ZIO( Response.Ok ) 
 
+          case  (req @ GET -> Root / "hello" / "user2" )  :?  param1( test )  =>
+          //var queryString = req.uri.getQuery()
+          ZIO( Response.Ok.asTextBody(  "param1=" + test ) )     
+
           case GET -> Root / "hello" / "user" / StringVar(userId) :? param1(par) =>
             val headers = Headers("procid" -> "header_value_from_server", "Content-Type" -> ContentType.Plain.toString)
 

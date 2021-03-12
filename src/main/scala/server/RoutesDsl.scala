@@ -47,6 +47,29 @@ object Path {
 
 }
 
+
+object / {
+  def unapply(path: Path): Option[(Path, String)] = { 
+
+    val segs: Array[String]  = path.toString.split("/")
+
+      val len0 = segs.length
+
+      val lastSeg0 = segs( len0 - 1 )
+
+      val p = lastSeg0.indexOf( '?' )
+
+      val lastSeg = if ( p > 0 ) lastSeg0.slice( 0, p ) else lastSeg0
+
+      val remainigPath = segs.slice(0, len0 - 1 )
+
+      val remainigPathStr = remainigPath.mkString( "/" )
+
+      Some( Path( remainigPathStr ), lastSeg ) 
+
+  }
+}  
+
 object -> {
 
   def unapply(req: Request): Option[(Method, Path)] =
