@@ -557,7 +557,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
       //but with special test scenarious with many threads doing the same removal
       //we want to break thru a mutual deadlock
       //https://github.com/ollls/mycas - total removal test case with 4 mils entries needs it
-      if (c > 133) { return false }
+      if (c > 13333) { return false }
 
       aa.a = a
 
