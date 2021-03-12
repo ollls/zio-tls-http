@@ -4,6 +4,8 @@ We plan for release of standalone jar, also embeded LRU eviction cache as ZIO en
 
 # Update history.
 
+* DEV hello-http* switched to m2, preliminary fix for parameter next to static URL segment applied.
+
 * DEV Apparently (who knew!) people need non-TLS version of the server, here is example: https://github.com/ollls/hello-http.
 
 * DEV branch: Hello World example with Maven artifact for zio-tls-http: https://github.com/ollls/hello-https.
