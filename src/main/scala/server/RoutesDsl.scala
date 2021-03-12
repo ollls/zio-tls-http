@@ -42,45 +42,55 @@ object Path {
     res
   }
 
-  def apply(list: List[String]): Path =
-    list.foldLeft(Root: Path)(_ / _)
-
+  def apply(list: List[String]): Path = {
+    if (list.isEmpty) return Root
+    var res: Path = Root
+    list.foreach { seg =>
+      {
+        if (seg.isEmpty) res = Root
+        else res = res / seg
+      }
+    }
+    res
+  }
 }
 
-
 object / {
-  def unapply(path: Path): Option[(Path, String)] = { 
 
-    val segs: Array[String]  = path.toString.split("/")
+  def unapply(path: Path): Option[(Path, String)] = {
 
-      val len0 = segs.length
+    val segs: Array[String] = path.toString.split("/")
 
-      val lastSeg0 = segs( len0 - 1 )
+    val len0 = segs.length
 
-      val p = lastSeg0.indexOf( '?' )
+    val lastSeg0 = segs(len0 - 1)
 
-      val lastSeg = if ( p > 0 ) lastSeg0.slice( 0, p ) else lastSeg0
+    val p = lastSeg0.indexOf('?')
 
-      val remainigPath = segs.slice(0, len0 - 1 )
+    val lastSeg = if (p > 0) lastSeg0.slice(0, p) else lastSeg0
 
-      val remainigPathStr = remainigPath.mkString( "/" )
+    val remainigPath = segs.slice(0, len0 - 1)
 
-      Some( Path( remainigPathStr ), lastSeg ) 
+    val remainigPathStr = remainigPath.mkString("/")
+
+    val ttt = Path(remainigPath.toList)
+
+    Some((Path(remainigPath.toList), lastSeg))
 
   }
-}  
+}
 
 object -> {
 
   def unapply(req: Request): Option[(Method, Path)] =
     for {
-      method <- req.headers.get( HttpRouter._METHOD)
+      method <- req.headers.get(HttpRouter._METHOD)
 
-      path <- req.headers.get( HttpRouter._PATH)
+      path <- req.headers.get(HttpRouter._PATH)
 
       path_u <- Some(Path(new URI(path).toString)) //.getPath) )
 
-    } yield (( Method(method), path_u))
+    } yield ((Method(method), path_u))
 }
 
 object /: {
