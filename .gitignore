@@ -1,5 +1,7 @@
 /target
 /project
+/examples/start/target
+/examples/start/project
 /logs
 /.bloop
 /.metals
