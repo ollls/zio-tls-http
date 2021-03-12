@@ -18,6 +18,7 @@ import zio.Chunk
 import MyLogging.MyLogging
 
 object param1 extends QueryParam("param1")
+object param2 extends QueryParam("param2")
 
 import zhttp.clients.util.SkipList
 
@@ -189,9 +190,9 @@ type MyEnv3 = MyLogging with Has[String]
                println(  req.bodyAsText + "\n\n" + req.headers.printHeaders ) 
                ZIO( Response.Ok ) 
 
-          case  (req @ GET -> Root / "hello" / "user2" )  :?  param1( test )  =>
+          case  (req @ GET -> Root / "hello" / "user2" )  :?  param1( test ) :? param2( test2 ) =>
           //var queryString = req.uri.getQuery()
-          ZIO( Response.Ok.asTextBody(  "param1=" + test ) )     
+          ZIO( Response.Ok.asTextBody(  "param1=" + test + "  " + "param2=" + test2 ) )     
 
           case GET -> Root / "hello" / "user" / StringVar(userId) :? param1(par) =>
             val headers = Headers("procid" -> "header_value_from_server", "Content-Type" -> ContentType.Plain.toString)
