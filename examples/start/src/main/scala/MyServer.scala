@@ -40,8 +40,9 @@ val sylo = new SkipList[ String ]
 
 type MyEnv3 = MyLogging with Has[String]
 
-    val myHttp = new TLSServer[MyEnv3]
-    val myHttpRouter = new HttpRouter[MyEnv3]
+  val myHttp = new TLSServer[MyEnv3]
+  //val myHttp = new zhttp.TcpServer[MyEnv3]
+  val myHttpRouter = new HttpRouter[MyEnv3]
 
 
 
@@ -190,7 +191,11 @@ type MyEnv3 = MyLogging with Has[String]
                println(  req.bodyAsText + "\n\n" + req.headers.printHeaders ) 
                ZIO( Response.Ok ) 
 
-          case  (req @ GET -> Root / "hello" / "user2" )  :?  param1( test ) :? param2( test2 ) =>
+          case  req @ GET -> Root / "complex_param" =>
+               val q = Option( req.uri.getQuery() )
+               ZIO( Response.Ok.asTextBody( "java.URL.getQuery() returns: " + q.getOrElse("empty string")  ) )
+
+          case  req @ GET -> Root / "hello" / "1" / "2" /"user2"  :?  param1( test ) :? param2( test2 ) =>
           //var queryString = req.uri.getQuery()
           ZIO( Response.Ok.asTextBody(  "param1=" + test + "  " + "param2=" + test2 ) )     
 
@@ -241,9 +246,9 @@ type MyEnv3 = MyLogging with Has[String]
     val AttributeLayer = ZIO.succeed( "flag#1-1").toLayer
 
     //server
-    myHttp.KEYSTORE_PATH = "keystore.jks"
-    myHttp.KEYSTORE_PASSWORD = "password"
-    myHttp.TLS_PROTO = "TLSv1.2"         //default TLSv1.2 in JDK8
+    //myHttp.KEYSTORE_PATH = "keystore.jks"
+    //myHttp.KEYSTORE_PASSWORD = "password"
+    //myHttp.TLS_PROTO = "TLSv1.2"         //default TLSv1.2 in JDK8
     myHttp.BINDING_SERVER_IP = "0.0.0.0" //make sure certificate has that IP on SAN's list
     myHttp.KEEP_ALIVE = 2000             //ms, good if short for testing with broken site's snaphosts with 404 pages
     myHttp.SERVER_PORT = 8084
