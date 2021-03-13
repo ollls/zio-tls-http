@@ -187,6 +187,9 @@ type MyEnv3 = MyLogging with Has[String]
       {
         req match {
 
+
+          case req @ GET -> Root / "app" / StringVar( userId1 ) / "get" =>  ZIO( Response.Ok.asTextBody( userId1) ) 
+
           case req @ POST -> Root / "app" / "update" =>
                println(  req.bodyAsText + "\n\n" + req.headers.printHeaders ) 
                ZIO( Response.Ok ) 
@@ -246,9 +249,9 @@ type MyEnv3 = MyLogging with Has[String]
     val AttributeLayer = ZIO.succeed( "flag#1-1").toLayer
 
     //server
-    //myHttp.KEYSTORE_PATH = "keystore.jks"
-    //myHttp.KEYSTORE_PASSWORD = "password"
-    //myHttp.TLS_PROTO = "TLSv1.2"         //default TLSv1.2 in JDK8
+    myHttp.KEYSTORE_PATH = "keystore.jks"
+    myHttp.KEYSTORE_PASSWORD = "password"
+    myHttp.TLS_PROTO = "TLSv1.2"         //default TLSv1.2 in JDK8
     myHttp.BINDING_SERVER_IP = "0.0.0.0" //make sure certificate has that IP on SAN's list
     myHttp.KEEP_ALIVE = 2000             //ms, good if short for testing with broken site's snaphosts with 404 pages
     myHttp.SERVER_PORT = 8084
