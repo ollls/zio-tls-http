@@ -5,7 +5,7 @@ import scala.util.Try
 import java.net.URI
 
 trait Path {
-  def / (child: String) = new /(this, child)
+  def / (child: String) = new URLPath(this, child)
   def toList: List[String]
 }
 
@@ -15,7 +15,7 @@ case object Root extends Path {
   override def toString = ""
 }
 
-final case class /(parent: Path, child: String) extends Path {
+final case class URLPath(parent: Path, child: String) extends Path {
   lazy val toList: List[String] = parent.toList ++ List(child)
 
   lazy val asString: String = s"$parent/$child"
@@ -57,27 +57,14 @@ object Path {
 
 object / {
 
-  def unapply(path: Path): Option[(Path, String)] = {
-
-    val segs: Array[String] = path.toString.split("/")
-
-    val len0 = segs.length
-
-    val lastSeg0 = segs(len0 - 1)
-
-    val p = lastSeg0.indexOf('?')
-
-    val lastSeg = if (p > 0) lastSeg0.slice(0, p) else lastSeg0
-
-    val remainigPath = segs.slice(0, len0 - 1)
-
-    val remainigPathStr = remainigPath.mkString("/")
-
-    val ttt = Path(remainigPath.toList)
-
-    Some((Path(remainigPath.toList), lastSeg))
-
-  }
+  def unapply(path: Path): Option[(Path, String)] =
+    path match {
+      case URLPath(parent, child) =>
+        val p = child.indexOf('?')
+        Some(parent, if (p > 0) child.slice(0, p) else child)
+      case Root =>
+        Some(Root, "")
+    }
 }
 
 object -> {
