@@ -1,6 +1,6 @@
 Appreciate any feedback negative or postive, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) <br>
-We plan for release of standalone jar, also embeded LRU eviction cache as ZIO env in the plans.
+Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
 # Update history.
 
