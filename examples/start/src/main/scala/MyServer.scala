@@ -235,7 +235,7 @@ val sylo = new SkipList[ String ]
                                       keepAlive = 4000, 
                                       serverIP = "0.0.0.0", 
                                       keystore = "keystore.jks", "password", 
-                                      TlsVersion = "TLSv1.2" )
+                                      tlsVersion = "TLSv1.2" )
  
 
   val myHttpRouter = new HttpRouter[MyEnv3](  

@@ -23,12 +23,12 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
                              serverIP : String = "0.0.0.0",
                              keystore : String = "keystore.jks",
                              keyStorePwd : String = "password",
-                             TlsVersion : String = "TLS" 
+                             tlsVersion : String = "TLS" 
                               ) {
 
   val KEYSTORE_PATH     = keystore
   val KEYSTORE_PASSWORD = keyStorePwd
-  val TLS_PROTO         = TlsVersion //default TLSv1.2 in JDK8
+  val TLS_PROTO         = tlsVersion //default TLSv1.2 in JDK8
   val BINDING_SERVER_IP = serverIP //make sure certificate has that IP on SAN's list
   val KEEP_ALIVE: Long  = keepAlive //ms, good if short for testing with broken site's snaphosts with 404 pages
   val SERVER_PORT       = port
