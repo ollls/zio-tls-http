@@ -12,11 +12,13 @@ import zio.Has
 
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
-class TcpServer[ MyEnv <: Has[MyLogging.Service]] {
+class TcpServer[ MyEnv <: Has[MyLogging.Service]](  port : Int,
+                             keepAlive : Int   = 2000,
+                             serverIP : String = "0.0.0.0" ) {
 
-  var BINDING_SERVER_IP = "127.0.0.1" //make sure certificate has that IP on SAN's list
-  var KEEP_ALIVE: Long  = 15000 //ms, good if short for testing with broken site's snaphosts with 404 pages
-  var SERVER_PORT       = 8084
+  val BINDING_SERVER_IP = serverIP //make sure certificate has that IP on SAN's list
+  val KEEP_ALIVE: Long  = keepAlive //ms, good if short for testing with broken site's snaphosts with 404 pages
+  val SERVER_PORT       = port
 
   private var processor: Channel => ZIO[ZEnv with MyEnv, Exception, Unit] = null
 

@@ -38,14 +38,6 @@ object myServer extends zio.App {
 
 val sylo = new SkipList[ String ]  
 
-type MyEnv3 = MyLogging with Has[String]
-
-  val myHttp = new TLSServer[MyEnv3]
-  //val myHttp = new zhttp.TcpServer[MyEnv3]
-  val myHttpRouter = new HttpRouter[MyEnv3]
-
-
-
   HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
   HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
 
@@ -117,7 +109,7 @@ type MyEnv3 = MyLogging with Has[String]
         req match {
           case GET -> Root =>
             for {
-              _ <- myHttpRouter.finishBodyLoadForRequest(req) //we need to finish reading to request.body for Raw Routes
+              _ <- HttpRouter.finishBodyLoadForRequest(req) //we need to finish reading to request.body for Raw Routes
               res <- ZIO(
                       Response
                         .Error(StatusCode.SeeOther)
@@ -127,17 +119,17 @@ type MyEnv3 = MyLogging with Has[String]
 
           //opens up everything under ROOT_CATALOG/web  
           case GET -> "web" /: _ =>
-            myHttpRouter.finishBodyLoadForRequest(req) *>
+            HttpRouter.finishBodyLoadForRequest(req) *>
               FileUtils.loadFile(req, ROOT_CATALOG)
 
           //opens up everythingunder ROOT_CATALOG/web2    
           case GET -> Root / "web2" / _ =>
-            myHttpRouter.finishBodyLoadForRequest(req) *>
+            HttpRouter.finishBodyLoadForRequest(req) *>
               FileUtils.loadFile(req, ROOT_CATALOG)
 
           //zio documentation is here    
           case GET -> "zio_doc" /: _ =>
-            myHttpRouter.finishBodyLoadForRequest(req) *>
+            HttpRouter.finishBodyLoadForRequest(req) *>
               FileUtils.loadFile(req, ROOT_CATALOG)
 
           //how to write file to disk, without prefetching it to memory     
@@ -235,30 +227,33 @@ type MyEnv3 = MyLogging with Has[String]
       }
     }
 
-    //app routes
-    myHttpRouter.addAppRoute( app_route_cookies_and_params )
-    myHttpRouter.addAppRoute( app_route_JSON )
-    myHttpRouter.addAppRoute(app_route_pre_post_filters )
 
-    myHttpRouter.addChannelRoute( document_server )
-    myHttpRouter.addChannelRoute( route_with_filter )
 
-    myHttpRouter.addAppRoute( ws_route2 )
+  type MyEnv3 = MyLogging with Has[String]
+
+  val myHttp = new TLSServer[MyEnv3]( port = 8084, 
+                                      keepAlive = 4000, 
+                                      serverIP = "0.0.0.0", 
+                                      keystore = "keystore.jks", "password", 
+                                      TlsVersion = "TLSv1.2" )
+ 
+
+  val myHttpRouter = new HttpRouter[MyEnv3](  
+    /* normal app routes */
+    List( app_route_cookies_and_params, 
+          app_route_JSON, 
+          app_route_pre_post_filters, ws_route2  ),
+    /* channel ( file server) routes */      
+    List( document_server, route_with_filter) )
 
 
     val AttributeLayer = ZIO.succeed( "flag#1-1").toLayer
 
-    //server
-    myHttp.KEYSTORE_PATH = "keystore.jks"
-    myHttp.KEYSTORE_PASSWORD = "password"
-    myHttp.TLS_PROTO = "TLSv1.2"         //default TLSv1.2 in JDK8
-    myHttp.BINDING_SERVER_IP = "0.0.0.0" //make sure certificate has that IP on SAN's list
-    myHttp.KEEP_ALIVE = 2000             //ms, good if short for testing with broken site's snaphosts with 404 pages
-    myHttp.SERVER_PORT = 8084
 
     myHttp
       .run(myHttpRouter.route)
-      .provideSomeLayer[ZEnv with MyLogging]( AttributeLayer).provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info )))
+      .provideSomeLayer[ZEnv with MyLogging]( AttributeLayer)
+      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info )) )
       .exitCode
   }
 }

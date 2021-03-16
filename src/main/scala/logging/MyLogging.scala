@@ -28,8 +28,9 @@ object MyLogging {
   val FILE_TS_FMT    = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   val REL_LOG_FOLDER = "logs/"
 
-  val MAX_LOG_FILE_SIZE       = 1024 * 1024 * 1 //1M
-  val MAX_NUMBER_ROTATED_LOGS = 5
+  private var MAX_LOG_FILE_SIZE       = 1024 * 1024 * 1 //1M
+  private var MAX_NUMBER_ROTATED_LOGS = 5
+
   var PRINT_CONSOLE           = true
 
   class LogRec(logName: String, var log: FileChannel, val lvl: LogLevel) {
@@ -141,14 +142,14 @@ object MyLogging {
       _ <- effectBlocking(logs.get(log_name).foreach { logRec =>
             {
               if (lvl >= logRec.lvl) {
-                val strLvl = lvl.render
+                val strLvl   = lvl.render
                 val fiberNum = fiberId.seqNumber
-                val line   = s"$ts [$strLvl] [$fiberNum] $log_msg\n"
+                val line     = s"$ts [$strLvl] [$fiberNum] $log_msg\n"
                 if (log_name == "console" && PRINT_CONSOLE == true) {
                   val TS           = withColor(AnsiColor.GREEN, ts)
                   val MSG          = withColor(AnsiColor.YELLOW, log_msg)
                   val LVL          = withColor(colorFromLogLevel(lvl), lvl.render)
-                  val FIBER        = withColor(AnsiColor.GREEN, fiberNum.toString )
+                  val FIBER        = withColor(AnsiColor.GREEN, fiberNum.toString)
                   val console_line = s"$TS [$LVL] [$FIBER] $MSG"
                   println(console_line)
                 }
@@ -185,6 +186,18 @@ object MyLogging {
   private def close_logs(logs: ListMap[String, LogRec]): ZIO[ZEnv, Nothing, Unit] =
     effectBlocking(logs.foreach(rec => rec._2.log.close())).catchAll(_ => IO.unit)
 
+  def make(
+    maxLogSize: Int,
+    maxLogFiles: Int,
+    log_names: (String, LogLevel)*
+  ): ZLayer[ZEnv, Throwable, Has[MyLogging.Service]] = {
+    MAX_LOG_FILE_SIZE = maxLogSize
+    MAX_NUMBER_ROTATED_LOGS = maxLogFiles
+
+    make(log_names: _*)
+
+  }
+
   def make(log_names: (String, LogLevel)*): ZLayer[ZEnv, Throwable, Has[MyLogging.Service]] = {
     val managedObj = open_logs(log_names).toManaged(close_logs).flatMap { logs =>
       ZQueue
@@ -192,8 +205,8 @@ object MyLogging {
       //here for perfomance reasons we use dropping queue, some messages under stress load will be lost, once it exceeds a queue
       //you always can switch off access log and avoid issue entirely
       //.unbounded[(String, LogLevel, String, OffsetDateTime)]   //<--- uncomment for unlimited, no loss queue
-        .dropping[(String, LogLevel, String, OffsetDateTime, zio.Fiber.Id )](5000)
-        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5 )).forever.forkDaemon)
+        .dropping[(String, LogLevel, String, OffsetDateTime, zio.Fiber.Id)](5000)
+        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5)).forever.forkDaemon)
         .toManaged(c => c.shutdown)
         .map(
           q =>
@@ -201,12 +214,12 @@ object MyLogging {
               override def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit] =
                 for {
                   fiberId <- ZIO.fiberId
-                  time <- currentDateTime.orDie
+                  time    <- currentDateTime.orDie
                   _ <- logs.get(log) match {
                         case None => IO.unit
                         case Some(logRec) =>
                           if (logRec.lvl <= lvl) {
-                            q.offer((log, lvl, msg, time, fiberId )).unit
+                            q.offer((log, lvl, msg, time, fiberId)).unit
                           } else IO.unit
                       }
                 } yield ()

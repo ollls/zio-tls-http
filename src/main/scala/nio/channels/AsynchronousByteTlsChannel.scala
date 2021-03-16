@@ -316,6 +316,7 @@ object AsynchronousServerTlsByteChannel {
   //TLS handshake is here
   private[nio] def open(raw_ch: AsynchronousByteChannel, ssl_engine: SSLEngine) = {
     val BUFF_SZ = ssl_engine.engine.getSession().getPacketBufferSize()
+    var loop_cntr = 0  //to avoid issues with non-SSL sockets sending junk data
 
     val result = for {
 
@@ -377,7 +378,7 @@ object AsynchronousServerTlsByteChannel {
       }
 
       r <- loop
-            .repeat(zio.Schedule.recurWhile(c => { c != FINISHED }))
+            .repeatWhile( c => { loop_cntr = loop_cntr + 1;  c != FINISHED && loop_cntr < 300  } )
             .refineToOrDie[Exception]
 
     } yield (r)

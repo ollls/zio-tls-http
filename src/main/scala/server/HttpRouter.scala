@@ -19,26 +19,59 @@ object HttpRouter {
   val _METHOD = "%%%http_method%%%"
   val _PATH   = "%%%http_path%%%"
   val _PROTO  = "%%%http_protocol%%%"
+
+  private def rd_proc(c: Channel, contentLen: Int, bodyChunk: Chunk[Byte]) = {
+    var totalChunk = bodyChunk
+    val loop = for {
+      chunk <- if (contentLen > totalChunk.length) c.read else ZIO.succeed(Chunk[Byte]())
+      _     <- ZIO.effectTotal { totalChunk = totalChunk ++ chunk }
+      // _ <- zio.console.putStrLn( "read block, size= " + totalChunk.length + "cl = " + contentLen  )
+    } yield (totalChunk)
+    loop.repeatWhile(_.length < contentLen)
+  }
+
+  ////////////////////////////////////////////////////////////////
+  def finishBodyLoadForRequest(req: Request): ZIO[ZEnv, Exception, Request] = {
+
+    val contentLen = req.headers.get("content-length").getOrElse("0")
+
+    rd_proc(req.ch, contentLen.toInt, req.body).map(Request(req.headers, _, req.ch)).catchAll {
+      case e => {
+        ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.BadRequest, "Invalid content length", true) *>
+          IO.fail(e)
+      }
+    }
+
+  }
+
 }
 
-class HttpRouter[R <: Has[MyLogging.Service]] {
+class HttpRouter[R <: Has[MyLogging.Service]](
+  val appRoutes: List[HttpRoutes[R]],
+  val channelRoutes: List[HttpRoutes[R]] = List()
+) {
+
+  def this(rt: HttpRoutes[R]*) = {
+    this(rt.toList, List())
+  }
+
   //MAX SIZE for current implementation: 16676 ( one TLS app packet ) - do not exceed.
   val HTTP_HEADER_SZ          = 8096 * 2
   val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
 
-  private var appRoutes = List[HttpRoutes[R]]()
+  //private var appRoutes = List[HttpRoutes[R]]()
 
-  private var channelRoutes = List[HttpRoutes[R]]()
+  //private var channelRoutes = List[HttpRoutes[R]]()
 
   //direct channel routes, where user route function is responsible
   //for reading the body and sending requests
-  def addChannelRoute(rt: HttpRoutes[R]): Unit =
-    channelRoutes = rt :: channelRoutes
+  //def addChannelRoute(rt: HttpRoutes[R]): Unit =
+  //  channelRoutes = rt :: channelRoutes
 
   //Normal auto map route where Request body is pre-read and
   //Response will be processed by server in post routine.
-  def addAppRoute(rt: HttpRoutes[R]): Unit =
-    appRoutes = rt :: appRoutes
+  //def addAppRoute(rt: HttpRoutes[R]): Unit =
+  //  appRoutes = rt :: appRoutes
 
   def route(c: Channel): ZIO[ZEnv with R, Exception, Unit] = {
     val T: ZIO[ZEnv with R, Any, Unit] = for {
@@ -55,7 +88,7 @@ class HttpRouter[R <: Has[MyLogging.Service]] {
 
       _ <- res match {
             case None =>
-              finishBodyLoadForRequest(req).flatMap { r =>
+              HttpRouter.finishBodyLoadForRequest(req).flatMap { r =>
                 for {
                   response <- route_go(r, appRoutes).catchAll {
                                case None =>
@@ -178,29 +211,6 @@ class HttpRouter[R <: Has[MyLogging.Service]] {
 
     }
 
-  private def rd_proc(c: Channel, contentLen: Int, bodyChunk: Chunk[Byte]) = {
-    var totalChunk = bodyChunk
-    val loop = for {
-      chunk <- if (contentLen > totalChunk.length) c.read else ZIO.succeed(Chunk[Byte]())
-      _     <- ZIO.effectTotal { totalChunk = totalChunk ++ chunk }
-      // _ <- zio.console.putStrLn( "read block, size= " + totalChunk.length + "cl = " + contentLen  )
-    } yield (totalChunk)
-    loop.repeatWhile(_.length < contentLen)
-  }
-
-  ////////////////////////////////////////////////////////////////
-  def finishBodyLoadForRequest(req: Request): ZIO[ZEnv, Exception, Request] = {
-    val contentLen = req.headers.get("content-length").getOrElse("0")
-
-    rd_proc(req.ch, contentLen.toInt, req.body).map(Request(req.headers, _, req.ch)).catchAll {
-      case e => {
-        ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.BadRequest, "Invalid content length", true) *>
-          IO.fail(e)
-      }
-    }
-
-  }
-
   def read_http_header(
     c: Channel,
     hdr_size: Int,
@@ -265,7 +275,7 @@ class HttpRouter[R <: Has[MyLogging.Service]] {
       _ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
 
       bodyChunk <- if (fetchBody)
-                    rd_proc(c, contentLen.toInt, firstChunk.drop(pos))
+                    HttpRouter.rd_proc(c, contentLen.toInt, firstChunk.drop(pos))
                   else
                     IO.succeed {
                       firstChunk.drop(pos)
