@@ -1,6 +1,6 @@
 [![Generic badge](https://img.shields.io/badge/Nexus-v1.1.0--m3-blue.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.1.0-m3)
 
-Appreciate any feedback negative or postive, please use, my email or open issue, or use 
+Appreciate any feedback, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) <br>
 Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
