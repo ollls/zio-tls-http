@@ -44,7 +44,7 @@ ThisBuild / publishMavenStyle := true
   .settings(
     organization := "io.github.ollls",
     name := "zio-tls-http",
-    version := "1.1.0-m2",
+    version := "1.1.0-m3",
     scalaVersion := "2.13.1",
     maxErrors := 3,
     retrieveManaged := true,
