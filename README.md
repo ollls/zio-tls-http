@@ -6,8 +6,7 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
 # Update history.
 
-* DEV Immutable server and router, log rotation policies are configurable now. hello-* projects updated.
-        Updated example in /examples/start
+* DEV immutable server and router, log rotation policies are configurable now. hello-* projects updated, example project /examples/start updated.
 
 * DEV hello-http* switched to m2, fix for parameter next to static URL segment applied.
 
