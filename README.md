@@ -8,8 +8,6 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
 * DEV immutable server and router, log rotation policies are configurable now. hello-* projects updated, example project /examples/start updated.
 
-* DEV hello-http* switched to m2, fix for parameter next to static URL segment applied.
-
 * DEV Apparently (who knew!) people need non-TLS version of the server, here is example: https://github.com/ollls/hello-http.
 
 * DEV branch: Hello World example with Maven artifact for zio-tls-http: https://github.com/ollls/hello-https.
