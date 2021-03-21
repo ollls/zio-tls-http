@@ -18,7 +18,7 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
         Avg Req Time:		445.54µs
         Fastest Request:	163.101µs
         Slowest Request:	147.104211ms
-        Number of Errors:	0<br>
+        Number of Errors:	0
 
 * Template ( hello world projects, plain and TLS respectively )
 https://github.com/ollls/hello-http
