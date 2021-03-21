@@ -6,24 +6,27 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
 # Update history.
 
-* DEV immutable server and router, log rotation policies are configurable now. hello-* projects updated, example project /examples/start updated.
+* Test data on TLS transactions:
+./go-wrk -T 8600 -d 10 -c 14  https://localhost:8084/health
+Running 10s test @ https://localhost:8084/health
+  14 goroutine(s) running concurrently
+308573 requests in 9.820120461s, 65.33MB read
+Requests/sec:		31422.53
+Transfer/sec:		6.65MB
+Avg Req Time:		445.54µs
+Fastest Request:	163.101µs
+Slowest Request:	147.104211ms
+Number of Errors:	0
 
-* DEV Apparently (who knew!) people need non-TLS version of the server, here is example: https://github.com/ollls/hello-http.
-
-* DEV branch: Hello World example with Maven artifact for zio-tls-http: https://github.com/ollls/hello-https.
+* Template ( hello world projects, plain and TLS respectively )
+https://github.com/ollls/hello-http
+https://github.com/ollls/hello-https
 
 * DEV branch: Example is done as a separate module, use "sbt example/run"
-
-* DEV branch: mem cache Zlayer - semaphore based sync, a lot of hard work and testing to avoid _any_ random racing and inconsitencies.
-
-* DEV branch: in the pre-release state, please use it. If any issues there, it will be posted immedaitely. 
-  ResPoolCache tested with 10-15 mill records, no issues. ( ResPoolCache is a ZIO layer which depends on ResPool Layer( resource/connection pooling )).
   
-  Use case example for connection pooling/caching.
+  Use case examples:
   https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala
-  
-* DEV branch: ResPoolCache is OK. Testing is on going.
-https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
+  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
 
