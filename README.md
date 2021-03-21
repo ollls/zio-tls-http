@@ -29,7 +29,7 @@ https://github.com/ollls/hello-https
 * DEV branch: Example is done as a separate module, use "sbt example/run"
   
   Use case examples:
-  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala
+  https://github.com/ollls/zio-tls-http/blob/dev/doc/server_example_2.scala<br>
   https://github.com/ollls/zio-tls-http/blob/dev/doc/server_test_cache_layer.scala
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
