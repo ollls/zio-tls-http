@@ -21,7 +21,9 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
         Number of Errors:	0
 
 * Template ( hello world projects, plain and TLS respectively )
+
 https://github.com/ollls/hello-http
+
 https://github.com/ollls/hello-https
 
 * DEV branch: Example is done as a separate module, use "sbt example/run"
