@@ -6,7 +6,7 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
 # Update history.
 
-* Test data on TLS transactions:<br>
+* Test data on TLS transactions ( Mac Book - 2.3 GHz 8-Core Intel Core i9 )
 ./go-wrk -T 8600 -d 10 -c 14  https://localhost:8084/health
 
         Running 10s test @ https://localhost:8084/health
