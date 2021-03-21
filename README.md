@@ -6,20 +6,6 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
 # Update history.
 
-* Test data on TLS transactions ( Mac Book - 2.3 GHz 8-Core Intel Core i9 )<br>
-
-        ./go-wrk -T 8600 -d 10 -c 14  https://localhost:8084/health
-
-        Running 10s test @ https://localhost:8084/health
-        14 goroutine(s) running concurrently
-        308573 requests in 9.820120461s, 65.33MB read
-        Requests/sec:		31422.53
-        Transfer/sec:		6.65MB
-        Avg Req Time:		445.54µs
-        Fastest Request:	163.101µs
-        Slowest Request:	147.104211ms
-        Number of Errors:	0
-
 * Template ( hello world projects, plain and TLS respectively )
 
 https://github.com/ollls/hello-http
