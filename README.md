@@ -27,29 +27,8 @@ https://github.com/ollls/hello-https
   
               val proc3 = proc1 <> proc2 <> proc11  
 
-* Your local ZIO environment now is made as a type parameter for Server and Server Router. 
-  No more environment alias or scala package object required, all examples had been updated accordingly.
-  This is a milestone change, it will allow to release stadalone jar. 
   
-  **Branch master.2020 has original server only( no client support) code - if any issues.**
-
-  Please, just update your local server code to have at least [MyLogging] as type param.
-  
-      import zhttp.MyLogging.MyLogging
-      
-      type MyEnv3 = MyLogging   
-      val myHttp = new TLSServer[MyEnv3]
-      val myHttpRouter = new HttpRouter[MyEnv3]
-    
-    or just
-    
-       val myHttp = new TLSServer[MyLogging]
-       val myHttpRouter = new HttpRouter[MyLogging]
-    
-
-* Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools.
-  
-      "MyLogging.PRINT_CONSOLE = false" will supress output to terminal, data will go only to colsole.log
+* "MyLogging.PRINT_CONSOLE = false" will supress output to terminal, data will go only to colsole.log
 
 ## Use cases.
 
