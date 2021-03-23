@@ -35,24 +35,6 @@ https://github.com/ollls/hello-https
 * Note on how stuff works.
  https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
 
-* One conn. pool, use case: ( using ZManaged is encouraged for ResPool/ResPoolGroup acquire/release ).
-
-https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
-
-     ResPool.TIME_TO_LIVE < KEEP_ALIVE on remote host
-
-* Many conn. pools, use case: 
-
-https://github.com/ollls/zio-tls-http/blob/master/doc/server_httpclient_many_pool.scala
- 
-* Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
-  Original example MyServer cluttered with too many use cases.
-  
-https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
-
-* Unbound LDAP SDK wraper, search only for now in dev_svc branch:
-https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/AyncLDAP.scala
-
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
