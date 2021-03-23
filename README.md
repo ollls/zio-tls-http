@@ -6,7 +6,7 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
 # Update history.
 
-* Quartz server template with m5 ( memory caching server with ZIO Magic and TLS Client based on ZIO effects ).
+* Quartz server template with m5 ( memory caching server with ZIO Magic and TLS Client based on ZIO effects ).<br>
 https://github.com/ollls/zio-quartz
 
 * Template ( hello world projects, plain and TLS respectively )
