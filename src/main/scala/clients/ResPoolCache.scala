@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import java.lang.Runtime
 
-
 object ResPoolCache {
 
   val COMMON_FACTOR = 9
@@ -103,31 +102,24 @@ object ResPoolCache {
     tagged: Tag[R],
     tagged1: Tag[K],
     tagged2: Tag[V]
-  ) /*: ZLayer[Has[ResPool.Service[R]], Nothing, Has[ResPoolCache.Service[K, V, R]]]*/ =
+  ): ZLayer[ZEnv with ResPool.ResPool[R] with MyLogging.MyLogging, Nothing, ResPoolCache.ResPoolCache[K, V, R]] =
     (for {
       queue <- ZQueue.bounded[K](1)
       service <- ZIO.access[Has[ResPool.Service[R]]](
                   rp => makeService[K, V, R](rp.get, timeToLiveMs, limit, updatef, queue)
                 )
 
-      _ <- queue.take.flatMap(key => service.doFreeSpace) /*.repeatN(4)*/ .forever.forkDaemon
+      _ <- queue.take.flatMap(key => service.doFreeSpace).forever.forkDaemon
 
     } yield (service)).toLayer
 
-  //old make - without queue based request for cleaning
-  def make2[K, V, R](
-    timeToLiveMs: Int,
-    limit: Int,
-    updatef: (R, K) => ZIO[ZEnv with MyLogging, Throwable, Option[V]]
-  )(
-    implicit ord: K => Ordered[K],
-    tagged: Tag[R],
-    tagged1: Tag[K],
-    tagged2: Tag[V]
-  ): ZLayer[Has[ResPool.Service[R]], Nothing, Has[ResPoolCache.Service[K, V, R]]] =
-    ZLayer.fromService[ResPool.Service[R], ResPoolCache.Service[K, V, R]](
-      rp => makeService[K, V, R](rp, timeToLiveMs, limit, updatef, null)
-    )
+  private def layerName[K, V, R](implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]): String = {
+    val kt = tagged.tag.shortName
+    val vt = tagged1.tag.shortName
+    val vr = tagged2.tag.shortName
+
+    s"ResPoolCache[$kt,$vt,$vr]"
+  }
 
   def makeService[K, V, R](
     rp: ResPool.Service[R],
@@ -207,98 +199,92 @@ object ResPoolCache {
 
       /////////////////////////////////////////////////////////////////////////////////////
       def get_(key: K): ZIO[zio.ZEnv with ResPoolCache[K, V, R] with MyLogging, Throwable, Option[V]] =
-        ZManaged
-          .make(rp.acquire)(c => rp.release(c).catchAll(_ => ZIO.unit))
-          .use(resource => {
-            for {
-              _     <- ZIO.succeed(total.incrementAndGet())
-              entry <- cache_tbl.u_get(ValuePair[K, CacheEntry[V]](key))
-              r <- entry match {
-                    //refresh or read value from cache
-                    //--------------------------------------------------
-                    case Some(pair) =>
-                      val cached_entry = pair.value
-                      if (cached_entry.isExpired(timeToLiveMs)) {
-                        refresh.incrementAndGet()
-                        val old_ts = cached_entry.ts
-                        for {
-                          _ <- MyLogging.log(
-                                "console",
-                                LogLevel.Trace,
-                                "ResPoolCache: key = " + key.toString() + " expired with " + cached_entry.ts
-                              )
-                          res <- updatef(resource, key)
-                                  .flatMap(ov => {
-                                    ov match {
-                                      case Some(v) =>
-                                        if (lru_tbl.remove(new LRUQEntry[K](old_ts, key)) == true) {
-                                          cached_entry.cached_val = v
-                                          cached_entry.timeStampIt
-                                          lru_tbl.add(new LRUQEntry[K](cached_entry.ts, key))
-                                        }
-                                        ZIO.some(v)
-                                      case None => ZIO.none
-                                    }
-                                  })
-                          _ <- MyLogging.log(
-                                "console",
-                                LogLevel.Trace,
-                                "ResPoolCache: key = " + key.toString() + " value refreshed"
-                              )
-
-                        } yield (res)
-                      } else
-                        ZIO.succeed { hits.incrementAndGet(); Some(entry.get.value.cached_val) }
-                    // read and cache the value
-                    //--------------------------------------------------
-                    case None =>
-                      //nothing cached for the key
-                      for {
-                        _ <- MyLogging.log(
-                              "console",
-                              LogLevel.Trace,
-                              "ResPoolCache: key = " + key.toString() + " attempt to cache a new value"
-                            )
-                        v <- updatef(resource, key)
+        for {
+          _     <- ZIO.succeed(total.incrementAndGet())
+          entry <- cache_tbl.u_get(ValuePair[K, CacheEntry[V]](key))
+          r <- entry match {
+                //refresh or read value from cache
+                //--------------------------------------------------
+                case Some(pair) =>
+                  val cached_entry = pair.value
+                  if (cached_entry.isExpired(timeToLiveMs)) {
+                    refresh.incrementAndGet()
+                    val old_ts = cached_entry.ts
+                    for {
+                      _ <- MyLogging.log(
+                            "console",
+                            LogLevel.Trace,
+                            layerName[K, V, R] + ": key = " + key.toString() + " expired with " + cached_entry.ts
+                          )
+                      res <- ZManaged
+                              .make(rp.acquire)(c => rp.release(c).catchAll(_ => ZIO.unit))
+                              .use(resource => updatef(resource, key))
                               .flatMap(ov => {
                                 ov match {
                                   case Some(v) =>
-                                    for {
-                                      entry <- ZIO.effect(new CacheEntry(v))
-
-                                      _ <- ZIO.effect(entry.timeStampIt)
-
-                                      res <- cache_tbl.u_add(ValuePair(key, entry))
-                                      _   <- ZIO.effect(lru_tbl.add(new LRUQEntry[K](entry.ts, key))).when(res == true)
-                                      _   <- ZIO.succeed(adds.incrementAndGet()).when(res == true)
-
-                                      _ <- MyLogging.log(
-                                            "console",
-                                            LogLevel.Trace,
-                                            "ResPoolCache: key = " + key
-                                              .toString() + " new value cached"
-                                          )
-                                    } yield (Some(v))
+                                    if (lru_tbl.remove(new LRUQEntry[K](old_ts, key)) == true) {
+                                      cached_entry.cached_val = v
+                                      cached_entry.timeStampIt
+                                      lru_tbl.add(new LRUQEntry[K](cached_entry.ts, key))
+                                    }
+                                    ZIO.some(v)
                                   case None => ZIO.none
-
                                 }
-
                               })
+                      _ <- MyLogging.log(
+                            "console",
+                            LogLevel.Trace,
+                            layerName[K, V, R] + ": key = " + key.toString() + " value refreshed"
+                          )
 
-                      } yield (v)
-                  }
-            } yield (r)
-          })
+                    } yield (res)
+                  } else
+                    ZIO.succeed { hits.incrementAndGet(); Some(entry.get.value.cached_val) }
+                // read and cache the value
+                //--------------------------------------------------
+                case None =>
+                  //nothing cached for the key
+                  for {
+                    _ <- MyLogging.log(
+                          "console",
+                          LogLevel.Trace,
+                          layerName[K, V, R] + ": key = " + key.toString() + " attempt to cache a new value"
+                        )
+                    v <- ZManaged
+                          .make(rp.acquire)(c => rp.release(c).catchAll(_ => ZIO.unit))
+                          .use(resource => updatef(resource, key))
+                          .flatMap(ov => {
+                            ov match {
+                              case Some(v) =>
+                                for {
+                                  entry <- ZIO.effect(new CacheEntry(v))
+
+                                  _ <- ZIO.effect(entry.timeStampIt)
+
+                                  res <- cache_tbl.u_add(ValuePair(key, entry))
+                                  _   <- ZIO.effect(lru_tbl.add(new LRUQEntry[K](entry.ts, key))).when(res == true)
+                                  _   <- ZIO.succeed(adds.incrementAndGet()).when(res == true)
+
+                                  _ <- MyLogging.log(
+                                        "console",
+                                        LogLevel.Trace,
+                                        layerName[K, V, R] + ": key = " + key
+                                          .toString() + " new value cached"
+                                      )
+                                } yield (Some(v))
+                              case None => ZIO.none
+
+                            }
+
+                          })
+                  } yield (v)
+              }
+        } yield (r)
 
       private def cleanLRU(key: K) =
         for {
           cntr <- ZIO(lru_tbl.count)
-          //_ <- MyLogging.log(
-          //      "console",
-          //      LogLevel.Trace,
-          //      "ResPoolCache: Remove LRU entry to free space for the key = " + key.toString()
-          //    )
-          _ <- q.offer(key).when(lru_tbl.count > limit)
+          _    <- q.offer(key).when(lru_tbl.count > limit)
         } yield ()
 
       private def cleanLRU3_par(e: LRUQEntry[K]) = {
@@ -307,7 +293,7 @@ object ResPoolCache {
           _ <- MyLogging.log(
                 "console",
                 LogLevel.Trace,
-                "ResPoolCache: Remove LRU entry = " + e.key.toString()
+                layerName[K, V, R] + ": Remove LRU entry = " + e.key.toString()
               )
           b <- ZIO(lru_tbl.remove(e))
           _ <- ZIO { cache_tbl.remove(ValuePair(e.key)) }.when(b == true)

@@ -23,12 +23,12 @@ import zhttp.ContentType
 import zhttp.Cookie
 import zhttp.MyLogging
 import zhttp.MyLogging.MyLogging
-
+import zhttp.StatusCode
 
 sealed case class HttpConnectionError(msg: String)     extends Exception(msg)
 sealed case class HttpResponseHeaderError(msg: String) extends Exception(msg)
 
-case class ClientResponse(val hdrs: Headers, val code: String, body: Chunk[Byte]) {
+case class ClientResponse(val hdrs: Headers, val code: StatusCode, body: Chunk[Byte]) {
   def protocol    = hdrs.get("%prot").getOrElse("")
   def httpString  = code.toString + " " + hdrs.get("%message").getOrElse("")
   def isKeepAlive = hdrs.get("Connection").getOrElse("").equalsIgnoreCase("keep-alive")
@@ -41,7 +41,7 @@ case class ClientResponse(val hdrs: Headers, val code: String, body: Chunk[Byte]
       case Left(v)  => throw new HttpConnectionError(s"JSON schema error: $v")
     }
 
-  //TODO - parse cookie to model.Cookie  
+  //TODO - parse cookie to model.Cookie
   def cookie = hdrs.getMval("Set-Cookie")
 }
 
@@ -77,7 +77,7 @@ case class ClientRequest(
 }
 
 //Request to Request, enriched with headers
-case class FilterProc(run: ClientRequest => ZIO[ZEnv with MyLogging, Throwable, ClientRequest] )
+case class FilterProc(run: ClientRequest => ZIO[ZEnv with MyLogging, Throwable, ClientRequest])
 
 object HttpConnection {
 
@@ -237,7 +237,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
 
       bodyChunk <- rd_proc(contentLen.toInt, headerChunk.drop(pos))
 
-    } yield (ClientResponse(headers, headers.get("%code").get, bodyChunk))
+    } yield (ClientResponse(headers, StatusCode(headers.get("%code").get.toInt), bodyChunk))
 
     result
   }
@@ -282,7 +282,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
             "client",
             "http <<<: " + "http code = " + data.httpString + " " +
               "bytes = " + data.hdrs.get("content-length").getOrElse(0) + " text = " + data.asText
-              .substring(0, if ( data.asText.length() < 30 ) data.asText.length() else 30 )
+              .substring(0, if (data.asText.length() < 30) data.asText.length() else 30)
               .replace("\n", "") + " ... "
           )
 
