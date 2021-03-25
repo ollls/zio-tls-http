@@ -11,20 +11,19 @@ import javax.net.ssl.SSLContext
 import java.security.KeyStore
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.KeyManagerFactory
-import zio.Schedule
 import zio.ExitCode
 import zio.Has
 
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
-class TLSServer[MyEnv <: Has[MyLogging.Service]](  
-                             port : Int,
-                             keepAlive : Int   = 2000,
-                             serverIP : String = "0.0.0.0",
-                             keystore : String = "keystore.jks",
-                             keyStorePwd : String = "password",
-                             tlsVersion : String = "TLS" 
-                              ) {
+class TLSServer[MyEnv <: Has[MyLogging.Service]](
+  port: Int,
+  keepAlive: Int = 2000,
+  serverIP: String = "0.0.0.0",
+  keystore: String = "keystore.jks",
+  keyStorePwd: String = "password",
+  tlsVersion: String = "TLS"
+) {
 
   val KEYSTORE_PATH     = keystore
   val KEYSTORE_PASSWORD = keyStorePwd
@@ -36,7 +35,7 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
   private var processor: Channel => ZIO[ZEnv with MyEnv, Exception, Unit] = null
 
   /////////////////////////////////
-  def myAppLogic: ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
+  def myAppLogic(sslctx: SSLContext = null): ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
     for {
 
       metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.metrics)
@@ -52,7 +51,8 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
 
       executor <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.asECES)
 
-      ssl_context <- buildSSLContext(TLS_PROTO, KEYSTORE_PATH, KEYSTORE_PASSWORD)
+      ssl_context <- if (sslctx == null) buildSSLContext(TLS_PROTO, KEYSTORE_PATH, KEYSTORE_PASSWORD)
+                    else ZIO.succeed(sslctx)
 
       address <- SocketAddress.inetSocketAddress(BINDING_SERVER_IP, SERVER_PORT)
 
@@ -82,7 +82,7 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
                   )
                   .catchAll(_ => IO.succeed(0))
 
-                _ <- loop.repeat(Schedule.forever)
+                   _ <- loop.repeatUntil( _ => zhttp.terminate )
 
               } yield ()
             }
@@ -90,12 +90,25 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
 
     } yield (ExitCode(0))
 
+
+  //////////////////////////////////////////////////
+  def runWithSSLContext(proc: Channel => ZIO[ZEnv with MyEnv, Exception, Unit], sslContext : SSLContext ) = {
+
+    processor = proc
+
+    val T = myAppLogic( sslContext).fold(e => {
+      e.printStackTrace(); zio.ExitCode(1)
+    }, _ => zio.ExitCode(0))
+
+    T
+  }  
+
   //////////////////////////////////////////////////
   def run(proc: Channel => ZIO[ZEnv with MyEnv, Exception, Unit]) = {
 
     processor = proc
 
-    val T = myAppLogic.fold(e => {
+    val T = myAppLogic().fold(e => {
       e.printStackTrace(); zio.ExitCode(1)
     }, _ => zio.ExitCode(0))
 
@@ -129,6 +142,18 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
 
     test.refineToOrDie[Exception]
 
+  }
+
+
+  def stop = { 
+    for {
+      _ <- ZIO.effectTotal( zhttp.terminate = true )
+      //kick it one last time
+      c <- clients.HttpConnection
+          .connect( s"https://localhost:$SERVER_PORT", s"$KEYSTORE_PATH", s"$KEYSTORE_PASSWORD")
+     response <- c.send( clients.ClientRequest( zhttp.Method.GET, "/"))   
+    } yield()   
+   
   }
 
 }

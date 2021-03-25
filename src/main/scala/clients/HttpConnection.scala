@@ -8,7 +8,7 @@ import zio.json._
 import scala.io.Source
 import scala.util.Try
 
-import zhttp.{ Channel, TlsChannel }
+import zhttp.{ Channel, TlsChannel, TcpChannel }
 import zhttp.Method
 import java.net.URI
 import javax.net.ssl.SSLContext
@@ -131,6 +131,21 @@ object HttpConnection {
     T.map(c => new TlsChannel(c))
   }
 
+
+    private def connectPlain(
+    host: String,
+    port: Int,
+  ): ZIO[zio.ZEnv, Exception, Channel] = {
+    val T = for {
+      address <- SocketAddress.inetSocketAddress(host, port)
+      ch     <- AsynchronousSocketChannel()
+      _      <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
+    } yield ( ch)
+
+    T.map(c => new TcpChannel(c) )
+  }
+
+
   def connect(
     url: String,
     trustKeystore: String = null,
@@ -149,9 +164,12 @@ object HttpConnection {
     (if (u.getScheme().equalsIgnoreCase("https")) {
        val ss = connectSSL(u.getHost(), port, trustKeystore, password).map(new HttpConnection(u, _, FilterProc(filter)))
        ss
-     } else {
-       throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())
-     }).catchAll(e => ZIO.fail(new HttpConnectionError(url + " " + e.toString())))
+     } else if (u.getScheme().equalsIgnoreCase("http") ) {
+       val ss = connectPlain( u.getHost(), port ).map(new HttpConnection(u, _, FilterProc(filter)))
+       ss
+     } else 
+        throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())  
+     ).catchAll(e => ZIO.fail(new HttpConnectionError(url + " " + e.toString())))
   }
 }
 

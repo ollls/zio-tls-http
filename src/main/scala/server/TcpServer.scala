@@ -6,7 +6,6 @@ import nio.SocketAddress
 import nio._
 import nio.channels._
 
-import zio.Schedule
 import zio.ExitCode
 import zio.Has
 
@@ -59,7 +58,7 @@ class TcpServer[ MyEnv <: Has[MyLogging.Service]](  port : Int,
                           }
                           .fork
                   )
-                _ <- loop.repeat(Schedule.forever)
+                _ <- loop.repeatUntil( _ => zhttp.terminate )
 
               } yield ()
             }
@@ -77,6 +76,17 @@ class TcpServer[ MyEnv <: Has[MyLogging.Service]](  port : Int,
     }, _ => zio.ExitCode(0))
 
     T
+  }
+
+ def stop = { 
+    for {
+      _ <- ZIO.effectTotal( zhttp.terminate = true )
+      //kick it one last time
+      c <- clients.HttpConnection
+          .connect( s"http://localhost:$SERVER_PORT" )
+     response <- c.send( clients.ClientRequest( zhttp.Method.GET, "/"))   
+    } yield()   
+   
   }
 
 }

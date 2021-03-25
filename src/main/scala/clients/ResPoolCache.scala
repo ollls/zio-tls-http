@@ -83,11 +83,13 @@ object ResPoolCache {
   type ResPoolCache[K, V, R] = Has[ResPoolCache.Service[K, V, R]]
 
   trait Service[K, V, R] {
-    def get(key: K): ZIO[zio.ZEnv with ResPoolCache[K, V, R] with MyLogging, Throwable, Option[V]]
+    def get(key: K): ZIO[zio.ZEnv with MyLogging, Throwable, Option[V]]
 
     def info: ZIO[ZEnv, Throwable, String]
 
     def doFreeSpace: ZIO[zio.ZEnv with MyLogging, Throwable, Unit]
+
+    def terminate( anyval : K) : ZIO[zio.ZEnv with MyLogging, Throwable, Unit] 
 
   }
 
@@ -109,7 +111,7 @@ object ResPoolCache {
                   rp => makeService[K, V, R](rp.get, timeToLiveMs, limit, updatef, queue)
                 )
 
-      _ <- queue.take.flatMap(key => service.doFreeSpace).forever.forkDaemon
+      _ <- queue.take.flatMap(key => service.doFreeSpace).repeatUntil( _ => zhttp.terminate ).forkDaemon
 
     } yield (service)).toLayer
 
@@ -190,7 +192,13 @@ object ResPoolCache {
 
       }
 
-      def get(key: K): ZIO[zio.ZEnv with ResPoolCache[K, V, R] with MyLogging, Throwable, Option[V]] =
+      def terminate( anyval : K ) : ZIO[zio.ZEnv with MyLogging, Throwable, Unit] = 
+          for {
+           _ <- ZIO.effectTotal( zhttp.terminate = true )
+           _ <- cleanLRU( anyval )
+          } yield() 
+
+      def get(key: K): ZIO[zio.ZEnv with MyLogging, Throwable, Option[V]] =
         for {
           (_, sem) <- acquireSemaphore(key) //compare and set based singleton for the given key - only one for the key
           result   <- sem.withPermit(get_(key))
@@ -198,7 +206,7 @@ object ResPoolCache {
         } yield (result)
 
       /////////////////////////////////////////////////////////////////////////////////////
-      def get_(key: K): ZIO[zio.ZEnv with ResPoolCache[K, V, R] with MyLogging, Throwable, Option[V]] =
+      def get_(key: K): ZIO[zio.ZEnv with MyLogging, Throwable, Option[V]] =
         for {
           _     <- ZIO.succeed(total.incrementAndGet())
           entry <- cache_tbl.u_get(ValuePair[K, CacheEntry[V]](key))
