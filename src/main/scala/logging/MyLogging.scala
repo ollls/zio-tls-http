@@ -106,6 +106,7 @@ object MyLogging {
 
   trait Service {
     def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit]
+    def listLogs : ZIO[ZEnv, Exception, Iterator[(String, LogRec)]]
     def shutdown : ZIO[ZEnv, Exception, Unit]
   }
 
@@ -212,6 +213,8 @@ object MyLogging {
         .map(
           q =>
             new Service {
+
+                def listLogs = ZIO.effectTotal( logs.iterator )
 
                 def shutdown : ZIO[ZEnv, Exception, Unit] = q.shutdown
 
