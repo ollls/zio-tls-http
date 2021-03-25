@@ -206,7 +206,7 @@ object MyLogging {
       //you always can switch off access log and avoid issue entirely
       //.unbounded[(String, LogLevel, String, OffsetDateTime)]   //<--- uncomment for unlimited, no loss queue
         .dropping[(String, LogLevel, String, OffsetDateTime, zio.Fiber.Id)](5000)
-        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5)).repeatUntil( _ => zhttp.terminate ).forkDaemon)
+        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5)).repeatUntil( _ => zhttp.isTerminated ).forkDaemon)
         .toManaged(c => c.shutdown)
         .map(
           q =>

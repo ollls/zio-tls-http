@@ -58,7 +58,7 @@ class TcpServer[ MyEnv <: Has[MyLogging.Service]](  port : Int,
                           }
                           .fork
                   )
-                _ <- loop.repeatUntil( _ => zhttp.terminate )
+                _ <- loop.repeatUntil( _ => zhttp.isTerminated )
 
               } yield ()
             }
@@ -80,7 +80,7 @@ class TcpServer[ MyEnv <: Has[MyLogging.Service]](  port : Int,
 
  def stop = { 
     for {
-      _ <- ZIO.effectTotal( zhttp.terminate = true )
+      _ <- ZIO.effectTotal( zhttp.terminate )
       //kick it one last time
       c <- clients.HttpConnection
           .connect( s"http://localhost:$SERVER_PORT" )

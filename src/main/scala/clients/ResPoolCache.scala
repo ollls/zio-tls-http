@@ -111,7 +111,7 @@ object ResPoolCache {
                   rp => makeService[K, V, R](rp.get, timeToLiveMs, limit, updatef, queue)
                 )
 
-      _ <- queue.take.flatMap(key => service.doFreeSpace).repeatUntil( _ => zhttp.terminate ).forkDaemon
+      _ <- queue.take.flatMap(key => service.doFreeSpace).repeatUntil( _ => zhttp.isTerminated ).forkDaemon
 
     } yield (service)).toLayer
 
@@ -194,7 +194,7 @@ object ResPoolCache {
 
       def terminate( anyval : K ) : ZIO[zio.ZEnv with MyLogging, Throwable, Unit] = 
           for {
-           _ <- ZIO.effectTotal( zhttp.terminate = true )
+           _ <- ZIO.effectTotal( zhttp.terminate )
            _ <- cleanLRU( anyval )
           } yield() 
 

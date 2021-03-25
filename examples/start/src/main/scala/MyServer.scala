@@ -38,7 +38,7 @@ object myServer extends zio.App {
 
 val sylo = new SkipList[ String ]  
 
-  HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
+  HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok.hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
   HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
 
   val ROOT_CATALOG = "/app/web_root"
@@ -179,6 +179,7 @@ val sylo = new SkipList[ String ]
       {
         req match {
 
+          case req @ GET -> Root / "health" =>  ZIO( Response.Ok.asTextBody( "Health Check is OK") ) 
 
           case req @ GET -> Root / "app" / StringVar( userId1 ) / "get" =>  ZIO( Response.Ok.asTextBody( userId1) ) 
 
@@ -253,7 +254,7 @@ val sylo = new SkipList[ String ]
     myHttp
       .run(myHttpRouter.route)
       .provideSomeLayer[ZEnv with MyLogging]( AttributeLayer)
-      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info )) )
+      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Info), ("access" -> LogLevel.Info )) )
       .exitCode
   }
 }

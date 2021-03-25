@@ -82,7 +82,7 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
                   )
                   .catchAll(_ => IO.succeed(0))
 
-                   _ <- loop.repeatUntil( _ => zhttp.terminate )
+                   _ <- loop.repeatUntil( _ => zhttp.isTerminated )
 
               } yield ()
             }
@@ -147,7 +147,7 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
 
   def stop = { 
     for {
-      _ <- ZIO.effectTotal( zhttp.terminate = true )
+      _ <- ZIO.effectTotal( zhttp.terminate )
       //kick it one last time
       c <- clients.HttpConnection
           .connect( s"https://localhost:$SERVER_PORT", s"$KEYSTORE_PATH", s"$KEYSTORE_PASSWORD")
