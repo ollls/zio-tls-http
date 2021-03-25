@@ -106,6 +106,7 @@ object MyLogging {
 
   trait Service {
     def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit]
+    def shutdown : ZIO[ZEnv, Exception, Unit]
   }
 
   def log(name: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
@@ -206,12 +207,15 @@ object MyLogging {
       //you always can switch off access log and avoid issue entirely
       //.unbounded[(String, LogLevel, String, OffsetDateTime)]   //<--- uncomment for unlimited, no loss queue
         .dropping[(String, LogLevel, String, OffsetDateTime, zio.Fiber.Id)](5000)
-        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5)).repeatUntil( _ => zhttp.isTerminated ).forkDaemon)
+        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5)).repeatUntilM( _ => q.isShutdown ).forkDaemon)
         .toManaged(c => c.shutdown)
         .map(
           q =>
             new Service {
-              override def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit] =
+
+                def shutdown : ZIO[ZEnv, Exception, Unit] = q.shutdown
+
+                def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit] =
                 for {
                   fiberId <- ZIO.fiberId
                   time    <- currentDateTime.orDie

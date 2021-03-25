@@ -11,15 +11,17 @@ import zio.Has
 
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
-class TcpServer[ MyEnv <: Has[MyLogging.Service]](  port : Int,
-                             keepAlive : Int   = 2000,
-                             serverIP : String = "0.0.0.0" ) {
+class TcpServer[MyEnv <: Has[MyLogging.Service]](port: Int, keepAlive: Int = 2000, serverIP: String = "0.0.0.0") {
 
   val BINDING_SERVER_IP = serverIP //make sure certificate has that IP on SAN's list
   val KEEP_ALIVE: Long  = keepAlive //ms, good if short for testing with broken site's snaphosts with 404 pages
   val SERVER_PORT       = port
 
   private var processor: Channel => ZIO[ZEnv with MyEnv, Exception, Unit] = null
+
+  private var f_terminate = false
+  def terminate           = f_terminate = true
+  def isTerminated        = f_terminate
 
   /////////////////////////////////
   def myAppLogic: ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
@@ -58,7 +60,7 @@ class TcpServer[ MyEnv <: Has[MyLogging.Service]](  port : Int,
                           }
                           .fork
                   )
-                _ <- loop.repeatUntil( _ => zhttp.isTerminated )
+                _ <- loop.repeatUntil(_ => isTerminated)
 
               } yield ()
             }
@@ -78,15 +80,17 @@ class TcpServer[ MyEnv <: Has[MyLogging.Service]](  port : Int,
     T
   }
 
- def stop = { 
+  def stop =
     for {
-      _ <- ZIO.effectTotal( zhttp.terminate )
+      _ <- ZIO.effectTotal(terminate)
       //kick it one last time
       c <- clients.HttpConnection
-          .connect( s"http://localhost:$SERVER_PORT" )
-     response <- c.send( clients.ClientRequest( zhttp.Method.GET, "/"))   
-    } yield()   
-   
-  }
+            .connect(s"http://localhost:$SERVER_PORT")
+      response <- c.send(clients.ClientRequest(zhttp.Method.GET, "/"))
+
+      svc <- MyLogging.logService
+      _   <- svc.shutdown
+
+    } yield ()
 
 }

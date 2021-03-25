@@ -34,6 +34,10 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
 
   private var processor: Channel => ZIO[ZEnv with MyEnv, Exception, Unit] = null
 
+  private var f_terminate = false
+  def terminate           = f_terminate = true
+  def isTerminated        = f_terminate
+
   /////////////////////////////////
   def myAppLogic(sslctx: SSLContext = null): ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
     for {
@@ -82,7 +86,7 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
                   )
                   .catchAll(_ => IO.succeed(0))
 
-                   _ <- loop.repeatUntil( _ => zhttp.isTerminated )
+                _ <- loop.repeatUntil(_ => isTerminated)
 
               } yield ()
             }
@@ -90,18 +94,17 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
 
     } yield (ExitCode(0))
 
-
   //////////////////////////////////////////////////
-  def runWithSSLContext(proc: Channel => ZIO[ZEnv with MyEnv, Exception, Unit], sslContext : SSLContext ) = {
+  def runWithSSLContext(proc: Channel => ZIO[ZEnv with MyEnv, Exception, Unit], sslContext: SSLContext) = {
 
     processor = proc
 
-    val T = myAppLogic( sslContext).fold(e => {
+    val T = myAppLogic(sslContext).fold(e => {
       e.printStackTrace(); zio.ExitCode(1)
     }, _ => zio.ExitCode(0))
 
     T
-  }  
+  }
 
   //////////////////////////////////////////////////
   def run(proc: Channel => ZIO[ZEnv with MyEnv, Exception, Unit]) = {
@@ -144,16 +147,17 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
 
   }
 
-
-  def stop = { 
+  def stop =
     for {
-      _ <- ZIO.effectTotal( zhttp.terminate )
+      _ <- ZIO.effectTotal(terminate)
       //kick it one last time
       c <- clients.HttpConnection
-          .connect( s"https://localhost:$SERVER_PORT", s"$KEYSTORE_PATH", s"$KEYSTORE_PASSWORD")
-     response <- c.send( clients.ClientRequest( zhttp.Method.GET, "/"))   
-    } yield()   
-   
-  }
+            .connect(s"https://localhost:$SERVER_PORT", s"$KEYSTORE_PATH", s"$KEYSTORE_PASSWORD")
+      response <- c.send(clients.ClientRequest(zhttp.Method.GET, "/"))
+
+      svc <- MyLogging.logService
+      _   <- svc.shutdown
+
+    } yield ()
 
 }

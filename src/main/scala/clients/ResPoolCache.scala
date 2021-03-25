@@ -89,7 +89,7 @@ object ResPoolCache {
 
     def doFreeSpace: ZIO[zio.ZEnv with MyLogging, Throwable, Unit]
 
-    def terminate( anyval : K) : ZIO[zio.ZEnv with MyLogging, Throwable, Unit] 
+    def terminate: ZIO[zio.ZEnv with MyLogging, Throwable, Unit] 
 
   }
 
@@ -111,7 +111,7 @@ object ResPoolCache {
                   rp => makeService[K, V, R](rp.get, timeToLiveMs, limit, updatef, queue)
                 )
 
-      _ <- queue.take.flatMap(key => service.doFreeSpace).repeatUntil( _ => zhttp.isTerminated ).forkDaemon
+      _ <- queue.take.flatMap(key => service.doFreeSpace).repeatUntilM( _ => queue.isShutdown ).forkDaemon
 
     } yield (service)).toLayer
 
@@ -192,10 +192,9 @@ object ResPoolCache {
 
       }
 
-      def terminate( anyval : K ) : ZIO[zio.ZEnv with MyLogging, Throwable, Unit] = 
+      def terminate: ZIO[zio.ZEnv with MyLogging, Throwable, Unit] = 
           for {
-           _ <- ZIO.effectTotal( zhttp.terminate )
-           _ <- cleanLRU( anyval )
+          _ <- q.shutdown  
           } yield() 
 
       def get(key: K): ZIO[zio.ZEnv with MyLogging, Throwable, Option[V]] =
