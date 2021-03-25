@@ -3,6 +3,7 @@ package zhttp
 import zio.Has
 import zio.ZLayer
 import zio.ZQueue
+import zio.UIO
 
 import java.nio.channels.FileChannel
 import java.nio.file.FileSystems
@@ -106,7 +107,7 @@ object MyLogging {
 
   trait Service {
     def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit]
-    def listLogs : ZIO[ZEnv, Exception, Iterator[(String, LogRec)]]
+    def listLogs : UIO[Iterator[(String, LogRec)]]
     def shutdown : ZIO[ZEnv, Exception, Unit]
   }
 
