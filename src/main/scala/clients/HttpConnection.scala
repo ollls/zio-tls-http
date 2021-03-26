@@ -8,7 +8,7 @@ import zio.json._
 import scala.io.Source
 import scala.util.Try
 
-import zhttp.{ Channel, TlsChannel, TcpChannel }
+import zhttp.{ Channel, TcpChannel, TlsChannel }
 import zhttp.Method
 import java.net.URI
 import javax.net.ssl.SSLContext
@@ -131,20 +131,18 @@ object HttpConnection {
     T.map(c => new TlsChannel(c))
   }
 
-
-    private def connectPlain(
+  private def connectPlain(
     host: String,
-    port: Int,
+    port: Int
   ): ZIO[zio.ZEnv, Exception, Channel] = {
     val T = for {
       address <- SocketAddress.inetSocketAddress(host, port)
-      ch     <- AsynchronousSocketChannel()
-      _      <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
-    } yield ( ch)
+      ch      <- AsynchronousSocketChannel()
+      _       <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
+    } yield (ch)
 
-    T.map(c => new TcpChannel(c) )
+    T.map(c => new TcpChannel(c))
   }
-
 
   def connect(
     url: String,
@@ -164,12 +162,12 @@ object HttpConnection {
     (if (u.getScheme().equalsIgnoreCase("https")) {
        val ss = connectSSL(u.getHost(), port, trustKeystore, password).map(new HttpConnection(u, _, FilterProc(filter)))
        ss
-     } else if (u.getScheme().equalsIgnoreCase("http") ) {
-       val ss = connectPlain( u.getHost(), port ).map(new HttpConnection(u, _, FilterProc(filter)))
+     } else if (u.getScheme().equalsIgnoreCase("http")) {
+       val ss = connectPlain(u.getHost(), port).map(new HttpConnection(u, _, FilterProc(filter)))
        ss
-     } else 
-        throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme())  
-     ).catchAll(e => ZIO.fail(new HttpConnectionError(url + " " + e.toString())))
+     } else
+       throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme()))
+      .catchAll(e => ZIO.fail(new HttpConnectionError(url + " " + e.toString())))
   }
 }
 
@@ -180,28 +178,18 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
   private def rd_proc(contentLen: Int, bodyChunk: Chunk[Byte]) = {
     var totalChunk = bodyChunk
     val loop = for {
-      chunk <- if (contentLen > totalChunk.length) ch.read else ZIO.succeed(Chunk[Byte]())
+      chunk <- if (contentLen > totalChunk.length) Channel.read(ch) else ZIO.succeed(Chunk[Byte]())
       _     <- ZIO.effectTotal { totalChunk = totalChunk ++ chunk }
-      //_     <- zio.console.putStrLn("read block, size= " + totalChunk.length)
     } yield (totalChunk)
     loop.repeatWhile(_.length < contentLen)
   }
-
-  private def rd_loop2(
-    contentLen: Int,
-    bodyChunk: Chunk[Byte]
-  ): ZIO[ZEnv, Exception, zio.Chunk[Byte]] =
-    if (contentLen > bodyChunk.length) {
-      ch.read.flatMap(chunk => rd_loop2(contentLen, bodyChunk ++ chunk))
-    } else
-      ZIO.succeed(bodyChunk)
 
   private def read_http_header(
     hdr_size: Int,
     cb: Chunk[Byte] = Chunk[Byte]()
   ): ZIO[ZEnv, Exception, Chunk[Byte]] =
     for {
-      nextChunk <- if (cb.size < hdr_size) ch.read else ZIO.fail(new HttpResponseHeaderError("header is too big"))
+      nextChunk <- if (cb.size < hdr_size) Channel.read(ch) else ZIO.fail(new HttpResponseHeaderError("header is too big"))
       pos       <- ZIO.effectTotal(new String(nextChunk.toArray).indexOf("\r\n\r\n"))
       resChunk  <- if (pos < 0) read_http_header(hdr_size, cb ++ nextChunk) else ZIO.effectTotal(cb ++ nextChunk)
     } yield (resChunk)
@@ -260,7 +248,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
     result
   }
 
-  def close = ch.close
+  def close = Channel.close( ch )
 
   ///////////////////////////////////////////////////////////////
   def send(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
@@ -288,11 +276,11 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
 
       //_ <- ZIO( println( r ) )
 
-      _ <- ch.write(Chunk.fromArray(r.toString.getBytes))
+      _ <- Channel.write( ch, Chunk.fromArray(r.toString.getBytes))
 
       _ <- MyLogging.debug("client", "http >>>: " + req0.method + "  " + this.uri.toString() + " ;path = " + req.path)
 
-      _ <- if (req.body.isDefined) ch.write(req.body.get) else ZIO.unit
+      _ <- if (req.body.isDefined) Channel.write( ch, req.body.get) else ZIO.unit
 
       data <- getHTTPResponse
 

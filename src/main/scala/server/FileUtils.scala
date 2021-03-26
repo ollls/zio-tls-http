@@ -56,7 +56,7 @@ object FileUtils {
         sz <- w_sz.get
         chunk <- if (sz == 0 && req.body.size != 0) IO(req.body) //read prefetch from request body first. 
                 else {
-                  req.ch.read  //continue reading stream
+                  Channel.read(req.ch )  //continue reading stream
                 }
 
         _ <- effectBlocking { fp.write(chunk.toArray) }

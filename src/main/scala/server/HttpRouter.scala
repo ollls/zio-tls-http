@@ -23,7 +23,7 @@ object HttpRouter {
   private def rd_proc(c: Channel, contentLen: Int, bodyChunk: Chunk[Byte]) = {
     var totalChunk = bodyChunk
     val loop = for {
-      chunk <- if (contentLen > totalChunk.length) c.read else ZIO.succeed(Chunk[Byte]())
+      chunk <- if (contentLen > totalChunk.length) Channel.read(c) else ZIO.succeed(Chunk[Byte]())
       _     <- ZIO.effectTotal { totalChunk = totalChunk ++ chunk }
       // _ <- zio.console.putStrLn( "read block, size= " + totalChunk.length + "cl = " + contentLen  )
     } yield (totalChunk)
@@ -217,7 +217,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](
     cb: Chunk[Byte] = Chunk[Byte]()
   ): ZIO[ZEnv, Exception, Chunk[Byte]] =
     for {
-      nextChunk <- if (cb.size < hdr_size) c.read else IO.fail(new HTTPHeaderTooBig())
+      nextChunk <- if (cb.size < hdr_size) Channel.read( c ) else IO.fail(new HTTPHeaderTooBig())
       pos       <- IO.effectTotal(new String(nextChunk.toArray).indexOf("\r\n\r\n"))
       resChunk  <- if (pos < 0) read_http_header(c, hdr_size, cb ++ nextChunk) else ZIO.effectTotal(cb ++ nextChunk)
     } yield (resChunk)

@@ -245,7 +245,7 @@ object MyLogging {
 object Logs {
 
   def log_access(req: Request, status: StatusCode, bodySize: Int) = {
-    val addr = req.ch.remoteAddress.flatMap {
+    val addr = Channel.remoteAddress(req.ch).flatMap {
       case None    => IO.effect("???")
       case Some(a) => IO.effect(a.toInetSocketAddress.hostString)
     }

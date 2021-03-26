@@ -25,17 +25,17 @@ class Websocket(isClient: Boolean) {
 
   def closeReply(req: Request) = {
     val T = frames.frameToBuffer(WebSocketFrame.Close())
-    req.ch.write(Chunk.fromArray(T(0).array()) ++ Chunk.fromArray(T(1).array()))
+    Channel.write(req.ch, Chunk.fromArray(T(0).array()) ++ Chunk.fromArray(T(1).array()))
   }
 
   def pongReply(req: Request) = {
     val T = frames.frameToBuffer(WebSocketFrame.Pong())
-    req.ch.write(Chunk.fromArray(T(0).array()))
+    Channel.write(req.ch, Chunk.fromArray(T(0).array()))
   }
 
   def pingReply(req: Request) = {
     val T = frames.frameToBuffer(WebSocketFrame.Ping())
-    req.ch.write(Chunk.fromArray(T(0).array()))
+    Channel.write(req.ch, Chunk.fromArray(T(0).array()))
   }
 
   def writeBinary(req: Request, data: Chunk[Byte], last: Boolean = true) = {
@@ -120,7 +120,7 @@ class Websocket(isClient: Boolean) {
   def writeFrame(req: Request, frame: WebSocketFrame) = {
     def processArray(ab: Array[ByteBuffer], i: Int): ZIO[ZEnv, Exception, Int] =
       if (i < ab.length)
-        req.ch.write(Chunk.fromArray(ab(i).array)) *> processArray(ab, i + 1)
+        Channel.write(req.ch, Chunk.fromArray(ab(i).array)) *> processArray(ab, i + 1)
       else ZIO.succeed(0)
 
     for {
@@ -133,7 +133,7 @@ class Websocket(isClient: Boolean) {
   def readFrame(req: Request): ZIO[ZEnv, Exception, WebSocketFrame] = {
 
     val T = for {
-      _     <- req.ch.readBuffer(IN_J_BUFFER)
+      _     <- Channel.readBuffer(req.ch, IN_J_BUFFER)
       frame <- ZIO.effect(frames.bufferToFrame(IN_J_BUFFER))
       _ <- if (frame.opcode == WebSocketFrame.PING) pongReply(req)
           else ZIO.unit
@@ -170,18 +170,18 @@ class Websocket(isClient: Boolean) {
   }
 
   def accept(req: Request): ZIO[ZEnv with MyLogging, Exception, Unit] = {
-    req.ch.keepAlive(0)
+    Channel.keepAlive( req.ch, 0 )
     val T = for {
       res <- ZIO.effect(serverHandshake(req))
       _ <- res match {
             case Right(response) =>
-              req.ch.remoteAddress.flatMap(
+              Channel.remoteAddress( req.ch ).flatMap(
                 adr =>
                   MyLogging.debug(
                     "console",
                     "Webocket request initiated from: " + adr.get.toInetSocketAddress.address.canonicalHostName
                   )
-              ) *> req.ch.write(Chunk.fromArray(genWsResponse(response).getBytes()))
+              ) *> Channel.write(req.ch, Chunk.fromArray(genWsResponse(response).getBytes()))
             case Left(exception) => ZIO.fail(exception)
           }
 
@@ -192,19 +192,19 @@ class Websocket(isClient: Boolean) {
 
   def acceptAndRead(req: Request): ZIO[ZEnv with MyLogging, Exception, WebSocketFrame] = {
 
-    req.ch.keepAlive(0)
+    Channel.keepAlive( req.ch, 0 )
 
     val T = for {
       res <- ZIO.effect(serverHandshake(req))
       _ <- res match {
             case Right(response) =>
-              req.ch.remoteAddress.flatMap(
+              Channel.remoteAddress( req.ch ).flatMap(
                 adr =>
                   MyLogging.debug(
                     "console",
                     "Webocket request initiated from: " + adr.get.toInetSocketAddress.address.canonicalHostName
                   )
-              ) *> req.ch.write(Chunk.fromArray(genWsResponse(response).getBytes()))
+              ) *> Channel.write(req.ch, Chunk.fromArray(genWsResponse(response).getBytes()))
             case Left(exception) => ZIO.fail(exception)
           }
       frame <- readFrame(req)
