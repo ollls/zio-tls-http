@@ -1,4 +1,21 @@
+[![Generic badge](https://img.shields.io/badge/Nexus-v1.1.0--m5-blue.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.1.0-m5)
+
+Appreciate any feedback, please use, my email or open issue, or use 
+https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) <br>
+Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
+
 # Update history.
+
+* Quartz server template with m5 ( memory caching server with ZIO Magic and TLS Client based on ZIO effects ).<br>
+
+https://github.com/ollls/zio-quartz
+
+* Template ( hello world projects, plain and TLS respectively )
+
+https://github.com/ollls/hello-http
+
+https://github.com/ollls/hello-https
+  
 
 * ZIO Env type parameters for web filters and combinations of filters, some test cases on filter combinations with various environments.
 
@@ -10,52 +27,13 @@
   
               val proc3 = proc1 <> proc2 <> proc11  
 
-* Your local ZIO environment now is made as a type parameter for Server and Server Router. 
-  No more environment alias or scala package object required, all examples had been updated accordingly.
-  This is a milestone change, it will allow to release stadalone jar. 
   
-  **Branch master.2020 has original server only( no client support) code - if any issues.**
-
-  Please, just update your local server code to have at least [MyLogging] as type param.
-  
-      import zhttp.MyLogging.MyLogging
-      
-      type MyEnv3 = MyLogging   
-      val myHttp = new TLSServer[MyEnv3]
-      val myHttpRouter = new HttpRouter[MyEnv3]
-    
-    or just
-    
-       val myHttp = new TLSServer[MyLogging]
-       val myHttpRouter = new HttpRouter[MyLogging]
-    
-
-* Updated master with new work: HttpClient/AsyncLdapClient( dev_svc branch) and Resource Pools.
-  
-      "MyLogging.PRINT_CONSOLE = false" will supress output to terminal, data will go only to colsole.log
+* "MyLogging.PRINT_CONSOLE = false" will supress output to terminal, data will go only to colsole.log
 
 ## Use cases.
 
 * Note on how stuff works.
  https://github.com/ollls/zio-tls-http/blob/dev/doc/HowChannelsWork.txt
-
-* One conn. pool, use case: ( using ZManaged is encouraged for ResPool/ResPoolGroup acquire/release ).
-
-https://github.com/ollls/zio-tls-http/blob/dev/doc/server_httpclient_pool.scala
-
-     ResPool.TIME_TO_LIVE < KEEP_ALIVE on remote host
-
-* Many conn. pools, use case: 
-
-https://github.com/ollls/zio-tls-http/blob/master/doc/server_httpclient_many_pool.scala
- 
-* Clean example of specialized server object with LDAP backend and connection pooling, posted for reference.
-  Original example MyServer cluttered with too many use cases.
-  
-https://github.com/ollls/zio-tls-http/blob/master/doc/server_example.scala
-
-* Unbound LDAP SDK wraper, search only for now in dev_svc branch:
-https://github.com/ollls/zio-tls-http/blob/dev_svc/src/main/scala/clients/AyncLDAP.scala
 
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
