@@ -53,17 +53,16 @@ object AsynchronousTlsByteChannel {
           case NEED_WRAP =>
             for {
               //data to check in_buff to prevent unnecessary read, and let to process the rest wih sequential unwrap
-              pos_            <- in_buf.position
-              lim_            <- in_buf.limit
-              
-              _               <- out_buf.clear
-              result          <- ssl_engine.wrap(empty, out_buf)
-              _               <- out_buf.flip
+              pos_ <- in_buf.position
+              lim_ <- in_buf.limit
+
+              _      <- out_buf.clear
+              result <- ssl_engine.wrap(empty, out_buf)
+              _      <- out_buf.flip
               //prevent reset to read if buffer has more data, now we can realy on underflow processing later
-              _               <- if ( pos_ > 0 && pos_ < lim_ ) IO.unit
-                                 else sequential_unwrap_flag.set(false)
-              
-        
+              _ <- if (pos_ > 0 && pos_ < lim_) IO.unit
+                  else sequential_unwrap_flag.set(false)
+
               handshakeStatus <- raw_ch.writeBuffer(out_buf) *> IO.effect(result.getHandshakeStatus)
             } yield (handshakeStatus)
 
@@ -72,11 +71,11 @@ object AsynchronousTlsByteChannel {
               _sequential_unwrap_flag =>
                 if (_sequential_unwrap_flag == false)
                   for {
-                    _      <- in_buf.clear
-                    _      <- out_buf.clear
-                    n      <- raw_ch.readBuffer(in_buf)
-                    _     <- if ( n == -1 ) ZIO.fail( new TLSChannelError( "AsynchronousTlsByteChannel: no data to unwrap") )
-                              else ZIO.unit
+                    _ <- in_buf.clear
+                    _ <- out_buf.clear
+                    n <- raw_ch.readBuffer(in_buf)
+                    _ <- if (n == -1) ZIO.fail(new TLSChannelError("AsynchronousTlsByteChannel: no data to unwrap"))
+                        else ZIO.unit
                     _      <- in_buf.flip
                     _      <- sequential_unwrap_flag.set(true)
                     result <- ssl_engine.unwrap(in_buf, out_buf)
@@ -274,7 +273,6 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
 
   //close with TLS close_notify
   final def close: ZIO[ZEnv, Nothing, Unit] = {
-    //println( "CLOSE <->")
     val result = for {
       _     <- IO.effect(sslEngine.engine.getSession().invalidate())
       _     <- sslEngine.closeOutbound()
@@ -287,8 +285,8 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
       _     <- channel.close
     } yield ()
 
-    result.catchAll { _ =>
-      /*println( e.printStackTrace );*/
+    result.catchAll { e =>
+      //println( e.printStackTrace );
       IO.unit
     }
   }
@@ -297,26 +295,34 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
 
 object AsynchronousServerTlsByteChannel {
 
+  val READ_HANDSHAKE_TIMEOUT_MS: Long = 5000
+
   def apply(
     raw_ch: AsynchronousSocketChannel,
     sslContext: SSLContext
   ): ZManaged[ZEnv, Exception, AsynchronousTlsByteChannel] = {
 
-    val open = for {
+    val open = (for {
       ssl_engine <- IO.effect(new SSLEngine(sslContext.createSSLEngine()))
       _          <- ssl_engine.setUseClientMode(false)
-      _          <- AsynchronousServerTlsByteChannel.open(raw_ch, ssl_engine)
-      r          <- IO.effect(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
-    } yield (r)
 
-    ZManaged.make(open.refineToOrDie[Exception])(_.close)
+      x <- AsynchronousServerTlsByteChannel.open(raw_ch, ssl_engine)
+
+      _ <- if (x != FINISHED) {
+            ZIO.fail(new TLSChannelError("TLS Handshake error, plain text connection?"))
+          } else ZIO.unit
+
+      r <- IO.effect(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
+    } yield (r)).catchAll( e => { raw_ch.close *> ZIO.fail( e ) })  
+    
+    ZManaged.make(open.refineToOrDie[Exception]){ _.close }
 
   }
 
   //TLS handshake is here
-  private[nio] def open(raw_ch: AsynchronousByteChannel, ssl_engine: SSLEngine) = {
-    val BUFF_SZ = ssl_engine.engine.getSession().getPacketBufferSize()
-    var loop_cntr = 0  //to avoid issues with non-SSL sockets sending junk data
+  private[nio] def open(raw_ch: AsynchronousSocketChannel, ssl_engine: SSLEngine) = {
+    val BUFF_SZ   = ssl_engine.engine.getSession().getPacketBufferSize()
+    var loop_cntr = 0 //to avoid issues with non-SSL sockets sending junk data
 
     val result = for {
 
@@ -325,7 +331,12 @@ object AsynchronousServerTlsByteChannel {
       in_buf  <- Buffer.byte(BUFF_SZ)
       out_buf <- Buffer.byte(BUFF_SZ)
       empty   <- Buffer.byte(0)
-      _       <- raw_ch.readBuffer(in_buf) *> in_buf.flip *> ssl_engine.unwrap(in_buf, out_buf)
+
+      nb <- raw_ch.readBuffer(in_buf, Duration(READ_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)).
+                    mapError( e => new TLSChannelError("TLS Handshake error timeout: " + e.toString  ) )
+       _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
+      _ <- in_buf.flip 
+      _ <- ssl_engine.unwrap(in_buf, out_buf)
       loop = ssl_engine.getHandshakeStatus().flatMap {
         _ match {
 
@@ -345,7 +356,9 @@ object AsynchronousServerTlsByteChannel {
                   for {
                     _      <- in_buf.clear
                     _      <- out_buf.clear
-                    _      <- raw_ch.readBuffer(in_buf)
+                    nb <- raw_ch.readBuffer(in_buf, Duration(READ_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)).
+                                 mapError( e => new TLSChannelError("TLS Handshake error timeout: " + e.toString  ) )
+                    _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
                     _      <- in_buf.flip
                     _      <- sequential_unwrap_flag.set(true)
                     result <- ssl_engine.unwrap(in_buf, out_buf)
@@ -378,7 +391,10 @@ object AsynchronousServerTlsByteChannel {
       }
 
       r <- loop
-            .repeatWhile( c => { loop_cntr = loop_cntr + 1;  c != FINISHED && loop_cntr < 300  } )
+            .repeatWhile(c => {
+              loop_cntr = loop_cntr + 1; /*println( c.toString + " *** " + loop_cntr );*/
+              c != FINISHED && loop_cntr < 300
+            })
             .refineToOrDie[Exception]
 
     } yield (r)

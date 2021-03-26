@@ -78,8 +78,8 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
                       ) *>
                         AsynchronousServerTlsByteChannel(channel, ssl_context)
                           .use(c => processor(new TlsChannel(c.keepAlive(KEEP_ALIVE))))
-                          .catchAll(_ => {
-                            //e.printStackTrace; println("***" + e.toString); /*group.shutdownNow *>*/
+                          .catchAll( e => {
+                            MyLogging.error("console", e.toString ) *>
                             IO.succeed(0)
                           })
                           .fork

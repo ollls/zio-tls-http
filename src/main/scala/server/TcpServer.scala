@@ -56,7 +56,7 @@ class TcpServer[MyEnv <: Has[MyLogging.Service]](port: Int, keepAlive: Int = 200
                         ZManaged
                           .make(ZIO.effect(new TcpChannel(channel.keepAlive(KEEP_ALIVE))))( Channel.close( _ ).orDie )
                           .use { c =>
-                            processor(c).catchAll(_ => IO.succeed(0))
+                            processor(c).catchAll( e =>  MyLogging.error("console", e.toString ) *> IO.succeed(0))
                           }
                           .fork
                   )
