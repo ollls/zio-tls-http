@@ -25,6 +25,12 @@ import zhttp.MyLogging
 import zhttp.MyLogging.MyLogging
 import zhttp.StatusCode
 
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
+import java.io.FileInputStream
+import java.io.File
+
 sealed case class HttpConnectionError(msg: String)     extends Exception(msg)
 sealed case class HttpResponseHeaderError(msg: String) extends Exception(msg)
 
@@ -86,23 +92,50 @@ object HttpConnection {
   val TLS_PROTOCOL_TAG        = "TLSv1.2"
   val CLIENT_TAG              = "zio-tls-http"
 
+  private def loadDefaultKeyStore(): KeyStore = {
+    val relativeCacertsPath = "/lib/security/cacerts".replace("/", File.separator);
+    val filename            = System.getProperty("java.home") + relativeCacertsPath;
+    val is                  = new FileInputStream(filename);
+
+    val keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+    val password = "changeit";
+    keystore.load(is, password.toCharArray());
+
+    keystore;
+  }
+
   private def buildSSLContext(protocol: String, JKSkeystore: String, password: String) = {
+    //JKSkeystore == null, only if blind trust was requested
+
     val sslContext: SSLContext = SSLContext.getInstance(protocol)
 
-    val keyStore: KeyStore = KeyStore.getInstance("JKS")
+    val keyStore = if (JKSkeystore == null) {
+      loadDefaultKeyStore()
+    } else {
+      val keyStore: KeyStore = KeyStore.getInstance("JKS")
+      val ks                 = new java.io.FileInputStream(JKSkeystore)
+      keyStore.load(ks, password.toCharArray())
+      keyStore
+    }
 
-    val ks = new java.io.FileInputStream(JKSkeystore)
+    val trustMgrs = if (JKSkeystore == null) {
+      Array[TrustManager](new X509TrustManager() {
+        def getAcceptedIssuers(): Array[X509Certificate]                   = null
+        def checkClientTrusted(c: Array[X509Certificate], a: String): Unit = ()
+        def checkServerTrusted(c: Array[X509Certificate], a: String): Unit = ()
+      })
 
-    if (ks == null) ZIO.fail(new java.io.FileNotFoundException(JKSkeystore + " keystore file not found."))
+    } else {
+      val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+      tmf.init(keyStore)
+      tmf.getTrustManagers()
+    }
 
-    keyStore.load(ks, password.toCharArray())
-
-    val tmf: TrustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-    tmf.init(keyStore)
+    val pwd = if (JKSkeystore == null) "changeit" else password
 
     val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
-    kmf.init(keyStore, password.toCharArray())
-    sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+    kmf.init(keyStore, pwd.toCharArray())
+    sslContext.init(kmf.getKeyManagers(), trustMgrs, null);
 
     sslContext
   }
@@ -116,12 +149,14 @@ object HttpConnection {
   private def connectSSL(
     host: String,
     port: Int,
+    blindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
   ): ZIO[zio.ZEnv, Exception, Channel] = {
     val T = for {
       address <- SocketAddress.inetSocketAddress(host, port)
-      ssl_ctx <- if (trustKeystore == null) effectBlocking(SSLContext.getDefault()).refineToOrDie[Exception]
+      ssl_ctx <- if (trustKeystore == null && blindTrust == false)
+                  effectBlocking(SSLContext.getDefault()).refineToOrDie[Exception]
                 else buildSSLContextM(TLS_PROTOCOL_TAG, trustKeystore, password)
       ch     <- AsynchronousSocketChannel()
       _      <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
@@ -146,21 +181,24 @@ object HttpConnection {
 
   def connect(
     url: String,
+    tlsBlindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
   ): ZIO[ZEnv, HttpConnectionError, HttpConnection] =
-    connectWithFilter(url, req => ZIO.effectTotal(req), trustKeystore, password)
+    connectWithFilter(url, req => ZIO.effectTotal(req), tlsBlindTrust, trustKeystore, password)
 
   def connectWithFilter(
     url: String,
     filter: ClientRequest => ZIO[ZEnv with MyLogging, Throwable, ClientRequest],
+    tlsBlindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
   ) = {
     val u    = new URI(url)
     val port = if (u.getPort == -1) 443 else u.getPort
     (if (u.getScheme().equalsIgnoreCase("https")) {
-       val ss = connectSSL(u.getHost(), port, trustKeystore, password).map(new HttpConnection(u, _, FilterProc(filter)))
+       val ss = connectSSL(u.getHost(), port, tlsBlindTrust, trustKeystore, password)
+         .map(new HttpConnection(u, _, FilterProc(filter)))
        ss
      } else if (u.getScheme().equalsIgnoreCase("http")) {
        val ss = connectPlain(u.getHost(), port).map(new HttpConnection(u, _, FilterProc(filter)))
@@ -189,9 +227,10 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
     cb: Chunk[Byte] = Chunk[Byte]()
   ): ZIO[ZEnv, Exception, Chunk[Byte]] =
     for {
-      nextChunk <- if (cb.size < hdr_size) Channel.read(ch) else ZIO.fail(new HttpResponseHeaderError("header is too big"))
-      pos       <- ZIO.effectTotal(new String(nextChunk.toArray).indexOf("\r\n\r\n"))
-      resChunk  <- if (pos < 0) read_http_header(hdr_size, cb ++ nextChunk) else ZIO.effectTotal(cb ++ nextChunk)
+      nextChunk <- if (cb.size < hdr_size) Channel.read(ch)
+                  else ZIO.fail(new HttpResponseHeaderError("header is too big"))
+      pos      <- ZIO.effectTotal(new String(nextChunk.toArray).indexOf("\r\n\r\n"))
+      resChunk <- if (pos < 0) read_http_header(hdr_size, cb ++ nextChunk) else ZIO.effectTotal(cb ++ nextChunk)
     } yield (resChunk)
 
   private def getHTTPResponse = {
@@ -248,7 +287,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
     result
   }
 
-  def close = Channel.close( ch )
+  def close = Channel.close(ch)
 
   ///////////////////////////////////////////////////////////////
   def send(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
@@ -276,11 +315,11 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
 
       //_ <- ZIO( println( r ) )
 
-      _ <- Channel.write( ch, Chunk.fromArray(r.toString.getBytes))
+      _ <- Channel.write(ch, Chunk.fromArray(r.toString.getBytes))
 
       _ <- MyLogging.debug("client", "http >>>: " + req0.method + "  " + this.uri.toString() + " ;path = " + req.path)
 
-      _ <- if (req.body.isDefined) Channel.write( ch, req.body.get) else ZIO.unit
+      _ <- if (req.body.isDefined) Channel.write(ch, req.body.get) else ZIO.unit
 
       data <- getHTTPResponse
 

@@ -21,25 +21,34 @@ sealed class TLSChannelError(msg: String) extends Exception(msg)
 
 object AsynchronousTlsByteChannel {
 
+  var READ_CLIENT_HANDSHAKE_TIMEOUT_MS = 7000
+
   //no zmanaged on the client
   def apply(
     raw_ch: AsynchronousSocketChannel,
     sslContext: SSLContext
   ): ZIO[ZEnv, Exception, AsynchronousTlsByteChannel] = {
-    val open = for {
+    val open = (for {
       ssl_engine <- IO.effect(new SSLEngine(sslContext.createSSLEngine()))
       _          <- ssl_engine.setUseClientMode(true)
       _          <- ssl_engine.setNeedClientAuth(false)
-      _          <- AsynchronousTlsByteChannel.open(raw_ch, ssl_engine)
-      r          <- IO.effect(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
-    } yield (r)
+      x          <- AsynchronousTlsByteChannel.open(raw_ch, ssl_engine)
+
+      _ <- if (x != FINISHED) {
+            ZIO.fail(new TLSChannelError("TLS client Handshake error, plain text connection?"))
+          } else ZIO.unit
+
+      r <- IO.effect(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
+    } yield (r)).catchAll(e => { raw_ch.close *> ZIO.fail(e) })
 
     open.refineToOrDie[Exception]
 
   }
 
-  private[nio] def open(raw_ch: AsynchronousByteChannel, ssl_engine: SSLEngine) = {
+  private[nio] def open(raw_ch: AsynchronousSocketChannel, ssl_engine: SSLEngine) = {
     val BUFF_SZ = ssl_engine.engine.getSession().getPacketBufferSize()
+
+    var loop_cntr = 0 //to avoid issues with non-SSL sockets sending junk data
 
     val result = for {
       sequential_unwrap_flag <- zio.Ref.make(false)
@@ -73,9 +82,15 @@ object AsynchronousTlsByteChannel {
                   for {
                     _ <- in_buf.clear
                     _ <- out_buf.clear
-                    n <- raw_ch.readBuffer(in_buf)
-                    _ <- if (n == -1) ZIO.fail(new TLSChannelError("AsynchronousTlsByteChannel: no data to unwrap"))
-                        else ZIO.unit
+
+                    nb <- raw_ch
+                           .readBuffer(
+                             in_buf,
+                             Duration(READ_CLIENT_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+                           )
+                           .mapError(e => new TLSChannelError("TLS Handshake error timeout: " + e.toString))
+                    _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
+
                     _      <- in_buf.flip
                     _      <- sequential_unwrap_flag.set(true)
                     result <- ssl_engine.unwrap(in_buf, out_buf)
@@ -102,7 +117,19 @@ object AsynchronousTlsByteChannel {
                                         _ <- in_buf.position(l1)
                                         _ <- in_buf.limit(BUFF_SZ)
 
-                                        _ <- raw_ch.readBuffer(in_buf)
+                                        nb <- raw_ch
+                                               .readBuffer(
+                                                 in_buf,
+                                                 Duration(
+                                                   READ_CLIENT_HANDSHAKE_TIMEOUT_MS,
+                                                   java.util.concurrent.TimeUnit.MILLISECONDS
+                                                 )
+                                               )
+                                               .mapError(
+                                                 e => new TLSChannelError("TLS Handshake error timeout: " + e.toString)
+                                               )
+                                        _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe"))
+                                            else IO.unit
 
                                         p2 <- in_buf.position //new limit
                                         _  <- in_buf.limit(p2)
@@ -129,18 +156,16 @@ object AsynchronousTlsByteChannel {
 
           case _ =>
             IO.fail(new TLSChannelError("unknown: getHandshakeStatus() - possible SSLEngine commpatibility problem"))
-
         }
       }
-
-      _ <- loop
-            .repeat(zio.Schedule.recurWhile(c => { /*println(c.toString);*/ c != FINISHED }))
+      r <- loop
+            .repeatWhile(c => {
+              loop_cntr = loop_cntr + 1; /*println( c.toString + " *** " + loop_cntr );*/
+              c != FINISHED && loop_cntr < 300
+            })
             .refineToOrDie[Exception]
-
-    } yield ()
-
+    } yield (r)
     result
-
   }
 }
 
@@ -313,9 +338,9 @@ object AsynchronousServerTlsByteChannel {
           } else ZIO.unit
 
       r <- IO.effect(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
-    } yield (r)).catchAll( e => { raw_ch.close *> ZIO.fail( e ) })  
-    
-    ZManaged.make(open.refineToOrDie[Exception]){ _.close }
+    } yield (r)).catchAll(e => { raw_ch.close *> ZIO.fail(e) })
+
+    ZManaged.make(open.refineToOrDie[Exception]) { _.close }
 
   }
 
@@ -332,10 +357,11 @@ object AsynchronousServerTlsByteChannel {
       out_buf <- Buffer.byte(BUFF_SZ)
       empty   <- Buffer.byte(0)
 
-      nb <- raw_ch.readBuffer(in_buf, Duration(READ_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)).
-                    mapError( e => new TLSChannelError("TLS Handshake error timeout: " + e.toString  ) )
-       _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
-      _ <- in_buf.flip 
+      nb <- raw_ch
+             .readBuffer(in_buf, Duration(READ_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS))
+             .mapError(e => new TLSChannelError("TLS Handshake error timeout: " + e.toString))
+      _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
+      _ <- in_buf.flip
       _ <- ssl_engine.unwrap(in_buf, out_buf)
       loop = ssl_engine.getHandshakeStatus().flatMap {
         _ match {
@@ -354,11 +380,15 @@ object AsynchronousServerTlsByteChannel {
               _sequential_unwrap_flag =>
                 if (_sequential_unwrap_flag == false)
                   for {
-                    _      <- in_buf.clear
-                    _      <- out_buf.clear
-                    nb <- raw_ch.readBuffer(in_buf, Duration(READ_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)).
-                                 mapError( e => new TLSChannelError("TLS Handshake error timeout: " + e.toString  ) )
-                    _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
+                    _ <- in_buf.clear
+                    _ <- out_buf.clear
+                    nb <- raw_ch
+                           .readBuffer(
+                             in_buf,
+                             Duration(READ_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+                           )
+                           .mapError(e => new TLSChannelError("TLS Handshake error timeout: " + e.toString))
+                    _      <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
                     _      <- in_buf.flip
                     _      <- sequential_unwrap_flag.set(true)
                     result <- ssl_engine.unwrap(in_buf, out_buf)
