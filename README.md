@@ -6,8 +6,8 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
 # Update history.
 
-* m7 release coming, with server stop(), header iterrator, log iterrator, pattern match on Channel -> Tls/Tcp Channel subclasses, 
-  DDOS patch to block and log bad TLS handshakes. 
+* m9 release coming, with server stop(), header iterrator, log iterrator, pattern match on Channel -> Tls/Tcp Channel subclasses, 
+  DDOS patch to block and log bad TLS handshakes, nio socket groups for HttpClient.
   
 * prototype of performance load test tool with ZIO - https://github.com/ollls/zio-wrk
 
