@@ -182,12 +182,12 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
 
   final def keepAlive(ms: Long) = { READ_TIMEOUT_MS = ms; this }
 
-  def getSession: IO[Exception, SSLSession] =
+  final def getSession: IO[Exception, SSLSession] =
     IO.effect(sslEngine.engine.getSession()).refineToOrDie[Exception]
 
-  def remoteAddress: ZIO[ZEnv, Exception, Option[SocketAddress]] = channel.remoteAddress
+  final def remoteAddress: ZIO[ZEnv, Exception, Option[SocketAddress]] = channel.remoteAddress
 
-  def readBuffer(out_b: java.nio.ByteBuffer): ZIO[ZEnv, Exception, Unit] = {
+  final def readBuffer(out_b: java.nio.ByteBuffer): ZIO[ZEnv, Exception, Unit] = {
 
     val out = Buffer.byte(out_b)
 
@@ -224,7 +224,7 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
   }
 
   //////////////////////////////////////////////////////////////////////////
-  def read: ZIO[ZEnv, Exception, Chunk[Byte]] = {
+  final def read: ZIO[ZEnv, Exception, Chunk[Byte]] = {
     val OUT_BUF_SZ = APP_PACKET_SZ * 2
     val result = for {
 

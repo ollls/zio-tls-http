@@ -17,6 +17,7 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.KeyManagerFactory
 import nio.channels.AsynchronousTlsByteChannel
 import nio.channels.AsynchronousSocketChannel
+import nio.channels.AsynchronousChannelGroup
 import java.security.KeyStore
 import zhttp.Headers
 import zhttp.ContentType
@@ -30,6 +31,7 @@ import javax.net.ssl.X509TrustManager
 import java.security.cert.X509Certificate
 import java.io.FileInputStream
 import java.io.File
+
 
 sealed case class HttpConnectionError(msg: String)     extends Exception(msg)
 sealed case class HttpResponseHeaderError(msg: String) extends Exception(msg)
@@ -149,6 +151,7 @@ object HttpConnection {
   private def connectSSL(
     host: String,
     port: Int,
+    group : AsynchronousChannelGroup,
     blindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
@@ -158,7 +161,7 @@ object HttpConnection {
       ssl_ctx <- if (trustKeystore == null && blindTrust == false)
                   effectBlocking(SSLContext.getDefault()).refineToOrDie[Exception]
                 else buildSSLContextM(TLS_PROTOCOL_TAG, trustKeystore, password)
-      ch     <- AsynchronousSocketChannel()
+      ch      <- if ( group == null ) AsynchronousSocketChannel() else AsynchronousSocketChannel( group )
       _      <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
       tls_ch <- AsynchronousTlsByteChannel(ch, ssl_ctx)
     } yield (tls_ch)
@@ -168,27 +171,31 @@ object HttpConnection {
 
   private def connectPlain(
     host: String,
-    port: Int
+    port: Int,
+    group : AsynchronousChannelGroup,
   ): ZIO[zio.ZEnv, Exception, Channel] = {
     val T = for {
       address <- SocketAddress.inetSocketAddress(host, port)
-      ch      <- AsynchronousSocketChannel()
+      ch      <- if ( group == null ) AsynchronousSocketChannel() else AsynchronousSocketChannel( group )
       _       <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
     } yield (ch)
 
-    T.map(c => new TcpChannel(c))
+    T.map(c => new TcpChannel(c)).refineToOrDie[Exception]
   }
+
 
   def connect(
     url: String,
+    socketGroup : AsynchronousChannelGroup = null,
     tlsBlindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
   ): ZIO[ZEnv, HttpConnectionError, HttpConnection] =
-    connectWithFilter(url, req => ZIO.effectTotal(req), tlsBlindTrust, trustKeystore, password)
+    connectWithFilter(url, socketGroup, req => ZIO.effectTotal(req), tlsBlindTrust, trustKeystore, password)
 
   def connectWithFilter(
     url: String,
+    socketGroup : AsynchronousChannelGroup,
     filter: ClientRequest => ZIO[ZEnv with MyLogging, Throwable, ClientRequest],
     tlsBlindTrust: Boolean = false,
     trustKeystore: String = null,
@@ -197,11 +204,11 @@ object HttpConnection {
     val u    = new URI(url)
     val port = if (u.getPort == -1) 443 else u.getPort
     (if (u.getScheme().equalsIgnoreCase("https")) {
-       val ss = connectSSL(u.getHost(), port, tlsBlindTrust, trustKeystore, password)
+       val ss = connectSSL(u.getHost(), port, socketGroup, tlsBlindTrust, trustKeystore, password)
          .map(new HttpConnection(u, _, FilterProc(filter)))
        ss
      } else if (u.getScheme().equalsIgnoreCase("http")) {
-       val ss = connectPlain(u.getHost(), port).map(new HttpConnection(u, _, FilterProc(filter)))
+       val ss = connectPlain(u.getHost(), port, socketGroup).map(new HttpConnection(u, _, FilterProc(filter)))
        ss
      } else
        throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme()))

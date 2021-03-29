@@ -36,6 +36,9 @@ object AsynchronousChannelGroup {
         new AsynchronousChannelGroup(JAsynchronousChannelGroup.withThreadPool(executor))
       )
       .refineToOrDie[Exception]
+   
+   //used in Zlayer construction, before unsafeRun ZIO cycle   
+   def make( executor: JExecutorService ) = new AsynchronousChannelGroup(JAsynchronousChannelGroup.withThreadPool(executor))   
 }
 
 class AsynchronousChannelGroup(private[channels] val channelGroup: JAsynchronousChannelGroup) {

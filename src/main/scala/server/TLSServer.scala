@@ -152,7 +152,7 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
       _ <- ZIO.effectTotal(terminate)
       //kick it one last time
       c <- clients.HttpConnection
-            .connect(s"https://localhost:$SERVER_PORT", tlsBlindTrust = false, s"$KEYSTORE_PATH", s"$KEYSTORE_PASSWORD")
+            .connect(s"https://localhost:$SERVER_PORT", null, tlsBlindTrust = false, s"$KEYSTORE_PATH", s"$KEYSTORE_PASSWORD")
       response <- c.send(clients.ClientRequest(zhttp.Method.GET, "/"))
 
       svc <- MyLogging.logService

@@ -34,17 +34,13 @@ class TcpServer[MyEnv <: Has[MyLogging.Service]](port: Int, keepAlive: Int = 200
             "console",
             "Listens TCP: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms"
           )
-
       executor <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.asECES)
-
+      //executor1     <- ZIO.effect ( java.util.concurrent.Executors.newFixedThreadPool(4) )
       address <- SocketAddress.inetSocketAddress(BINDING_SERVER_IP, SERVER_PORT)
-
-      group <- AsynchronousChannelGroup(executor)
-
+      group   <- AsynchronousChannelGroup(executor)
       _ <- group.openAsynchronousServerSocketChannel().use { srv =>
             {
               for {
-
                 _ <- srv.bind(address)
 
                 loop = srv.accept2
@@ -54,9 +50,9 @@ class TcpServer[MyEnv <: Has[MyLogging.Service]](port: Int, keepAlive: Int = 200
                         MyLogging.debug("console", "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName)
                       }) *>
                         ZManaged
-                          .make(ZIO.effect(new TcpChannel(channel.keepAlive(KEEP_ALIVE))))( Channel.close( _ ).orDie )
+                          .make(ZIO.effect(new TcpChannel(channel.keepAlive(KEEP_ALIVE))))(Channel.close(_).orDie)
                           .use { c =>
-                            processor(c).catchAll( e =>  MyLogging.error("console", e.toString ) *> IO.succeed(0))
+                            processor(c).catchAll(e => MyLogging.error("console", e.toString) *> IO.succeed(0))
                           }
                           .fork
                   )
