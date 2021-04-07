@@ -2,126 +2,185 @@ package zhttp
 
 import nio.channels.TLSChannelError
 import zio.{ Chunk, IO, ZEnv, ZIO }
-import scala.util.Try
 
-import scala.io.Source
 import zio.Has
 
-sealed trait HTTPError                            extends Exception
-sealed case class BadInboundDataError()           extends HTTPError
-sealed case class HTTPHeaderTooBig()              extends HTTPError
-sealed case class AccessDenied()                  extends HTTPError
-sealed case class ContentLenTooBig()              extends HTTPError
-sealed case class UpgradeRequest()                extends HTTPError
-sealed case class MediaEncodingError(msg: String) extends Exception(msg)
+import zio.stream.ZStream
+import zio.stream.ZTransducer
+import zio.stream.ZSink
+import zio.ZRef
+
+sealed trait HTTPError                              extends Exception
+sealed case class BadInboundDataError()             extends HTTPError
+sealed case class HTTPHeaderTooBig()                extends HTTPError
+sealed case class AccessDenied()                    extends HTTPError
+sealed case class ContentLenTooBig()                extends HTTPError
+sealed case class UpgradeRequest()                  extends HTTPError
+sealed case class MediaEncodingError(msg: String)   extends Exception(msg)
+sealed case class ChunkedEncodingError(msg: String) extends Exception(msg)
 
 object HttpRouter {
   val _METHOD = "%%%http_method%%%"
   val _PATH   = "%%%http_path%%%"
   val _PROTO  = "%%%http_protocol%%%"
-
-  private def rd_proc(c: Channel, contentLen: Int, bodyChunk: Chunk[Byte]) = {
-    var totalChunk = bodyChunk
-    val loop = for {
-      chunk <- if (contentLen > totalChunk.length) Channel.read(c) else ZIO.succeed(Chunk[Byte]())
-      _     <- ZIO.effectTotal { totalChunk = totalChunk ++ chunk }
-      // _ <- zio.console.putStrLn( "read block, size= " + totalChunk.length + "cl = " + contentLen  )
-    } yield (totalChunk)
-    loop.repeatWhile(_.length < contentLen)
-  }
-
-  ////////////////////////////////////////////////////////////////
-  def finishBodyLoadForRequest(req: Request): ZIO[ZEnv, Exception, Request] = {
-
-    val contentLen = req.headers.get("content-length").getOrElse("0")
-
-    rd_proc(req.ch, contentLen.toInt, req.body).map(Request(req.headers, _, req.ch)).catchAll {
-      case e => {
-        ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.BadRequest, "Invalid content length", true) *>
-          IO.fail(e)
-      }
-    }
-
-  }
-
 }
 
-class HttpRouter[R <: Has[MyLogging.Service]](
-  val appRoutes: List[HttpRoutes[R]],
-  val channelRoutes: List[HttpRoutes[R]] = List()
-) {
+class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]) {
 
   def this(rt: HttpRoutes[R]*) = {
-    this(rt.toList, List())
+    this(rt.toList)
   }
 
-  //MAX SIZE for current implementation: 16676 ( one TLS app packet ) - do not exceed.
-  val HTTP_HEADER_SZ          = 8096 * 2
-  val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
 
-  //private var appRoutes = List[HttpRoutes[R]]()
+  //TODO enforce those !!!!
+  //val HTTP_HEADER_SZ          = 8096 * 2
+  //val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
 
-  //private var channelRoutes = List[HttpRoutes[R]]()
+  /*****************************************************************/
+  //So the last chunk and 2 trailing headers might look like this:
+  //0<CRLF>
+  //Date:Sun, 06 Nov 1994 08:49:37 GMT<CRLF>
+  //Content-MD5:1B2M2Y8AsgTpgAmY7PhCfg==<CRLF>
+  //<CRLF>
+  def chunkedDecode: ZTransducer[Any, Nothing, Byte, Chunk[Byte]] = {
 
-  //direct channel routes, where user route function is responsible
-  //for reading the body and sending requests
-  //def addChannelRoute(rt: HttpRoutes[R]): Unit =
-  //  channelRoutes = rt :: channelRoutes
+    def parseTrail(in: Chunk[Byte], pos: Int): Boolean = {
+      //not enough data to close
+      if (in.size - pos < 4) return false //more data
+      if (in(pos) == '\r' && in(pos + 1) == '\n') {
 
-  //Normal auto map route where Request body is pre-read and
-  //Response will be processed by server in post routine.
-  //def addAppRoute(rt: HttpRoutes[R]): Unit =
-  //  appRoutes = rt :: appRoutes
+        var idx       = pos + 2
+        var bb: Byte  = 0
+        var pbb: Byte = 0
+        var splitAt   = 0
+        var found     = false
 
-  def route(c: Channel): ZIO[ZEnv with R, Exception, Unit] = {
-    val T: ZIO[ZEnv with R, Any, Unit] = for {
-      req <- getHTTPRequest(c, false) /* don't try to read body of request now */
-
-      res <- (for {
-              response <- route_go(req, channelRoutes)
-              _        <- response_processor(req, response._1)
-
-            } yield (response)).map(Option(_)).catchAll {
-              case None    => IO.succeed(None)
-              case Some(e) => IO.fail(e)
-            }
-
-      _ <- res match {
-            case None =>
-              HttpRouter.finishBodyLoadForRequest(req).flatMap { r =>
-                for {
-                  response <- route_go(r, appRoutes).catchAll {
-                               case None =>
-                                 IO.succeed((Response.Error(StatusCode.NotFound), HttpRoutes.defaultPostProc))
-                               case Some(e) => IO.fail(e)
-                             }
-                  //_.2 is postProc procedure _.1 is Response
-                  //response processor will get response with injected/extended attributes from PostProc
-                  response2 <- IO.effectTotal(response._2(response._1))
-                  _ <- response_processor(req, response2).catchAll { e =>
-                        ZIO.fail(e)
-                      }
-                } yield (response)
-
-              }
-            case Some(response) => {
-              IO.succeed(response)
-            }
+        while (idx < in.size && found == false) {
+          pbb = bb
+          bb = in(idx)
+          idx += 1
+          if (bb == '\n' && pbb == '\r') {
+            splitAt = idx - 2
+            found = true
           }
+        }
 
-    } yield ()
+        if (found == false) return false //more data
 
-    //keep-alive until times out with exception
-    T.forever.catchAll(ex => {
+        //we will ignore trailing block here, but it can be provided, right after empty block for further use.
+        //TODO
+        val trailingHeaders = new String(in.slice(pos + 2, splitAt).toArray)
+        //println("start = " + (pos + 2).toString() + "splitAt = " + splitAt)
+        //println("trailingHeaders = " + trailingHeaders)
+        true
+      } else throw new BadInboundDataError()
+      true
+    }
+
+    def produceChunk(in: Chunk[Byte]): (Option[Chunk[Byte]], Chunk[Byte], Boolean) = {
+
+      var bb: Byte      = 0
+      var pbb: Byte     = 0
+      var splitAt: Int  = 0
+      var idx: Int      = 0
+      var stop: Boolean = false
+
+      //println(" --->  chunkedDecode")
+
+      //extract size
+      while (idx < in.size && stop == false) {
+        pbb = bb
+        bb = in(idx)
+        if (bb == '\n' && pbb == '\r') {
+          splitAt = idx - 2 + 1
+          stop = true
+        } else {
+          idx += 1
+        }
+      }
+
+      //println("split At =  " + splitAt + " idx = " + idx)
+
+      val str_str = new String(in.slice(0, splitAt).toArray)
+
+     // println(">>> " + str_str)
+
+      val chunkSize = Integer.parseInt(new String(in.slice(0, splitAt).toArray), 16)
+
+     // println("chunkSize = " + chunkSize)
+     // println("stream chunkSize = " + in.size)
+
+      if (chunkSize > 0 && chunkSize < in.size - idx + 2 + 1) {
+
+        val chunk = in.slice(splitAt + 2, splitAt + 2 + chunkSize)
+
+      //  println("c = " + (splitAt + 2 + chunkSize + 2).toInt + " with " + in.size)
+
+        val leftOver = in.slice(splitAt + 2 + chunkSize + 2, in.size)
+
+       // println("leftOver = " + new String(leftOver.toArray) + "leftOver size = " + leftOver.size)
+
+        (Some(chunk), leftOver, false)
+      } else {
+        if (chunkSize == 0) {
+          if (parseTrail(in, splitAt) == true) (None, in, true)
+          else (None, in, false) //more data
+        } else (None, in, false)
+      }
+
+    }
+    ZTransducer[Any, Nothing, Byte, Chunk[Byte]] {
+      ZRef
+        .makeManaged[Chunk[Byte]](Chunk.empty)
+        .map(stateRef => {
+          case None =>
+            var res: Chunk[Chunk[Byte]] = Chunk.empty
+         //   println("none in <----")
+            (for {
+              leftOver <- stateRef.get
+              pair     <- ZIO.effectTotal(produceChunk(leftOver))
+              _        <- stateRef.set(pair._2)
+              repeat   <- ZIO.effectTotal(pair._1.isDefined && !pair._2.isEmpty)
+              _        <- ZIO.effectTotal { res = res :+ pair._1.getOrElse(Chunk.empty) }
+
+            } yield (repeat)).repeatWhile(c => c == true) *> ZIO.succeed(res)
+
+          case Some(in) =>
+            var res: Chunk[Chunk[Byte]] = Chunk.empty
+         //   println("some in <----")
+            var start = true
+            (for {
+              leftOver <- stateRef.get
+              pair <- if (start == true) ZIO.effectTotal(produceChunk(leftOver ++ in))
+                     else ZIO.effectTotal(produceChunk(leftOver))
+              _      <- ZIO.effectTotal { start = false }
+              _      <- stateRef.set(pair._2)
+              repeat <- ZIO.effectTotal(pair._1.isDefined && !pair._2.isEmpty)
+              _ <- ZIO.effectTotal {
+                    pair._1 match {
+                      case None =>
+                        if (pair._3 == true) {
+                          res = res :+ Chunk.empty //Chunk(Chunk.empty)) means end of stream and Chunk.empty means more data for transducer
+                        } else res
+                      case Some(value) => res = res :+ value
+                    }
+
+                  }
+            } yield (repeat)).repeatWhile(c => c == true) *> ZIO.succeed { res }
+
+        })
+    }
+  }
+
+
+  def route(c: Channel): ZIO[ZEnv with R, Exception, Unit] =
+    route_do(c).forever.catchAll(ex => {
       ex match {
-
         case _: UpgradeRequest =>
-          MyLogging.debug("console", "New websocket request spawned")
+          MyLogging.debug("console", "New websocket request spawned") *> IO.unit
 
         case _: java.nio.channels.InterruptedByTimeoutException =>
-          //zio.console.putStrLn(">Keep-Alive expired.")
-          MyLogging.debug("console", "Connection closed")
-        //c.close;
+          MyLogging.debug("console", "Connection closed") *> IO.unit
 
         case _: BadInboundDataError =>
           MyLogging.debug("console", "Bad request, connection closed") *>
@@ -131,8 +190,8 @@ class HttpRouter[R <: Has[MyLogging.Service]](
           MyLogging.error("console", "HTTP header exceeds allowed limit") *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad HTTP header.", true) *> IO.unit
 
-        case _: java.io.FileNotFoundException =>
-          MyLogging.error("console", "File not found") *>
+        case e: java.io.FileNotFoundException =>
+          MyLogging.error("console", "File not found " + e.toString() ) *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit
 
         case _: AccessDenied =>
@@ -143,17 +202,103 @@ class HttpRouter[R <: Has[MyLogging.Service]](
           MyLogging.error("console", "Bad request(1)") *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request (1).", true) *> IO.unit
 
-        case _: TLSChannelError =>
-          MyLogging.debug("console", "Remote peer closed connection")
+        case e: TLSChannelError =>
+          MyLogging.debug("console", "Remote peer closed connection") *> IO.unit
 
-        case _: java.io.IOException =>
-          MyLogging.debug("console", "Remote peer closed connection (1)")
+        case e: java.io.IOException =>
+          MyLogging.debug("console", "Remote peer closed connection (1) " + e.getMessage() ) *> IO.unit
+
+        case e: ChunkedEncodingError =>
+          MyLogging.error("console", e.toString()) *>
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotImplemented, "", true) *> IO.unit
 
         case e: Exception =>
           MyLogging.error("console", e.toString()) *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.InternalServerError, "", true) *> IO.unit
       }
     })
+
+  private def route_do(c: Channel): ZIO[ZEnv with R, Exception, Unit] = {
+
+    val header_pair = raw"(.{2,100}):\s+(.+)".r
+    val http_line   = raw"([A-Z]{3,8})\s+(.+)\s+(HTTP/.+)".r
+
+    val rd_stream = ZStream.repeatEffect(Channel.read(c)).flatMap(ZStream.fromChunk(_))
+    val r = rd_stream.peel(ZSink.fold(Chunk[Byte]()) { c =>
+      !c.endsWith("\r\n\r\n")
+    }((z, i: Byte) => z :+ i))
+    for {
+      _ <- r.use[ZEnv with R, Exception, Unit] {
+            case (header_bytes, body_stream) =>
+              val strings =
+                ZStream.fromChunk(header_bytes).aggregate(ZTransducer.usASCIIDecode >>> ZTransducer.splitLines)
+
+              val hdrs = strings.fold(Headers())((hdrs, line) => {
+                line match {
+                  case http_line(method, path, prot) =>
+                    hdrs ++ Headers(HttpRouter._METHOD -> method, HttpRouter._PATH -> path, HttpRouter._PROTO -> prot)
+                  case header_pair(attr, value) => hdrs + (attr.toLowerCase -> value)
+                  case _                        => hdrs
+                }
+              })
+
+              val T = for {
+                h <- hdrs
+
+                //_         <- ZIO.succeed(println(h.printHeaders))
+                isChunked <- ZIO.effectTotal(h.getMval("transfer-encoding").exists(_.equalsIgnoreCase("chunked")))
+
+                validate <- ZIO.effectTotal(
+                             h.get(HttpRouter._METHOD)
+                               .flatMap(_ => h.get(HttpRouter._PATH).flatMap(_ => h.get(HttpRouter._PROTO)))
+                           )
+                _ <- if (validate.isDefined) ZIO.unit else IO.fail(new BadInboundDataError())
+
+                contentLen  <- ZIO.effectTotal(h.get("content-length").getOrElse("0"))
+                contentLenL <- ZIO.fromTry(scala.util.Try(contentLen.toLong)).refineToOrDie[Exception]
+
+                //validate content-len
+                //contentLenL <- ZIO.fromTry(Try(contentLen.toLong))
+                //_ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
+
+                stream <- if (isChunked)
+                           ZIO.effect(
+                             body_stream
+                               .aggregate(chunkedDecode)
+                               .collectWhile(new PartialFunction[Chunk[Byte], Chunk[Byte]] {
+                                 def apply(v1: Chunk[Byte]): Chunk[Byte]  = v1
+                                 def isDefinedAt(x: Chunk[Byte]): Boolean = !x.isEmpty
+                               })
+                           )
+                         else
+                           ZIO.effect(
+                             body_stream
+                               .take(contentLenL)
+                               .grouped(Int.MaxValue) //this will be configurable
+                           )
+
+                req <- ZIO.effect(Request(h, stream, c)).refineToOrDie[Exception]
+
+                (response, post_proc) <- route_go(req, appRoutes).catchAll {
+                             case None =>
+                               IO.succeed((Response.Error(StatusCode.NotFound), HttpRoutes.defaultPostProc))
+                             case Some(e) => IO.fail(e)
+                           }
+                response2 <- if ( response.raw_stream == false ) IO.effectTotal( post_proc(response))
+                             else  ZIO.succeed( response )
+
+                _ <- response_processor(req, response2).catchAll { e =>
+                      ZIO(  println( "P0 " + e.toString()) ) *> ZIO.fail(e)
+                    }
+
+              } yield (response)
+
+              T.unit.refineToOrDie[Exception]
+
+          }
+
+    } yield ()
+
   }
 
   //route functions with response_processor()
@@ -180,110 +325,37 @@ class HttpRouter[R <: Has[MyLogging.Service]](
     req: Request,
     resp: Response
   ): ZIO[ZEnv with R, Exception, Int] =
-    if (resp == NoResponse) {
-
-      IO.succeed(0)
-
+    if (resp.raw_stream == true ) {
+        resp.body.foreach( chunk => { Channel.write( req.ch, chunk ) } ).refineToOrDie[Exception] *>
+        ZIO.succeed( 0 )
     } else {
 
       val contType = ContentType(resp.headers.get("content-type").getOrElse(""))
-
+      val chunked  = resp.isChunked
       val status = resp.code
-      val body   = resp.body.getOrElse(Chunk[Byte]())
 
-      val T = if (status.isSuccess) {
-        ResponseWriters.writeFullResponse(req.ch, resp, resp.code, new String(body.toArray), false)
-      } else if (status == StatusCode.SeeOther)
-        ResponseWriters.writeResponseRedirect(req.ch, new String(body.toArray))
-      else if (status.isServerError)
-        ResponseWriters.writeNoBodyResponse(req.ch, status, new String(body.toArray), true)
-      else if (status == StatusCode.MethodNotAllowed)
-        ResponseWriters.writeResponseMethodNotAllowed(req.ch, new String(body.toArray))
-      else if (status == StatusCode.NotFound)
-        ResponseWriters.writeNoBodyResponse(req.ch, status, new String(body.toArray), true)
-      else if (status == StatusCode.SeeOther)
-        ResponseWriters.writeResponseRedirect(req.ch, req.body.toString)
-      else if (status == StatusCode.UnsupportedMediaType) {
-        ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.UnsupportedMediaType, "", true)
-      } else ResponseWriters.writeNoBodyResponse(req.ch, status, new String(body.toArray), true)
+      if( resp.isChunked ) {
+          Logs.log_access(req, status, 0 ).refineToOrDie[Exception] *>
+          ResponseWriters.writeFullResponseFromStream( req.ch, resp ).refineToOrDie[Exception].map( _ => 0 )
+          //refineToOrDie[Exception]  
+      } else 
+      (for {
+        body  <- resp.body.flatMap( c => ZStream.fromChunk( c )).runCollect
 
-      (Logs.log_access(req, status, body.size) *> T).refineToOrDie[Exception]
+        res  <- status match {
+          case StatusCode.OK => ResponseWriters.writeFullResponse(req.ch, resp, resp.code, new String(body.toArray), false)
+          case StatusCode.SeeOther => ResponseWriters.writeResponseRedirect(req.ch, new String(body.toArray))
+          case StatusCode.MethodNotAllowed =>  ResponseWriters.writeResponseMethodNotAllowed(req.ch, new String(body.toArray))
+          case StatusCode.NotFound =>  ResponseWriters.writeNoBodyResponse(req.ch, status, new String(body.toArray), true)
+          case StatusCode.UnsupportedMediaType => ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.UnsupportedMediaType, "", true)
+          case _ => ResponseWriters.writeNoBodyResponse(req.ch, status, new String(body.toArray), true)
+        }
+        _ <- Logs.log_access(req, status, body.size)
 
+
+      } yield( 0 )).refineToOrDie[Exception]
+
+    
     }
-
-  def read_http_header(
-    c: Channel,
-    hdr_size: Int,
-    cb: Chunk[Byte] = Chunk[Byte]()
-  ): ZIO[ZEnv, Exception, Chunk[Byte]] =
-    for {
-      nextChunk <- if (cb.size < hdr_size) Channel.read( c ) else IO.fail(new HTTPHeaderTooBig())
-      pos       <- IO.effectTotal(new String(nextChunk.toArray).indexOf("\r\n\r\n"))
-      resChunk  <- if (pos < 0) read_http_header(c, hdr_size, cb ++ nextChunk) else ZIO.effectTotal(cb ++ nextChunk)
-    } yield (resChunk)
-
-  ////////////////////////////////////////////////////////////////
-  private def getHTTPRequest(c: Channel, fetchBody: Boolean): ZIO[ZEnv, Exception, Request] = {
-    val result = for {
-
-      firstChunk <- read_http_header(c, HTTP_HEADER_SZ)
-
-      source <- IO.effect(Source.fromBytes(firstChunk.toArray))
-      _      <- IO.effect(source.withPositioning(true))
-      lines  <- IO.effect(source.getLines())
-
-      _ <- if (lines.hasNext == false) IO.fail(new BadInboundDataError())
-          else IO.succeed(0).unit
-
-      http_line = raw"([A-Z]{3,8})\s+(.+)\s+(HTTP/.+)".r
-
-      requestMap <- lines.next match {
-                     case http_line(method, path, prot) =>
-                       IO.effectTotal(
-                         Headers(HttpRouter._METHOD -> method, HttpRouter._PATH -> path, HttpRouter._PROTO -> prot)
-                       )
-                     case _ => IO.fail(new BadInboundDataError())
-
-                   }
-
-      attribute_pair = raw"(.{2,100}):\s+(.+)".r
-
-      requestMapWithAttributes <- IO.effect {
-                                   lines
-                                     .takeWhile(!_.isEmpty)
-                                     .foldLeft(requestMap)((map, line) => {
-
-                                       line match {
-                                         case attribute_pair(attr, value) => map + (attr.toLowerCase -> value)
-                                       }
-
-                                     })
-                                 }
-
-      //todo: optimize - not good to scan everything again with indexOf
-      pos0 = new String(firstChunk.toArray).indexOf("\r\n\r\n")
-      pos  = pos0 + 4
-
-      contentLen <- if (pos0 == -1) ZIO.fail(new HTTPHeaderTooBig)
-                   else
-                     IO.effect {
-                       requestMapWithAttributes.get("content-length").getOrElse("0")
-                     }
-
-      contentLenL <- ZIO.fromTry(Try(contentLen.toLong))
-
-      _ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
-
-      bodyChunk <- if (fetchBody)
-                    HttpRouter.rd_proc(c, contentLen.toInt, firstChunk.drop(pos))
-                  else
-                    IO.succeed {
-                      firstChunk.drop(pos)
-                    }
-
-    } yield (Request(requestMapWithAttributes, bodyChunk, c))
-
-    result.refineToOrDie[Exception]
-  }
 
 }
