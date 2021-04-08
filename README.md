@@ -1,10 +1,17 @@
-[![Generic badge](https://img.shields.io/badge/Nexus-v1.1.0--m5-blue.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.1.0-m5)
+[![Generic badge](https://img.shields.io/badge/Nexus-v1.1.0--m8-blue.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.1.0-m8)
 
 Appreciate any feedback, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) <br>
-Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
+
 
 # Update history.
+
+* DEV is 1.2-m1, everything now on ZStream, chunked encoding in/out support. ZStream conversion for http client is coming.
+
+* 1.1.0-m8 release, with server stop(), header iterrator, log iterrator, pattern match on Channel -> Tls/Tcp Channel subclasses, 
+  DDOS patch to block and log bad TLS handshakes.
+  
+* prototype of performance load test tool with ZIO - https://github.com/ollls/zio-wrk
 
 * Quartz server template with m5 ( memory caching server with ZIO Magic and TLS Client based on ZIO effects ).<br>
 
