@@ -28,7 +28,7 @@ object HttpRoutes {
           resp0 => {
             //transfer custom headers from filter1 response to filter2 request
             //we can chain on custom headers
-            val req2 = Request(req.headers ++ resp0.headers, req.body, req.ch)
+            val req2 = Request(req.headers ++ resp0.headers, req.stream, req.ch)
             if (resp0.code.isSuccess) another(req2).map(resp2 => resp2.hdr(resp0.headers))
             else ZIO.succeed(resp0)
           }
@@ -93,7 +93,7 @@ object HttpRoutes {
       for {
         filter_resp <- OptionToOptionalZIOError[Response, MyEnv](f0.lift(req))
 
-        new_req <- ZIO.effectTotal(Request(req.headers ++ filter_resp.headers, req.body, req.ch))
+        new_req <- ZIO.effectTotal(Request(req.headers ++ filter_resp.headers, req.stream, req.ch))
 
         route_resp <- if (filter_resp.code.isSuccess) OptionToOptionalZIOError[Response, MyEnv](pf.lift(new_req))
                      else ZIO.succeed(filter_resp)
