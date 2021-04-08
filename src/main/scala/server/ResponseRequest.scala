@@ -29,8 +29,6 @@ sealed case class Request(headers: Headers, stream: ZStream[ZEnv, Exception, Chu
 
   def body = stream.runCollect.map(_.flatten): ZIO[ZEnv, Exception, Chunk[Byte]]
 
-  //def chunkedBody( chunkSize : Int ) =  stream.aggregate( ZTransducer.collectAllN(chunkSize ) )
-
   def fromJSONToStream[A: JsonDecoder] = stream.map(chunk => new String(chunk.toArray).fromJson[A])
 
   def fromJSON[A: JsonDecoder] =
@@ -77,7 +75,7 @@ sealed case class Response(
     new Response(this.code, this.headers + pair, this.body)
   }
 
-  def asStream( s0 : ZStream[ZEnv, Throwable, Chunk[Byte]]) = new Response(this.code, this.headers, s0)
+  def asStream(s0: ZStream[ZEnv, Throwable, Chunk[Byte]]) = new Response(this.code, this.headers, s0)
 
   def asTextBody(text: String): Response = {
     val s0 = ZStream(Chunk.fromArray(text.getBytes))

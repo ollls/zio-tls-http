@@ -31,7 +31,6 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     this(rt.toList)
   }
 
-
   //TODO enforce those !!!!
   //val HTTP_HEADER_SZ          = 8096 * 2
   //val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
@@ -70,8 +69,6 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
         //we will ignore trailing block here, but it can be provided, right after empty block for further use.
         //TODO
         val trailingHeaders = new String(in.slice(pos + 2, splitAt).toArray)
-        //println("start = " + (pos + 2).toString() + "splitAt = " + splitAt)
-        //println("trailingHeaders = " + trailingHeaders)
         true
       } else throw new BadInboundDataError()
       true
@@ -85,8 +82,6 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
       var idx: Int      = 0
       var stop: Boolean = false
 
-      //println(" --->  chunkedDecode")
-
       //extract size
       while (idx < in.size && stop == false) {
         pbb = bb
@@ -99,26 +94,14 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
         }
       }
 
-      //println("split At =  " + splitAt + " idx = " + idx)
-
       val str_str = new String(in.slice(0, splitAt).toArray)
-
-     // println(">>> " + str_str)
 
       val chunkSize = Integer.parseInt(new String(in.slice(0, splitAt).toArray), 16)
 
-     // println("chunkSize = " + chunkSize)
-     // println("stream chunkSize = " + in.size)
-
       if (chunkSize > 0 && chunkSize < in.size - idx + 2 + 1) {
 
-        val chunk = in.slice(splitAt + 2, splitAt + 2 + chunkSize)
-
-      //  println("c = " + (splitAt + 2 + chunkSize + 2).toInt + " with " + in.size)
-
+        val chunk    = in.slice(splitAt + 2, splitAt + 2 + chunkSize)
         val leftOver = in.slice(splitAt + 2 + chunkSize + 2, in.size)
-
-       // println("leftOver = " + new String(leftOver.toArray) + "leftOver size = " + leftOver.size)
 
         (Some(chunk), leftOver, false)
       } else {
@@ -135,7 +118,6 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
         .map(stateRef => {
           case None =>
             var res: Chunk[Chunk[Byte]] = Chunk.empty
-         //   println("none in <----")
             (for {
               leftOver <- stateRef.get
               pair     <- ZIO.effectTotal(produceChunk(leftOver))
@@ -147,8 +129,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
 
           case Some(in) =>
             var res: Chunk[Chunk[Byte]] = Chunk.empty
-         //   println("some in <----")
-            var start = true
+            var start                   = true
             (for {
               leftOver <- stateRef.get
               pair <- if (start == true) ZIO.effectTotal(produceChunk(leftOver ++ in))
@@ -172,7 +153,6 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     }
   }
 
-
   def route(c: Channel): ZIO[ZEnv with R, Exception, Unit] =
     route_do(c).forever.catchAll(ex => {
       ex match {
@@ -191,7 +171,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
             ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad HTTP header.", true) *> IO.unit
 
         case e: java.io.FileNotFoundException =>
-          MyLogging.error("console", "File not found " + e.toString() ) *>
+          MyLogging.error("console", "File not found " + e.toString()) *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit
 
         case _: AccessDenied =>
@@ -206,7 +186,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
           MyLogging.debug("console", "Remote peer closed connection") *> IO.unit
 
         case e: java.io.IOException =>
-          MyLogging.debug("console", "Remote peer closed connection (1) " + e.getMessage() ) *> IO.unit
+          MyLogging.debug("console", "Remote peer closed connection (1) " + e.getMessage()) *> IO.unit
 
         case e: ChunkedEncodingError =>
           MyLogging.error("console", e.toString()) *>
@@ -280,15 +260,17 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                 req <- ZIO.effect(Request(h, stream, c)).refineToOrDie[Exception]
 
                 (response, post_proc) <- route_go(req, appRoutes).catchAll {
-                             case None =>
-                               IO.succeed((Response.Error(StatusCode.NotFound), HttpRoutes.defaultPostProc))
-                             case Some(e) => IO.fail(e)
-                           }
-                response2 <- if ( response.raw_stream == false ) IO.effectTotal( post_proc(response))
-                             else  ZIO.succeed( response )
+                                          case None =>
+                                            IO.succeed(
+                                              (Response.Error(StatusCode.NotFound), HttpRoutes.defaultPostProc)
+                                            )
+                                          case Some(e) => IO.fail(e)
+                                        }
+                response2 <- if (response.raw_stream == false) IO.effectTotal(post_proc(response))
+                            else ZIO.succeed(response)
 
-                _ <- response_processor(req, response2).catchAll { e =>
-                      ZIO(  println( "P0 " + e.toString()) ) *> ZIO.fail(e)
+                _ <- response_processor(c, req, response2).catchAll { e =>
+                      ZIO.fail(e)
                     }
 
               } yield (response)
@@ -301,7 +283,6 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
 
   }
 
-  //route functions with response_processor()
   private def route_go(
     req: Request,
     appRoutes: List[HttpRoutes[R]]
@@ -322,40 +303,42 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     }
 
   private def response_processor[A](
+    ch: Channel,
     req: Request,
     resp: Response
   ): ZIO[ZEnv with R, Exception, Int] =
-    if (resp.raw_stream == true ) {
-        resp.body.foreach( chunk => { Channel.write( req.ch, chunk ) } ).refineToOrDie[Exception] *>
-        ZIO.succeed( 0 )
+    if (resp.raw_stream == true) {
+      resp.body.foreach(chunk => { Channel.write(ch, chunk) }).refineToOrDie[Exception] *>
+        ZIO.succeed(0)
     } else {
 
       val contType = ContentType(resp.headers.get("content-type").getOrElse(""))
       val chunked  = resp.isChunked
-      val status = resp.code
+      val status   = resp.code
 
-      if( resp.isChunked ) {
-          Logs.log_access(req, status, 0 ).refineToOrDie[Exception] *>
-          ResponseWriters.writeFullResponseFromStream( req.ch, resp ).refineToOrDie[Exception].map( _ => 0 )
-          //refineToOrDie[Exception]  
-      } else 
-      (for {
-        body  <- resp.body.flatMap( c => ZStream.fromChunk( c )).runCollect
+      if (resp.isChunked) {
+        Logs.log_access(req, status, 0).refineToOrDie[Exception] *>
+          ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
+      } else
+        (for {
+          body <- resp.body.flatMap(c => ZStream.fromChunk(c)).runCollect
 
-        res  <- status match {
-          case StatusCode.OK => ResponseWriters.writeFullResponse(req.ch, resp, resp.code, new String(body.toArray), false)
-          case StatusCode.SeeOther => ResponseWriters.writeResponseRedirect(req.ch, new String(body.toArray))
-          case StatusCode.MethodNotAllowed =>  ResponseWriters.writeResponseMethodNotAllowed(req.ch, new String(body.toArray))
-          case StatusCode.NotFound =>  ResponseWriters.writeNoBodyResponse(req.ch, status, new String(body.toArray), true)
-          case StatusCode.UnsupportedMediaType => ResponseWriters.writeNoBodyResponse(req.ch, StatusCode.UnsupportedMediaType, "", true)
-          case _ => ResponseWriters.writeNoBodyResponse(req.ch, status, new String(body.toArray), true)
-        }
-        _ <- Logs.log_access(req, status, body.size)
+          res <- status match {
+                  case StatusCode.OK =>
+                    ResponseWriters.writeFullResponse(ch, resp, resp.code, new String(body.toArray), false)
+                  case StatusCode.SeeOther => ResponseWriters.writeResponseRedirect(ch, new String(body.toArray))
+                  case StatusCode.MethodNotAllowed =>
+                    ResponseWriters.writeResponseMethodNotAllowed(ch, new String(body.toArray))
+                  case StatusCode.NotFound =>
+                    ResponseWriters.writeNoBodyResponse(ch, status, new String(body.toArray), true)
+                  case StatusCode.UnsupportedMediaType =>
+                    ResponseWriters.writeNoBodyResponse(ch, StatusCode.UnsupportedMediaType, "", true)
+                  case _ => ResponseWriters.writeNoBodyResponse(ch, status, new String(body.toArray), true)
+                }
+          _ <- Logs.log_access(req, status, body.size)
 
+        } yield (0)).refineToOrDie[Exception]
 
-      } yield( 0 )).refineToOrDie[Exception]
-
-    
     }
 
 }
