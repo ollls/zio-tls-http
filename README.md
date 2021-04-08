@@ -2,7 +2,7 @@
 
 Appreciate any feedback, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) <br>
-Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
+
 
 # Update history.
 
