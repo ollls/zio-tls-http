@@ -225,8 +225,9 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
               val T = for {
                 h <- hdrs
 
-                //_         <- ZIO.succeed(println(h.printHeaders))
                 isChunked <- ZIO.effectTotal(h.getMval("transfer-encoding").exists(_.equalsIgnoreCase("chunked")))
+                isContinue <- ZIO.effectTotal( h.get( "Expect").getOrElse("").equalsIgnoreCase( "100-continue" ) )
+                _          <- ResponseWriters.writeNoBodyResponse( c, StatusCode.Continue, "", false  ).when( isChunked && isContinue )
 
                 validate <- ZIO.effectTotal(
                              h.get(HttpRouter._METHOD)
