@@ -6,6 +6,8 @@ Embeded LRU eviction cache as ZIO env will be a part of upcoming release.
 
 # Update history.
 
+* DEV is 1.2-m1, everything now on ZStream, chunked encoding in/out support. ZStream conversion for http client is coming.
+
 * m9 release coming, with server stop(), header iterrator, log iterrator, pattern match on Channel -> Tls/Tcp Channel subclasses, 
   DDOS patch to block and log bad TLS handshakes, nio socket groups for HttpClient.
   
