@@ -6,7 +6,8 @@ https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-
 
 # Update history.
 
-* DEV is 1.2-m1, everything now on ZStream, chunked encoding in/out support. ZStream conversion for http client is coming.
+* DEV is 1.2-m1, everything now on ZStream, chunked encoding in/out support. ZStream conversion for http client is coming. 
+  All the documentation for 1.2 with ZIO streams is outdated now, this will be fixed.
 
 * 1.1.0-m8 release, with server stop(), header iterrator, log iterrator, pattern match on Channel -> Tls/Tcp Channel subclasses, 
   DDOS patch to block and log bad TLS handshakes.
