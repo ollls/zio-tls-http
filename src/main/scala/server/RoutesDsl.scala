@@ -5,7 +5,7 @@ import scala.util.Try
 import java.net.URI
 
 trait Path {
-  def / (child: String) = new /(this, child)
+  def / (child: String) = new URLPath(this, child)
   def toList: List[String]
 }
 
@@ -15,7 +15,7 @@ case object Root extends Path {
   override def toString = ""
 }
 
-final case class /(parent: Path, child: String) extends Path {
+final case class URLPath(parent: Path, child: String) extends Path {
   lazy val toList: List[String] = parent.toList ++ List(child)
 
   lazy val asString: String = s"$parent/$child"
@@ -42,22 +42,42 @@ object Path {
     res
   }
 
-  def apply(list: List[String]): Path =
-    list.foldLeft(Root: Path)(_ / _)
+  def apply(list: List[String]): Path = {
+    if (list.isEmpty) return Root
+    var res: Path = Root
+    list.foreach { seg =>
+      {
+        if (seg.isEmpty) res = Root
+        else res = res / seg
+      }
+    }
+    res
+  }
+}
 
+object / {
+
+  def unapply(path: Path): Option[(Path, String)] =
+    path match {
+      case URLPath(parent, child) =>
+        val p = child.indexOf('?')
+        Some(parent, if (p > 0) child.slice(0, p) else child)
+      case Root =>
+        Some(Root, "")
+    }
 }
 
 object -> {
 
   def unapply(req: Request): Option[(Method, Path)] =
     for {
-      method <- req.headers.get( HttpRouter._METHOD)
+      method <- req.headers.get(HttpRouter._METHOD)
 
-      path <- req.headers.get( HttpRouter._PATH)
+      path <- req.headers.get(HttpRouter._PATH)
 
       path_u <- Some(Path(new URI(path).toString)) //.getPath) )
 
-    } yield (( Method(method), path_u))
+    } yield ((Method(method), path_u))
 }
 
 object /: {

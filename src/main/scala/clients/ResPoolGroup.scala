@@ -104,6 +104,7 @@ object ResPoolGroup {
 
   //////////////////////////////////
   def makeM[R](
+    timeToLiveMs : Int,
     rpdm: RPDM[R]*
   )(implicit tagged: Tag[R]): ZLayer[zio.ZEnv with MyLogging, Nothing, Has[ResPoolGroup.Service[R]]] = {
 
@@ -122,7 +123,7 @@ object ResPoolGroup {
 
         def acquire(pool_id: String) =
           queues.find(_._1.name == pool_id) match {
-            case Some(q) => ResPool.acquire_wrapM(q._1.name, q._2, q._1.createRes, q._1.closeRes)
+            case Some(q) => ResPool.acquire_wrapM( timeToLiveMs, q._1.name, q._2, q._1.createRes, q._1.closeRes)
             case None    => ZIO.fail(new java.util.NoSuchElementException(s"ResPoolGroup pool_id: $pool_id not found"))
           }
 
@@ -137,7 +138,9 @@ object ResPoolGroup {
   }
 
   /////////////////////////////////
-  def make[R](rpd: RPD[R]*)(
+  def make[R](
+    timeToLiveMs : Int,
+    rpd: RPD[R]*)(
     implicit tagged: Tag[R]
   ): ZLayer[zio.ZEnv with MyLogging, Nothing, Has[ResPoolGroup.Service[R]]] = {
 
@@ -156,7 +159,7 @@ object ResPoolGroup {
 
         def acquire(pool_id: String) =
           queues.find(_._1.name == pool_id) match {
-            case Some(q) => ResPool.acquire_wrap(q._1.name, q._2, q._1.createRes, q._1.closeRes)
+            case Some(q) => ResPool.acquire_wrap( timeToLiveMs, q._1.name, q._2, q._1.createRes, q._1.closeRes)
             case None    => ZIO.fail(new java.util.NoSuchElementException(s"ResPoolGroup pool_id: $pool_id not found"))
           }
 

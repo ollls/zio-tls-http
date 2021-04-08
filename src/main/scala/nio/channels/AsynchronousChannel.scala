@@ -273,17 +273,10 @@ object AsynchronousSocketChannel {
       .map(new AsynchronousSocketChannel(_))
   }
 
-  def apply(channelGroup: AsynchronousChannelGroup): Managed[Exception, AsynchronousSocketChannel] = {
-    val open = IO
-      .effect(
-        JAsynchronousSocketChannel.open(channelGroup.channelGroup)
-      )
-      .refineOrDie {
-        case e: Exception => e
-      }
+   def apply( channelGroup: AsynchronousChannelGroup ): ZIO[ZEnv, Exception, AsynchronousSocketChannel] = {
+    IO.effect(JAsynchronousSocketChannel.open( channelGroup.channelGroup ))
+      .refineToOrDie[Exception]
       .map(new AsynchronousSocketChannel(_))
-
-    Managed.make(open)(_.close.orDie)
   }
 
   def apply(asyncSocketChannel: JAsynchronousSocketChannel): AsynchronousSocketChannel =

@@ -75,6 +75,8 @@ class Headers( tbl0 : HashMap[String, Set[String]] )
     def foreach( op : ( String, String ) => Unit ) : Unit =  
         tbl.foreach( kv => kv._2.foreach( a_val => op( kv._1, a_val ) ) )   
 
+    def iterator = tbl.iterator
+
     def printHeaders : String = {
          val ZT = new StringBuilder()
          

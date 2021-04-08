@@ -18,6 +18,9 @@ import zio.Chunk
 import MyLogging.MyLogging
 
 object param1 extends QueryParam("param1")
+object param2 extends QueryParam("param2")
+
+import zhttp.clients.util.SkipList
 
 
 object DataBlock {
@@ -32,14 +35,10 @@ case class DataBlock(val name: String, val address: String, val colors : Chunk[S
 
 object myServer extends zio.App {
 
-type MyEnv3 = MyLogging with Has[String]
 
-    val myHttp = new TLSServer[MyEnv3]
-    val myHttpRouter = new HttpRouter[MyEnv3]
+val sylo = new SkipList[ String ]  
 
-
-
-  HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok().hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
+  HttpRoutes.defaultFilter( (_) => ZIO( Response.Ok.hdr( "default_PRE_Filter" -> "to see me use print() method on headers") ) )
   HttpRoutes.defaultPostProc( r => r.hdr( "default_POST_Filter" -> "to see me check response in browser debug tool") )
 
   val ROOT_CATALOG = "/app/web_root"
@@ -110,7 +109,7 @@ type MyEnv3 = MyLogging with Has[String]
         req match {
           case GET -> Root =>
             for {
-              _ <- myHttpRouter.finishBodyLoadForRequest(req) //we need to finish reading to request.body for Raw Routes
+              _ <- HttpRouter.finishBodyLoadForRequest(req) //we need to finish reading to request.body for Raw Routes
               res <- ZIO(
                       Response
                         .Error(StatusCode.SeeOther)
@@ -120,17 +119,17 @@ type MyEnv3 = MyLogging with Has[String]
 
           //opens up everything under ROOT_CATALOG/web  
           case GET -> "web" /: _ =>
-            myHttpRouter.finishBodyLoadForRequest(req) *>
+            HttpRouter.finishBodyLoadForRequest(req) *>
               FileUtils.loadFile(req, ROOT_CATALOG)
 
           //opens up everythingunder ROOT_CATALOG/web2    
           case GET -> Root / "web2" / _ =>
-            myHttpRouter.finishBodyLoadForRequest(req) *>
+            HttpRouter.finishBodyLoadForRequest(req) *>
               FileUtils.loadFile(req, ROOT_CATALOG)
 
           //zio documentation is here    
           case GET -> "zio_doc" /: _ =>
-            myHttpRouter.finishBodyLoadForRequest(req) *>
+            HttpRouter.finishBodyLoadForRequest(req) *>
               FileUtils.loadFile(req, ROOT_CATALOG)
 
           //how to write file to disk, without prefetching it to memory     
@@ -153,8 +152,15 @@ type MyEnv3 = MyLogging with Has[String]
 
     val app_route_JSON = HttpRoutes.ofWithFilter(proc1) { 
 
-       case GET -> Root / "test2" =>
-         ZIO(Response.Ok.asTextBody( "Health Check" ) )
+       case POST -> Root / "container" / StringVar( name ) =>
+               sylo.u_add( name ).map( b => Response.Ok.asTextBody( b.toString()) )
+
+       case GET -> Root / "container" =>
+               ZIO(Response.Ok.asTextBody( sylo.debug_print( new StringBuilder ).toString + "\n\n" + sylo.debug_print_layers( new StringBuilder).toString ) )
+
+       case DELETE -> Root / "container" / StringVar( name ) =>
+               sylo.u_remove( name ).map( b => Response.Ok.asTextBody( b.toString())  )
+               //ZIO(Response.Ok.asTextBody( sylo.remove( name ).toString ) )        
 
         
        case GET -> Root / "test" =>
@@ -173,9 +179,21 @@ type MyEnv3 = MyLogging with Has[String]
       {
         req match {
 
+          case req @ GET -> Root / "health" =>  ZIO( Response.Ok.asTextBody( "Health Check is OK") ) 
+
+          case req @ GET -> Root / "app" / StringVar( userId1 ) / "get" =>  ZIO( Response.Ok.asTextBody( userId1) ) 
+
           case req @ POST -> Root / "app" / "update" =>
                println(  req.bodyAsText + "\n\n" + req.headers.printHeaders ) 
                ZIO( Response.Ok ) 
+
+          case  req @ GET -> Root / "complex_param" =>
+               val q = Option( req.uri.getQuery() )
+               ZIO( Response.Ok.asTextBody( "java.URL.getQuery() returns: " + q.getOrElse("empty string")  ) )
+
+          case  req @ GET -> Root / "hello" / "1" / "2" /"user2"  :?  param1( test ) :? param2( test2 ) =>
+          //var queryString = req.uri.getQuery()
+          ZIO( Response.Ok.asTextBody(  "param1=" + test + "  " + "param2=" + test2 ) )     
 
           case GET -> Root / "hello" / "user" / StringVar(userId) :? param1(par) =>
             val headers = Headers("procid" -> "header_value_from_server", "Content-Type" -> ContentType.Plain.toString)
@@ -210,30 +228,33 @@ type MyEnv3 = MyLogging with Has[String]
       }
     }
 
-    //app routes
-    myHttpRouter.addAppRoute( app_route_cookies_and_params )
-    myHttpRouter.addAppRoute( app_route_JSON )
-    myHttpRouter.addAppRoute(app_route_pre_post_filters )
 
-    myHttpRouter.addChannelRoute( document_server )
-    myHttpRouter.addChannelRoute( route_with_filter )
 
-    myHttpRouter.addAppRoute( ws_route2 )
+  type MyEnv3 = MyLogging with Has[String]
+
+  val myHttp = new TLSServer[MyEnv3]( port = 8084, 
+                                      keepAlive = 4000, 
+                                      serverIP = "0.0.0.0", 
+                                      keystore = "keystore.jks", "password", 
+                                      tlsVersion = "TLSv1.2" )
+ 
+
+  val myHttpRouter = new HttpRouter[MyEnv3](  
+    /* normal app routes */
+    List( app_route_cookies_and_params, 
+          app_route_JSON, 
+          app_route_pre_post_filters, ws_route2  ),
+    /* channel ( file server) routes */      
+    List( document_server, route_with_filter) )
 
 
     val AttributeLayer = ZIO.succeed( "flag#1-1").toLayer
 
-    //server
-    myHttp.KEYSTORE_PATH = "keystore.jks"
-    myHttp.KEYSTORE_PASSWORD = "password"
-    myHttp.TLS_PROTO = "TLSv1.2"         //default TLSv1.2 in JDK8
-    myHttp.BINDING_SERVER_IP = "0.0.0.0" //make sure certificate has that IP on SAN's list
-    myHttp.KEEP_ALIVE = 2000             //ms, good if short for testing with broken site's snaphosts with 404 pages
-    myHttp.SERVER_PORT = 8084
 
     myHttp
       .run(myHttpRouter.route)
-      .provideSomeLayer[ZEnv with MyLogging]( AttributeLayer).provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info )))
+      .provideSomeLayer[ZEnv with MyLogging]( AttributeLayer)
+      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Info), ("access" -> LogLevel.Info )) )
       .exitCode
   }
 }

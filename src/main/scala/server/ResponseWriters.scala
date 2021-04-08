@@ -19,7 +19,7 @@ object ResponseWriters {
     msg: String,
     close: Boolean
   ): ZIO[ZEnv, Exception, Int] =
-    c.write(Chunk.fromArray(genResponse(code, msg, close).getBytes()))
+    Channel.write(c, Chunk.fromArray(genResponse(code, msg, close).getBytes()))
 
   ////////////////////////////////////////////////////////////////////////////
   def writeFullResponse(
@@ -29,16 +29,16 @@ object ResponseWriters {
     msg: String,
     close: Boolean
   ): ZIO[ZEnv, Exception, Int] =
-    c.write(Chunk.fromArray(genResponseFromResponse(rs, code, msg, close).getBytes()))
+    Channel.write(c, Chunk.fromArray(genResponseFromResponse(rs, code, msg, close).getBytes()))
 
   def writeResponseMethodNotAllowed(c: Channel, allow: String): ZIO[ZEnv, Exception, Int] =
-    c.write(Chunk.fromArray(genResponseMethodNotAllowed(allow).getBytes()))
+    Channel.write(c, Chunk.fromArray(genResponseMethodNotAllowed(allow).getBytes()))
 
   def writeResponseUnsupportedMediaType(c: Channel): ZIO[ZEnv, Exception, Int] =
-    c.write(Chunk.fromArray(genResponseUnsupportedMediaType().getBytes()))
+    Channel.write(c, Chunk.fromArray(genResponseUnsupportedMediaType().getBytes()))
 
   def writeResponseRedirect(c: Channel, location: String): ZIO[ZEnv, Exception, Int] =
-    c.write(Chunk.fromArray(genResponseRedirect(location).getBytes()))
+    Channel.write(c, Chunk.fromArray(genResponseRedirect(location).getBytes()))
 
   ///////////////////////////////////////////////////////////
   //chunkSize = tls app packet max len
@@ -57,14 +57,15 @@ object ResponseWriters {
       fpm = effectBlocking(new FileInputStream(fpath)).toManaged(fp => ZIO.effect(fp.close).catchAll(_ => IO.unit))
 
       _ <- fpm.use { fp =>
-            c.write(Chunk.fromArray(header.getBytes)) *> (effectBlocking(fp.read(buf))
+            Channel.write(c, Chunk.fromArray(header.getBytes)) *> (effectBlocking(fp.read(buf))
               .flatMap { nBytes =>
                 {
                   if (nBytes > 0) {
-                    c.write(Chunk.fromArray(buf).take(nBytes)) *> IO.succeed(nBytes)
+                    Channel.write(c, Chunk.fromArray(buf).take(nBytes)) *> IO.succeed(nBytes)
                   } else IO.succeed(nBytes)
                 }
-              }).repeat(zio.Schedule.recurWhile(_ > 0))
+              })
+              .repeat(zio.Schedule.recurWhile(_ > 0))
           }
 
     } yield ()
@@ -193,7 +194,6 @@ object ResponseWriters {
     r.toString()
   }
 
-  
   //////////////////////////////////////////////////////////////////////////////
   private def genResponseContentTypeFileHeader(fpath: String, cont_type: String): String = {
     val dfmt = new java.text.SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
