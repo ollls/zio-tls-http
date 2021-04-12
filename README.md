@@ -9,6 +9,8 @@ https://github.com/ollls/zio-tls-http/blob/dev/examples/start/src/main/scala/MyS
 
 # Update history.
 
+* HttpClient on ZStream, file streaming, data streaming with chunked encoding support in and out.  
+
 * DEV is 1.2-m1, everything now on ZStream, chunked encoding in/out support. ZStream conversion for http client is coming. 
   All the documentation for 1.2 with ZIO streams is outdated now, this will be fixed.
 
