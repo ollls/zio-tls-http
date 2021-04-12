@@ -23,17 +23,7 @@ object HttpRouter {
   val _METHOD = "%%%http_method%%%"
   val _PATH   = "%%%http_path%%%"
   val _PROTO  = "%%%http_protocol%%%"
-}
 
-class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]) {
-
-  def this(rt: HttpRoutes[R]*) = {
-    this(rt.toList)
-  }
-
-  //TODO enforce those !!!!
-  //val HTTP_HEADER_SZ          = 8096 * 2
-  //val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100
 
   /*****************************************************************/
   //So the last chunk and 2 trailing headers might look like this:
@@ -44,7 +34,6 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
   def chunkedDecode: ZTransducer[Any, Nothing, Byte, Chunk[Byte]] = {
 
     def parseTrail(in: Chunk[Byte], pos: Int): Boolean = {
-      //not enough data to close
       if (in.size - pos < 4) return false //more data
       if (in(pos) == '\r' && in(pos + 1) == '\n') {
 
@@ -153,6 +142,21 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     }
   }
 
+
+
+}
+
+class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]) {
+
+  def this(rt: HttpRoutes[R]*) = {
+    this(rt.toList)
+  }
+
+  //TODO enforce those !!!!
+  //val HTTP_HEADER_SZ          = 8096 * 2
+  val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100 //104 MB
+
+  
   def route(c: Channel): ZIO[ZEnv with R, Exception, Unit] =
     route_do(c).forever.catchAll(ex => {
       ex match {
@@ -224,7 +228,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
 
               val T = for {
                 h <- hdrs
-
+                //_ <- ZIO( println( h.printHeaders ) )
                 isChunked <- ZIO.effectTotal(h.getMval("transfer-encoding").exists(_.equalsIgnoreCase("chunked")))
                 isContinue <- ZIO.effectTotal( h.get( "Expect").getOrElse("").equalsIgnoreCase( "100-continue" ) )
                 _          <- ResponseWriters.writeNoBodyResponse( c, StatusCode.Continue, "", false  ).when( isChunked && isContinue )
@@ -240,12 +244,12 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
 
                 //validate content-len
                 //contentLenL <- ZIO.fromTry(Try(contentLen.toLong))
-                //_ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
+                _ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
 
                 stream <- if (isChunked)
                            ZIO.effect(
                              body_stream
-                               .aggregate(chunkedDecode)
+                               .aggregate( HttpRouter.chunkedDecode)
                                .collectWhile(new PartialFunction[Chunk[Byte], Chunk[Byte]] {
                                  def apply(v1: Chunk[Byte]): Chunk[Byte]  = v1
                                  def isDefinedAt(x: Chunk[Byte]): Boolean = !x.isEmpty
@@ -254,8 +258,8 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                          else
                            ZIO.effect(
                              body_stream
-                               .take(contentLenL)
-                               .grouped(Int.MaxValue) //this will be configurable
+                               .take(contentLenL).mapChunks( c => Chunk.single( c ))
+                               //.grouped(Int.MaxValue) //this will be configurable
                            )
 
                 req <- ZIO.effect(Request(h, stream, c)).refineToOrDie[Exception]
@@ -309,7 +313,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     resp: Response
   ): ZIO[ZEnv with R, Exception, Int] =
     if (resp.raw_stream == true) {
-      resp.body.foreach(chunk => { Channel.write(ch, chunk) }).refineToOrDie[Exception] *>
+      resp.stream.foreach(chunk => { Channel.write(ch, chunk) }).refineToOrDie[Exception] *>
         ZIO.succeed(0)
     } else {
 
@@ -318,15 +322,14 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
       val status   = resp.code
 
       if (resp.isChunked) {
-        Logs.log_access(req, status, 0).refineToOrDie[Exception] *>
+        Logs.log_access(req, status, 0, "chunked" ).refineToOrDie[Exception] *>
           ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
       } else
         (for {
-          body <- resp.body.flatMap(c => ZStream.fromChunk(c)).runCollect
-
+          body <- resp.stream.flatMap( c => { ZStream.fromChunk(c) }).runCollect
           res <- status match {
                   case StatusCode.OK =>
-                    ResponseWriters.writeFullResponse(ch, resp, resp.code, new String(body.toArray), false)
+                    ResponseWriters.writeFullResponseBytes(ch, resp, resp.code, body, false)
                   case StatusCode.SeeOther => ResponseWriters.writeResponseRedirect(ch, new String(body.toArray))
                   case StatusCode.MethodNotAllowed =>
                     ResponseWriters.writeResponseMethodNotAllowed(ch, new String(body.toArray))
@@ -336,7 +339,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                     ResponseWriters.writeNoBodyResponse(ch, StatusCode.UnsupportedMediaType, "", true)
                   case _ => ResponseWriters.writeNoBodyResponse(ch, status, new String(body.toArray), true)
                 }
-          _ <- Logs.log_access(req, status, body.size)
+          _ <- Logs.log_access(req, status, body.size )
 
         } yield (0)).refineToOrDie[Exception]
 

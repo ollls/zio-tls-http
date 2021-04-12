@@ -244,7 +244,7 @@ object MyLogging {
 
 object Logs {
 
-  def log_access(req: Request, status: StatusCode, bodySize: Int) = {
+  def log_access(req: Request, status: StatusCode, bodySize: Int, msg : String = "") = {
     val addr = Channel.remoteAddress(req.ch).flatMap {
       case None    => IO.effect("???")
       case Some(a) => IO.effect(a.toInetSocketAddress.hostString)
@@ -256,14 +256,14 @@ object Logs {
         addrStr + " " + "\""
           + req.method + " "
           + req.uri.toString + "\"" + " "
-          + status.value + " " + bodySize
+          + status.value + " " + msg + " " + bodySize
       ) *> //duplicate to console if trace
         MyLogging.trace(
           "console",
           addrStr + " " + "\""
             + req.method + " "
             + req.uri.toString + "\"" + " "
-            + status.value + " " + bodySize
+            + status.value + " " + msg + " " + bodySize
         )
 
     }

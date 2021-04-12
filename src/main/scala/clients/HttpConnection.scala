@@ -5,8 +5,9 @@ import zio.ZEnv
 import zio.Chunk
 import zio.blocking.effectBlocking
 import zio.json._
-import scala.io.Source
-import scala.util.Try
+import zio.stream.ZStream
+import zio.stream.ZSink
+import zio.stream.ZTransducer
 
 import zhttp.{ Channel, TcpChannel, TlsChannel }
 import zhttp.Method
@@ -20,6 +21,7 @@ import nio.channels.AsynchronousSocketChannel
 import nio.channels.AsynchronousChannelGroup
 import java.security.KeyStore
 import zhttp.Headers
+import zhttp.HttpRouter
 import zhttp.ContentType
 import zhttp.Cookie
 import zhttp.MyLogging
@@ -32,22 +34,33 @@ import java.security.cert.X509Certificate
 import java.io.FileInputStream
 import java.io.File
 
-
 sealed case class HttpConnectionError(msg: String)     extends Exception(msg)
 sealed case class HttpResponseHeaderError(msg: String) extends Exception(msg)
 
-case class ClientResponse(val hdrs: Headers, val code: StatusCode, body: Chunk[Byte]) {
+case class ClientResponse(
+  val hdrs: Headers,
+  val code: StatusCode,
+  val stream: ZStream[ZEnv, Throwable, Chunk[Byte]] = ZStream.empty
+) {
   def protocol    = hdrs.get("%prot").getOrElse("")
   def httpString  = code.toString + " " + hdrs.get("%message").getOrElse("")
   def isKeepAlive = hdrs.get("Connection").getOrElse("").equalsIgnoreCase("keep-alive")
 
-  def asText: String = new String(body.toArray)
+  def body = stream.runCollect.map(_.flatten)
 
-  def asObjfromJSON[A: JsonDecoder]: A =
-    new String(body.toArray).fromJson[A] match {
-      case Right(v) => v
-      case Left(v)  => throw new HttpConnectionError(s"JSON schema error: $v")
-    }
+  def bodyAsText: ZIO[ZEnv, Throwable, String] =
+    for {
+      b <- body
+      a <- ZIO.effect(new String(b.toArray))
+    } yield (a)
+
+  def fromJSON[A: JsonDecoder] =
+    for {
+      b <- body
+      obj <- ZIO.effect {
+              new String(b.toArray).fromJson[A]
+            }
+    } yield (obj)
 
   //TODO - parse cookie to model.Cookie
   def cookie = hdrs.getMval("Set-Cookie")
@@ -57,30 +70,45 @@ case class ClientRequest(
   val method: Method,
   val path: String,
   val hdrs: Headers = Headers(),
-  val body: Option[Chunk[Byte]] = None
+  val stream: ZStream[ZEnv, Throwable, Chunk[Byte]] = ZStream.empty
 ) {
 
-  def body(data: Chunk[Byte]): ClientRequest = ClientRequest(this.method, this.path, this.hdrs, Some(data))
+  def body(stream: ZStream[ZEnv, Throwable, Chunk[Byte]]): ClientRequest =
+    ClientRequest(this.method, this.path, this.hdrs, stream)
 
   def asJsonBody[B: JsonEncoder](body0: B): ClientRequest = {
-    val json = body0.toJson.getBytes
-    body(Chunk.fromArray(json)).contentType(ContentType.JSON)
+    val zs0 = ZStream(Chunk.fromArray(body0.toJson.getBytes))
+    body(zs0).contentType(ContentType.JSON)
   }
 
-  def asTextBody(body0: String): ClientRequest =
-    body(Chunk.fromArray(body0.getBytes)).contentType(ContentType.Plain)
+  def asTextBody(body0: String): ClientRequest = {
+    val zs0 = ZStream(Chunk.fromArray(body0.getBytes))
+    body(zs0).contentType(ContentType.Plain)
+  }
 
-  def hdr(hdr: Headers): ClientRequest = new ClientRequest(this.method, this.path, hdrs ++ hdr, this.body)
+  def hdr(hdr: Headers): ClientRequest = new ClientRequest(this.method, this.path, hdrs ++ hdr, this.stream)
 
-  def hdr(pair: (String, String)) = new ClientRequest(this.method, this.path, hdrs + pair, this.body)
+  def hdr(pair: (String, String)) = new ClientRequest(this.method, this.path, hdrs + pair, this.stream)
 
   def contentType(type0: ContentType) =
-    new ClientRequest(this.method, this.path, hdrs + ("content-type" -> type0.toString()), this.body)
+    new ClientRequest(this.method, this.path, hdrs + ("content-type" -> type0.toString()), this.stream)
 
   def cookie(cookie: Cookie) = {
     val pair = ("cookie" -> cookie.toString())
-    new ClientRequest(this.method, this.path, hdrs + pair, this.body)
+    new ClientRequest(this.method, this.path, hdrs + pair, this.stream)
   }
+
+  def isChunked: Boolean = transferEncoding().exists(_.equalsIgnoreCase("chunked"))
+
+  def transferEncoding(): Set[String] = hdrs.getMval("transfer-encoding")
+
+  def transferEncoding(vals0: String*): ClientRequest =
+    new ClientRequest(
+      this.method,
+      this.path,
+      vals0.foldLeft(this.hdrs)((h, v) => h + ("transfer-encoding" -> v)),
+      this.stream
+    )
 
 }
 
@@ -151,7 +179,7 @@ object HttpConnection {
   private def connectSSL(
     host: String,
     port: Int,
-    group : AsynchronousChannelGroup,
+    group: AsynchronousChannelGroup,
     blindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
@@ -161,7 +189,7 @@ object HttpConnection {
       ssl_ctx <- if (trustKeystore == null && blindTrust == false)
                   effectBlocking(SSLContext.getDefault()).refineToOrDie[Exception]
                 else buildSSLContextM(TLS_PROTOCOL_TAG, trustKeystore, password)
-      ch      <- if ( group == null ) AsynchronousSocketChannel() else AsynchronousSocketChannel( group )
+      ch     <- if (group == null) AsynchronousSocketChannel() else AsynchronousSocketChannel(group)
       _      <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
       tls_ch <- AsynchronousTlsByteChannel(ch, ssl_ctx)
     } yield (tls_ch)
@@ -172,21 +200,20 @@ object HttpConnection {
   private def connectPlain(
     host: String,
     port: Int,
-    group : AsynchronousChannelGroup,
+    group: AsynchronousChannelGroup
   ): ZIO[zio.ZEnv, Exception, Channel] = {
     val T = for {
       address <- SocketAddress.inetSocketAddress(host, port)
-      ch      <- if ( group == null ) AsynchronousSocketChannel() else AsynchronousSocketChannel( group )
+      ch      <- if (group == null) AsynchronousSocketChannel() else AsynchronousSocketChannel(group)
       _       <- ch.connect(address).mapError(e => HttpConnectionError(e.toString))
     } yield (ch)
 
     T.map(c => new TcpChannel(c)).refineToOrDie[Exception]
   }
 
-
   def connect(
     url: String,
-    socketGroup : AsynchronousChannelGroup = null,
+    socketGroup: AsynchronousChannelGroup = null,
     tlsBlindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
@@ -195,7 +222,7 @@ object HttpConnection {
 
   def connectWithFilter(
     url: String,
-    socketGroup : AsynchronousChannelGroup,
+    socketGroup: AsynchronousChannelGroup,
     filter: ClientRequest => ZIO[ZEnv with MyLogging, Throwable, ClientRequest],
     tlsBlindTrust: Boolean = false,
     trustKeystore: String = null,
@@ -212,7 +239,7 @@ object HttpConnection {
        ss
      } else
        throw new Exception("HttpConnection: Unsupported scheme - " + u.getScheme()))
-      .catchAll(e => ZIO.fail(new HttpConnectionError(url + " " + e.toString())))
+      .catchAll(e => ZIO.fail(new HttpConnectionError(url + " " + e.getMessage )))
   }
 }
 
@@ -240,105 +267,156 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
       resChunk <- if (pos < 0) read_http_header(hdr_size, cb ++ nextChunk) else ZIO.effectTotal(cb ++ nextChunk)
     } yield (resChunk)
 
-  private def getHTTPResponse = {
-    val result = for {
-      headerChunk <- read_http_header(HttpConnection.HTTP_HEADER_SZ)
-      source      <- ZIO.effect(Source.fromBytes(headerChunk.toArray))
-      _           <- ZIO.effect(source.withPositioning(true))
-      lines       <- ZIO.effect(source.getLines())
-      _ <- if (lines.hasNext == false) ZIO.fail(new HttpResponseHeaderError("no data"))
-          else ZIO.succeed(0).unit
+  private def getHTTPResponse2 = {
+    val http_line   = raw"(HTTP/.+)\s+(\d{3}+)(.*)".r
+    val header_pair = raw"(.{2,100}):\s+(.+)".r
+    val rd_stream   = ZStream.repeatEffect(Channel.read(ch)).flatMap(ZStream.fromChunk(_))
+    val r = rd_stream.peel(ZSink.fold(Chunk[Byte]()) { c =>
+      !c.endsWith("\r\n\r\n")
+    }((z, i: Byte) => z :+ i))
 
-      http_line = raw"(HTTP/.+)\s+(\d{3}+)(.*)".r
+    for {
+      response <- r.use {
+                   case (header_bytes, body_stream) =>
+                     val strings =
+                       ZStream.fromChunk(header_bytes).aggregate(ZTransducer.usASCIIDecode >>> ZTransducer.splitLines)
+                     val hdrs = strings.fold(Headers())((hdrs, line) => {
+                       line match {
+                         case http_line(prot, code, emsg) =>
+                           hdrs ++ Headers("%prot" -> prot, "%code" -> code, "%message" -> emsg)
+                         case header_pair(attr, value) => hdrs + (attr.toLowerCase -> value)
+                         case _                        => hdrs
+                       }
+                     })
 
-      headers0 <- lines.next match {
-                   case http_line(prot, code, emsg) =>
-                     ZIO.effectTotal(Headers("%prot" -> prot, "%code" -> code, "%message" -> emsg))
-                   case _ => ZIO.fail(new HttpResponseHeaderError("bad response"))
+                     for {
+                       h <- hdrs
+                       isChunked <- ZIO.effectTotal(
+                                     h.getMval("transfer-encoding").exists(_.equalsIgnoreCase("chunked"))
+                                   )
+                       validate <- ZIO.effectTotal(
+                                    h.get("%prot")
+                                      .flatMap(_ => h.get("%code").flatMap(_ => h.get("%message")))
+                                  )
+                       _ <- if (validate.isDefined) ZIO.unit
+                           else ZIO.fail(new HttpResponseHeaderError("Invalid http response"))
+
+                       contentLen  <- ZIO.effectTotal(h.get("content-length").getOrElse("0"))
+                       contentLenL <- ZIO.fromTry(scala.util.Try(contentLen.toLong)).refineToOrDie[Exception]
+                       code        <- ZIO.effectTotal(h.get("%code").get)
+
+                       code_i <- ZIO.fromTry(scala.util.Try(code.toInt))
+
+                       stream <- if (isChunked)
+                                  ZIO.effect(
+                                    body_stream
+                                      .aggregate(HttpRouter.chunkedDecode)
+                                      .collectWhile(new PartialFunction[Chunk[Byte], Chunk[Byte]] {
+                                        def apply(v1: Chunk[Byte]): Chunk[Byte]  = v1
+                                        def isDefinedAt(x: Chunk[Byte]): Boolean = !x.isEmpty
+                                      })
+                                  )
+                                else
+                                  ZIO.effect(
+                                    body_stream
+                                          .take(contentLenL).mapChunks( c => Chunk.single(c) )  
+                                  )
+
+                     } yield (new ClientResponse(h, StatusCode(code_i), stream))
 
                  }
 
-      attribute_pair = raw"(.{2,100}):\s+(.+)".r
-
-      headers <- ZIO.effect {
-                  lines
-                    .takeWhile(!_.isEmpty)
-                    .foldLeft(headers0)((map, line) => {
-
-                      line match {
-                        case attribute_pair(attr, value) => map + (attr.toLowerCase -> value)
-                      }
-
-                    })
-                }
-
-      pos0 = new String(headerChunk.toArray).indexOf("\r\n\r\n")
-      pos  = pos0 + 4
-
-      contentLen <- if (pos0 == -1) ZIO.fail(new HttpResponseHeaderError("bad response(2)"))
-                   else
-                     ZIO.effect {
-                       headers.get("content-length").getOrElse("0")
-                     }
-
-      contentLenL <- ZIO.fromTry(Try(contentLen.toLong))
-
-      _ <- if (contentLenL > HttpConnection.MAX_ALLOWED_CONTENT_LEN)
-            ZIO.fail(new HttpResponseHeaderError("content len too big"))
-          else ZIO.unit
-
-      bodyChunk <- rd_proc(contentLen.toInt, headerChunk.drop(pos))
-
-    } yield (ClientResponse(headers, StatusCode(headers.get("%code").get.toInt), bodyChunk))
-
-    result
+    } yield (response)
   }
 
+ 
   def close = Channel.close(ch)
 
+  def send(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] =
+    for {
+      req0 <- filter.run(req)
+      response <- if (req.isChunked) sendChunked(req0)
+                 else sendBody(req0)
+
+    } yield (response)
+
   ///////////////////////////////////////////////////////////////
-  def send(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
+  private def sendChunked(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
 
-    def parseRequest(req: ClientRequest) = ZIO.effect {
-
-      val b = req.body.getOrElse(Chunk[Byte]())
+    def genRequestChunked(resp: ClientRequest): String = {
+      val dfmt = new java.text.SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
+      dfmt.setTimeZone(java.util.TimeZone.getTimeZone("GMT"))
       val r = new StringBuilder
+      r ++= req.method.name + " " + req.path + " " + "HTTP/1.1" + CRLF
+      r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT" + CRLF
+      r ++= "User-Agent: " + HttpConnection.CLIENT_TAG + CRLF
+      resp.hdrs.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
+      r ++= CRLF
 
+      println( r.toString() )
+      r.toString()
+    }
+
+    val stream = req.stream
+    val header = ZStream(genRequestChunked(req)).map(str => Chunk.fromArray(str.getBytes()))
+
+    val s0  = stream.map(c => (c.size.toHexString -> c.appended[Byte](('\r')).appended[Byte]('\n')))
+    val s1  = s0.map(c => (Chunk.fromArray((c._1 + CRLF).getBytes()) ++ c._2))
+    val zs  = ZStream(Chunk.fromArray(("0".toString + CRLF + CRLF).getBytes))
+    val res = header ++ s1 ++ zs
+
+    (for {
+      _        <- res.foreach(chunk0 => { Channel.write(ch, chunk0) } )
+      response <- getHTTPResponse2
+      _ <- MyLogging.debug(
+            "client",
+            "http <<<: " + "http code = " + response.httpString + " " +
+              "bytes = " + req.transferEncoding.mkString(",")
+              //with stream only client can evaluate the text, can't log text here
+              //+ " text = " + text
+              //.substring(0, if (text.length() < 30) text.length() else 30)
+              //.replace("\n", "") + " ... "
+          )
+    } yield (response)).catchAll(e => ZIO.fail(new HttpConnectionError(e.toString())))
+
+  }
+
+  ///////////////////////////////////////////////////////////////
+  private def sendBody(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
+
+    def parseRequest(req: ClientRequest, bodySize: Int) = ZIO.effectTotal {
+      val r = new StringBuilder
       r ++= req.method.name + " " + req.path + " " + "HTTP/1.1" + CRLF
       r ++= "User-Agent: " + HttpConnection.CLIENT_TAG + CRLF
       r ++= "Host: " + uri.getHost() + CRLF
       r ++= "Accept: */*" + CRLF
-      r ++= "Content-Length: " + b.size + CRLF
-
+      r ++= "Content-Length: " + bodySize + CRLF
       req.hdrs.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
-
       r ++= CRLF
     }
 
     (for {
-      //potentially blocking, if you need to talk to OAUTH2 to propagate headers ...
-      req0 <- filter.run(req)
-      r    <- parseRequest(req0)
-
-      //_ <- ZIO( println( r ) )
+      body <- req.stream.flatMap(chunk => ZStream.fromChunk(chunk)).runCollect
+      r    <- parseRequest(req, body.size)
 
       _ <- Channel.write(ch, Chunk.fromArray(r.toString.getBytes))
 
-      _ <- MyLogging.debug("client", "http >>>: " + req0.method + "  " + this.uri.toString() + " ;path = " + req.path)
+      _ <- MyLogging.debug("client", "http >>>: " + req.method + "  " + this.uri.toString() + " ;path = " + req.path)
 
-      _ <- if (req.body.isDefined) Channel.write(ch, req.body.get) else ZIO.unit
+      _ <- if (body.isEmpty == false) Channel.write(ch, body) else ZIO.unit
 
-      data <- getHTTPResponse
-
+      response <- getHTTPResponse2
+     
       _ <- MyLogging.debug(
             "client",
-            "http <<<: " + "http code = " + data.httpString + " " +
-              "bytes = " + data.hdrs.get("content-length").getOrElse(0) + " text = " + data.asText
-              .substring(0, if (data.asText.length() < 30) data.asText.length() else 30)
-              .replace("\n", "") + " ... "
+            "http <<<: " + "http code = " + response.httpString + " " +
+              "bytes = " + response.hdrs.get("content-length").getOrElse(0) 
+              //with stream only client can evaluate the text, can't log text here
+              //+ " text = " + "text"
+              //.substring(0, if ("text".length() < 30) "text".length() else 30)
+              //.replace("\n", "") + " ... "
           )
 
-    } yield (data)).catchAll(e => ZIO.fail(new HttpConnectionError(e.toString())))
-
+    } yield (response)).catchAll(e => ZIO.fail(new HttpConnectionError(e.toString())))
   }
 }

@@ -62,17 +62,17 @@ object NoResponse extends Response(StatusCode.NotImplemented, null)
 sealed case class Response(
   code: StatusCode,
   headers: Headers,
-  body: ZStream[ZEnv, Throwable, Chunk[Byte]] = ZStream.empty,
+  stream: ZStream[ZEnv, Throwable, Chunk[Byte]] = ZStream.empty,
   raw_stream: Boolean = false
 ) {
 
-  def hdr(hdr: Headers): Response = new Response(this.code, this.headers ++ hdr, this.body)
+  def hdr(hdr: Headers): Response = new Response(this.code, this.headers ++ hdr, this.stream)
 
-  def hdr(pair: (String, String)) = new Response(this.code, this.headers + pair, this.body)
+  def hdr(pair: (String, String)) = new Response(this.code, this.headers + pair, this.stream)
 
   def cookie(cookie: Cookie) = {
     val pair = ("Set-Cookie" -> cookie.toString())
-    new Response(this.code, this.headers + pair, this.body)
+    new Response(this.code, this.headers + pair, this.stream)
   }
 
   def asStream(s0: ZStream[ZEnv, Throwable, Chunk[Byte]]) = new Response(this.code, this.headers, s0)
@@ -87,19 +87,19 @@ sealed case class Response(
     new Response(this.code, this.headers, s0).contentType(ContentType.JSON)
   }
 
-  def asJsonStream[B: JsonEncoder](objs: Chunk[B]) = {
+  def asJsonStream[B: JsonEncoder](objs: Chunk[B]) : Response = {
     val s0 = ZStream.fromChunk(objs).map(obj => Chunk.fromArray(obj.toJson.getBytes()))
     new Response(this.code, this.headers, s0).contentType(ContentType.JSON)
   }
 
-  def contentType(type0: ContentType) =
-    new Response(this.code, this.headers + ("content-type" -> type0.toString()), this.body)
+  def contentType(type0: ContentType) : Response =
+    new Response(this.code, this.headers + ("content-type" -> type0.toString()), this.stream)
 
-  def isChunked = transferEncoding.exists(_.equalsIgnoreCase("chunked"))
+  def isChunked : Boolean = transferEncoding.exists(_.equalsIgnoreCase("chunked"))
 
-  def transferEncoding = headers.getMval("transfer-encoding")
+  def transferEncoding() : Set[String] = headers.getMval("transfer-encoding")
 
-  def transferEncoding(vals0: String*) =
-    new Response(this.code, vals0.foldLeft(this.headers)((h, v) => h + ("transfer-encoding" -> v)), this.body)
+  def transferEncoding(vals0: String*) : Response =
+    new Response(this.code, vals0.foldLeft(this.headers)((h, v) => h + ("transfer-encoding" -> v)), this.stream)
 
 }

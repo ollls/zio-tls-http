@@ -14,6 +14,7 @@ import Method._
 
 import zio.json._
 import zio.Chunk
+import zio.stream.ZStream
 
 import MyLogging.MyLogging
 
@@ -33,7 +34,6 @@ case class DataBlock(val name: String, val address: String, val colors: Chunk[St
 
 object myServer extends zio.App {
 
-
   val sylo = new SkipList[String]
 
   HttpRoutes.defaultFilter(
@@ -41,7 +41,7 @@ object myServer extends zio.App {
   )
   HttpRoutes.defaultPostProc(r => r.hdr("default_POST_Filter" -> "to see me check response in browser debug tool"))
 
-  val ROOT_CATALOG = "/Users/user/web_root"
+  val ROOT_CATALOG = "/Users/ostry/MyProjects"
 
   //pre proc examples, aka web filters
   val proc0 = WebFilterProc((_) => ZIO(Response.Error(StatusCode.NotImplemented)))
@@ -137,7 +137,7 @@ object myServer extends zio.App {
 
       case req @ POST -> Root / "test" =>
         for {
-          _  <- ZIO( println( "ssssssss") )
+          _  <- ZIO(println("ssssssss"))
           db <- req.fromJSON[DataBlock]
         } yield (Response.Ok.asTextBody(s"JSON for ${db.name} accepted"))
 
@@ -181,20 +181,29 @@ object myServer extends zio.App {
                 .asTextBody(s"$userId with para1 $par")
             )
 
-          case req @ GET -> Root / "files" / StringVar( filename ) => 
+          case req @ GET -> Root / "files" / StringVar(filename) =>
+            for {
+              stream <- FileUtils.httpFileStream(req, ROOT_CATALOG)
+            } yield (Response.raw_stream(stream))
 
-          for {
-              stream <- FileUtils.httpFileStream( req, ROOT_CATALOG )
-          } yield( Response.raw_stream( stream ) )
-          
-       
+          case GET -> Root / "files2" / "chunked" / StringVar(filename) =>
+            for {
+              // _   <- ZIO( println(" >>>> " + ROOT_CATALOG + "/" + filename ))
+              str <- ZIO(ZStream.fromFile(java.nio.file.Paths.get(ROOT_CATALOG + "/" + filename), 16000).grouped(16000))
+            } yield (Response.Ok().asStream(str).transferEncoding("chunked"))
+
+          case GET -> Root / "files2" / StringVar(filename) =>
+            for {
+              // _   <- ZIO( println(" >>>> " + ROOT_CATALOG + "/" + filename ))
+              str <- ZIO(ZStream.fromFile(java.nio.file.Paths.get(ROOT_CATALOG + "/" + filename), 16000).grouped(16000))
+            } yield (Response.Ok().asStream(str))
 
           //file submission to ROOT_CATALOG, entire file preloaded to memory
           case POST -> Root / "receiver" / StringVar(fileName) =>
             for {
               _ <- ZIO(println(req.contentType.value))
               b <- req.body
-              _ <- ZIO(println(s"number of chunks = ${b.size}"))
+              _ <- ZIO(println(s"bytes = ${b.size}"))
               _ <- effectBlocking {
                     val infile = new java.io.FileOutputStream(ROOT_CATALOG + "/" + fileName)
                     infile.write(b.toArray)
@@ -208,7 +217,6 @@ object myServer extends zio.App {
 
     type MyEnv3 = MyLogging with Has[String]
 
-
     val myHttp = new TLSServer[MyEnv3](
       port = 8084,
       keepAlive = 4000,
@@ -218,14 +226,11 @@ object myServer extends zio.App {
       tlsVersion = "TLSv1.2"
     )
 
-   // val myHttp = new zhttp.TcpServer[MyEnv3]( 8080 )
+    // val myHttp = new zhttp.TcpServer[MyEnv3]( 8080 )
 
     val myHttpRouter = new HttpRouter[MyEnv3](
       /* normal app routes */
-      List( app_route_cookies_and_params, 
-            app_route_JSON, 
-            app_route_pre_post_filters, 
-            ws_route2)
+      List(app_route_cookies_and_params, app_route_JSON, app_route_pre_post_filters, ws_route2)
       /* channel ( file server) routes */
     )
 

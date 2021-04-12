@@ -25,20 +25,36 @@ object ResponseWriters {
   /////////////////////////////////////////////////////////////////////////////
   def writeFullResponseFromStream(
     c: Channel,
-    rs: Response,
+    rs: Response
   ) = {
-    val code = rs.code
-    val stream = rs.body
-    val header     = ZStream(genResponseChunked(rs, code, false)).map(str => Chunk.fromArray(str.getBytes()))
+    val code   = rs.code
+    val stream = rs.stream
+    val header = ZStream(genResponseChunked(rs, code, false)).map(str => Chunk.fromArray(str.getBytes()))
 
-    val s0  = stream.map(c => (c.size.toHexString -> c.appended[Byte]( ('\r') ).appended[Byte]( '\n' ) ))
-    val s1  = s0.map(c => (Chunk.fromArray((c._1 + CRLF).getBytes()) ++ c._2 ) )
-    val zs  = ZStream(Chunk.fromArray( ("0".toString + CRLF + CRLF  ).getBytes) )
+    val s0  = stream.map(c => (c.size.toHexString -> c.appended[Byte](('\r')).appended[Byte]('\n')))
+    val s1  = s0.map(c => (Chunk.fromArray((c._1 + CRLF).getBytes()) ++ c._2))
+    val zs  = ZStream(Chunk.fromArray(("0".toString + CRLF + CRLF).getBytes))
     val res = header ++ s1 ++ zs
 
-    res.foreach{ chunk0 => { 
-      Channel.write(c, chunk0 ) } } 
+    res.foreach { chunk0 =>
+      {
+        Channel.write(c, chunk0)
+      }
+    }
   }
+
+  def writeFullResponseBytes(
+    c: Channel,
+    rs: Response,
+    code: StatusCode,
+    data: Chunk[Byte],
+    close: Boolean
+  ): ZIO[ZEnv, Exception, Int] =
+    for {
+      n <- ZIO.succeed(data.size)
+      _ <- Channel.write(c, Chunk.fromArray(getContentResponse(rs, code, n, false).getBytes()))
+      _ <- Channel.write(c, data)
+    } yield (n)
 
   ////////////////////////////////////////////////////////////////////////////
   def writeFullResponse(
@@ -105,6 +121,28 @@ object ResponseWriters {
   }*/
 
   ///////////////////////////////////////////////////////////////////////
+  private def getContentResponse(resp: Response, code: StatusCode, contLen: Int, close: Boolean): String = {
+    val dfmt = new java.text.SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
+    dfmt.setTimeZone(java.util.TimeZone.getTimeZone("GMT"))
+    val r = new StringBuilder
+
+    r ++= "HTTP/1.1 " + code.value.toString + CRLF
+    r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT" + CRLF
+    r ++= "Server: " + TAG + CRLF
+    r ++= "Content-Length: " + contLen.toString() + CRLF
+
+    resp.headers.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
+
+    if (close)
+      r ++= "Connection: close" + CRLF
+    else
+      r ++= "Connection: keep-alive" + CRLF
+    r ++= CRLF
+
+    r.toString()
+  }
+
+  ///////////////////////////////////////////////////////////////////////
   private def genResponseFromResponse(resp: Response, code: StatusCode, msg: String, close: Boolean): String = {
     val dfmt = new java.text.SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
 
@@ -131,7 +169,7 @@ object ResponseWriters {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  private def genResponseChunked( resp: Response, code: StatusCode, close: Boolean): String = {
+  private def genResponseChunked(resp: Response, code: StatusCode, close: Boolean): String = {
     val dfmt = new java.text.SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
 
     dfmt.setTimeZone(java.util.TimeZone.getTimeZone("GMT"))
@@ -142,10 +180,10 @@ object ResponseWriters {
     r ++= "Date: " + dfmt.format(new java.util.Date()) + " GMT" + CRLF
     r ++= "Server: " + TAG + CRLF
     resp.headers.foreach { case (key, value) => r ++= Headers.toCamelCase(key) + ": " + value + CRLF }
-    //if (close)
-    //  r ++= "Connection: close" + CRLF
-    //else
-    //  r ++= "Connection: keep-alive" + CRLF
+    if (close)
+      r ++= "Connection: close" + CRLF
+    else
+      r ++= "Connection: keep-alive" + CRLF
     r ++= CRLF
 
     r.toString()
