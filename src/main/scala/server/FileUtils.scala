@@ -13,9 +13,29 @@ import zio.blocking.Blocking
 //import java.io.FileOutputStream
 import MyLogging.MyLogging
 
-object FileUtils {
+import zhttp.dsl.Path
 
+object FileUtils {
+ 
   val HTTP_CHUNK_SIZE = 64000
+
+
+
+  //////////////////////////////////////////////////////////////////////////
+  def serverFilePath_(raw_path: Path, root_folder: String, new_file: Boolean = false) =
+    for {
+      file_path <- IO.effect {
+                    val file_path: JPath = FileSystems.getDefault().getPath(root_folder, raw_path.toString )
+                    file_path
+                  }
+      _ <- if (file_path.toFile.isDirectory) {
+            IO.fail(new AccessDenied())
+          } else IO.succeed(file_path)
+
+      _ <- if (new_file == false && file_path.toFile().exists() == false) {
+            IO.fail(new java.io.FileNotFoundException(file_path.toString))
+          } else IO.succeed(0).unit
+    } yield (file_path)
 
   //////////////////////////////////////////////////////////////////////////
   def serverFilePath(raw_path: String, root_folder: String, new_file: Boolean = false) =
@@ -34,48 +54,9 @@ object FileUtils {
           } else IO.succeed(0).unit
     } yield (file_path)
 
-  /////////////////////////////////////////////////////////////////////////////
-  def saveFile(req: Request, folder: String): ZIO[ZEnv, Exception, Response] = ZIO.succeed(null)
-  /*
-    val T = for {
+  
 
-      contentLen <- IO(req.contentLen.toLong).catchAll { e =>
-                     IO.fail(e)
-                   }
-
-      file_path <- serverFilePath(req.path, folder, new_file = true)
-
-      _ <- zio.console.putStrLn("file path " + file_path)
-
-      fp <- effectBlocking(new FileOutputStream(file_path.toFile))
-
-      w_sz <- zio.Ref.make(0L)
-
-      loop = for {
-
-        sz <- w_sz.get
-        chunk <- if (sz == 0 && req.body.size != 0) IO(req.body) //read prefetch from request body first.
-                else {
-                  Channel.read(req.ch )  //continue reading stream
-                }
-
-        _ <- effectBlocking { fp.write(chunk.toArray) }
-        _ <- w_sz.update(_ + chunk.size)
-
-        size <- w_sz.get
-      } yield (size)
-
-      _ <- loop.repeat(zio.Schedule.recurWhile(_ < contentLen))
-
-      _ <- effectBlocking(fp.close)
-
-    } yield (Response.Ok)
-
-    T.refineToOrDie[Exception] */
-
-  //}
-
-  def headerStream(contentType: String, file_path: String) =
+  private def headerStream(contentType: String, file_path: String) =
     ZStream(ResponseWriters.genResponseContentTypeFileHeader(file_path.toString, contentType))
       .map(s => Chunk.fromArray(s.getBytes()))
     

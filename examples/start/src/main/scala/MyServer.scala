@@ -41,7 +41,8 @@ object myServer extends zio.App {
   )
   HttpRoutes.defaultPostProc(r => r.hdr("default_POST_Filter" -> "to see me check response in browser debug tool"))
 
-  val ROOT_CATALOG = "/Users/ostry/MyProjects"
+  //val ROOT_CATALOG = "/Users/ostry/MyProjects"
+  val ROOT_CATALOG = "/Users/ostrygun/web_root"
 
   //pre proc examples, aka web filters
   val proc0 = WebFilterProc((_) => ZIO(Response.Error(StatusCode.NotImplemented)))
@@ -186,16 +187,24 @@ object myServer extends zio.App {
               stream <- FileUtils.httpFileStream(req, ROOT_CATALOG)
             } yield (Response.raw_stream(stream))
 
-          case GET -> Root / "files2" / "chunked" / StringVar(filename) =>
+          //ROOT_CATALOG and remainig path within the catalog
+          //curl https://localhost:8084/files2/chunked/files/picture.jpg --output out.jpg
+          case GET -> "files2" /: "chunked" /: remainig_path =>
             for {
-              // _   <- ZIO( println(" >>>> " + ROOT_CATALOG + "/" + filename ))
-              str <- ZIO(ZStream.fromFile(java.nio.file.Paths.get(ROOT_CATALOG + "/" + filename), 16000).grouped(16000))
+              _ <- MyLogging.info(
+                    "console",
+                    "Requested file: " + remainig_path.toString()
+                  )
+              path <- FileUtils.serverFilePath_(remainig_path, ROOT_CATALOG)
+              str  <- ZIO(ZStream.fromFile(path, 16000).mapChunks(Chunk.single(_)))
             } yield (Response.Ok().asStream(str).transferEncoding("chunked"))
 
+          //Just exact file name in the ROOT_CATALOG
+          //curl https://localhost:8084/files2/picture1.jpg --output out2.jpg
           case GET -> Root / "files2" / StringVar(filename) =>
             for {
-              // _   <- ZIO( println(" >>>> " + ROOT_CATALOG + "/" + filename ))
-              str <- ZIO(ZStream.fromFile(java.nio.file.Paths.get(ROOT_CATALOG + "/" + filename), 16000).grouped(16000))
+              path <- FileUtils.serverFilePath(filename, ROOT_CATALOG)
+              str  <- ZIO(ZStream.fromFile(path).mapChunks(Chunk.single(_)))
             } yield (Response.Ok().asStream(str))
 
           //file submission to ROOT_CATALOG, entire file preloaded to memory

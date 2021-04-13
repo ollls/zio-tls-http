@@ -174,9 +174,13 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
           MyLogging.error("console", "HTTP header exceeds allowed limit") *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad HTTP header.", true) *> IO.unit
 
-        case e: java.io.FileNotFoundException =>
+        case e: java.io.FileNotFoundException  =>
           MyLogging.error("console", "File not found " + e.toString()) *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit
+
+         case e: java.nio.file.NoSuchFileException  =>
+          MyLogging.error("console", "File not found " + e.toString()) *>
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit   
 
         case _: AccessDenied =>
           MyLogging.error("console", "Access denied") *>
@@ -190,7 +194,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
           MyLogging.debug("console", "Remote peer closed connection") *> IO.unit
 
         case e: java.io.IOException =>
-          MyLogging.debug("console", "Remote peer closed connection (1) " + e.getMessage()) *> IO.unit
+          MyLogging.error("console", "Remote peer closed connection (1) " + e.toString() + " " + e.getMessage()) *> IO.unit
 
         case e: ChunkedEncodingError =>
           MyLogging.error("console", e.toString()) *>
