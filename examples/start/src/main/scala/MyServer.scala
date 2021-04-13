@@ -182,21 +182,22 @@ object myServer extends zio.App {
                 .asTextBody(s"$userId with para1 $par")
             )
 
-          case req @ GET -> Root / "files" / StringVar(filename) =>
+          case req @ GET -> "pub" /: _ =>
             for {
               stream <- FileUtils.httpFileStream(req, ROOT_CATALOG)
             } yield (Response.raw_stream(stream))
 
           //ROOT_CATALOG and remainig path within the catalog
           //curl https://localhost:8084/files2/chunked/files/picture.jpg --output out.jpg
-          case GET -> "files2" /: "chunked" /: remainig_path =>
+          case req @ GET -> "files2" /: "chunked" /: remainig_path =>
             for {
+              query <- ZIO( req.uri.getQuery )
               _ <- MyLogging.info(
                     "console",
-                    "Requested file: " + remainig_path.toString()
+                    "Requested file: " + req.uri.getPath + " Query string:  " + query 
                   )
               path <- FileUtils.serverFilePath_(remainig_path, ROOT_CATALOG)
-              str  <- ZIO(ZStream.fromFile(path, 16000).mapChunks(Chunk.single(_)))
+              str  = ZStream.fromFile(path, 16000).mapChunks(Chunk.single(_))
             } yield (Response.Ok().asStream(str).transferEncoding("chunked"))
 
           //Just exact file name in the ROOT_CATALOG
@@ -204,7 +205,7 @@ object myServer extends zio.App {
           case GET -> Root / "files2" / StringVar(filename) =>
             for {
               path <- FileUtils.serverFilePath(filename, ROOT_CATALOG)
-              str  <- ZIO(ZStream.fromFile(path).mapChunks(Chunk.single(_)))
+              str  = ZStream.fromFile(path).mapChunks(Chunk.single(_))
             } yield (Response.Ok().asStream(str))
 
           //file submission to ROOT_CATALOG, entire file preloaded to memory

@@ -24,8 +24,9 @@ object FileUtils {
   //////////////////////////////////////////////////////////////////////////
   def serverFilePath_(raw_path: Path, root_folder: String, new_file: Boolean = false) =
     for {
+      path      <- ZIO.effect( new URI( raw_path.toString ) )
       file_path <- IO.effect {
-                    val file_path: JPath = FileSystems.getDefault().getPath(root_folder, raw_path.toString )
+                    val file_path: JPath = FileSystems.getDefault().getPath(root_folder, path.getPath )
                     file_path
                   }
       _ <- if (file_path.toFile.isDirectory) {
