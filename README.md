@@ -12,7 +12,7 @@ DEV on 1.2-m1
 
 # Update history.
 
-# DEV 1.2-m1 (streams) is out.
+* DEV 1.2-m1 (streams) is out.
 
 * DEV is 1.2-m1, HttpClient on ZStream, file streaming, data streaming with chunked encoding support in and out.
   https://github.com/ollls/zio-tls-http/blob/dev/FileStreaming.png  
