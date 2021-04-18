@@ -8,7 +8,7 @@ https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-
 sbt example/run
 https://github.com/ollls/zio-tls-http/blob/dev/examples/start/src/main/scala/MyServer.scala
 
-DEV on 1.2-m1
+DEV on 1.2-m2
 
 # Update history.
 
