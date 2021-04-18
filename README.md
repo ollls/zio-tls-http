@@ -12,6 +12,8 @@ DEV on 1.2-m2
 
 # Update history.
 
+* DEV 1.2-m2 many useful fixes, Response ZStream now works with ensuring() which is dependent on user's environment.
+
 * DEV 1.2-m1 (streams) is out.
 
 * DEV is 1.2-m1, HttpClient on ZStream, file streaming, data streaming with chunked encoding support in and out.
