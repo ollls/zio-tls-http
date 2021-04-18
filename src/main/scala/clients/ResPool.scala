@@ -22,7 +22,7 @@ object ResPool {
 
   trait Service[R] {
     def acquire: ZIO[zio.ZEnv with MyLogging, Throwable, R]
-    def release(res: R): ZIO[ZEnv with MyLogging, Throwable, Unit]
+    def release(res: R): ZIO[ZEnv with MyLogging, Nothing, Unit]
   }
 
   def acquire[R](implicit tagged: Tag[R]) =

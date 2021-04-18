@@ -23,12 +23,12 @@ object ResponseWriters {
     Channel.write(c, Chunk.fromArray(genResponse(code, msg, close).getBytes()))
 
   /////////////////////////////////////////////////////////////////////////////
-  def writeFullResponseFromStream(
+  def writeFullResponseFromStream[MyEnv](
     c: Channel,
     rs: Response
   ) = {
     val code   = rs.code
-    val stream = rs.stream
+    val stream = rs.streamWith[MyEnv]
     val header = ZStream(genResponseChunked(rs, code, false)).map(str => Chunk.fromArray(str.getBytes()))
 
     val s0  = stream.map(c => (c.size.toHexString -> c.appended[Byte](('\r')).appended[Byte]('\n')))

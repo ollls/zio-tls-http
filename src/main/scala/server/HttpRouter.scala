@@ -317,7 +317,8 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     resp: Response
   ): ZIO[ZEnv with R, Exception, Int] =
     if (resp.raw_stream == true) {
-      resp.stream.foreach(chunk => { Channel.write(ch, chunk) }).refineToOrDie[Exception] *>
+      val stream = resp.streamWith[R]
+      stream.foreach(chunk => { Channel.write(ch, chunk) }).refineToOrDie[Exception] *>
         ZIO.succeed(0)
     } else {
 
@@ -330,7 +331,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
           ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
       } else
         (for {
-          body <- resp.stream.flatMap( c => { ZStream.fromChunk(c) }).runCollect
+          body <- resp.streamWith[R].flatMap( c => { ZStream.fromChunk(c) }).runCollect
           res <- status match {
                   case StatusCode.OK =>
                     ResponseWriters.writeFullResponseBytes(ch, resp, resp.code, body, false)

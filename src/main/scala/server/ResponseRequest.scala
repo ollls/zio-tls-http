@@ -51,7 +51,8 @@ object Response {
 
   def Ok(): Response = new Response(StatusCode.OK, Headers())
 
-  def raw_stream(str: ZStream[ZEnv, Throwable, Chunk[Byte]]) = new Response(StatusCode.OK, Headers(), str, true)
+  def raw_stream[MyEnv](str: ZStream[MyEnv, Throwable, Chunk[Byte]]) =
+    new Response(StatusCode.OK, Headers(), str.asInstanceOf[ZStream[Any, Throwable, Chunk[Byte]]], true)
 
   def Error(code: StatusCode): Response = new Response(code, Headers())
 }
@@ -62,7 +63,7 @@ object NoResponse extends Response(StatusCode.NotImplemented, null)
 sealed case class Response(
   code: StatusCode,
   headers: Headers,
-  stream: ZStream[ZEnv, Throwable, Chunk[Byte]] = ZStream.empty,
+  stream: ZStream[Any, Throwable, Chunk[Byte]] = ZStream.empty,
   raw_stream: Boolean = false
 ) {
 
@@ -75,7 +76,13 @@ sealed case class Response(
     new Response(this.code, this.headers + pair, this.stream)
   }
 
-  def asStream(s0: ZStream[ZEnv, Throwable, Chunk[Byte]]) = new Response(this.code, this.headers, s0)
+  def streamWith[MyEnv]: ZStream[MyEnv, Throwable, Chunk[Byte]] = stream
+
+  def asStream[MyEnv](s0: ZStream[MyEnv, Throwable, Chunk[Byte]]) =
+    new Response(this.code, this.headers, s0.asInstanceOf[ZStream[Any, Throwable, Chunk[Byte]]])
+
+  def asJsonStream[MyEnv, B: JsonEncoder](stream: ZStream[MyEnv, Throwable, B]) =
+    asStream(stream.map(b => Chunk.fromArray(b.toJson.getBytes)))
 
   def asTextBody(text: String): Response = {
     val s0 = ZStream(Chunk.fromArray(text.getBytes))
@@ -87,19 +94,19 @@ sealed case class Response(
     new Response(this.code, this.headers, s0).contentType(ContentType.JSON)
   }
 
-  def asJsonStream[B: JsonEncoder](objs: Chunk[B]) : Response = {
+  def asJsonArray[B: JsonEncoder](objs: Chunk[B]): Response = {
     val s0 = ZStream.fromChunk(objs).map(obj => Chunk.fromArray(obj.toJson.getBytes()))
     new Response(this.code, this.headers, s0).contentType(ContentType.JSON)
   }
 
-  def contentType(type0: ContentType) : Response =
+  def contentType(type0: ContentType): Response =
     new Response(this.code, this.headers + ("content-type" -> type0.toString()), this.stream)
 
-  def isChunked : Boolean = transferEncoding.exists(_.equalsIgnoreCase("chunked"))
+  def isChunked: Boolean = transferEncoding.exists(_.equalsIgnoreCase("chunked"))
 
-  def transferEncoding() : Set[String] = headers.getMval("transfer-encoding")
+  def transferEncoding(): Set[String] = headers.getMval("transfer-encoding")
 
-  def transferEncoding(vals0: String*) : Response =
+  def transferEncoding(vals0: String*): Response =
     new Response(this.code, vals0.foldLeft(this.headers)((h, v) => h + ("transfer-encoding" -> v)), this.stream)
 
 }

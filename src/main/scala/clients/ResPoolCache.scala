@@ -224,7 +224,7 @@ object ResPoolCache {
                             layerName[K, V, R] + ": key = " + key.toString() + " expired with " + cached_entry.ts
                           )
                       res <- ZManaged
-                              .make(rp.acquire)(c => rp.release(c).catchAll(_ => ZIO.unit))
+                              .make(rp.acquire)(c => rp.release(c) )//.catchAll(_ => ZIO.unit))
                               .use(resource => updatef(resource, key))
                               .flatMap(ov => {
                                 ov match {
@@ -258,7 +258,7 @@ object ResPoolCache {
                           layerName[K, V, R] + ": key = " + key.toString() + " attempt to cache a new value"
                         )
                     v <- ZManaged
-                          .make(rp.acquire)(c => rp.release(c).catchAll(_ => ZIO.unit))
+                          .make(rp.acquire)(c => rp.release(c))  //.catchAll(_ => ZIO.unit))
                           .use(resource => updatef(resource, key))
                           .flatMap(ov => {
                             ov match {
