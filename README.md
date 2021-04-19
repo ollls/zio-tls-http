@@ -1,4 +1,4 @@
-[![Generic badge](https://img.shields.io/badge/Nexus-v1.2--m1-yellow.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.2-m1/) - ( streams )
+[![Generic badge](https://img.shields.io/badge/Nexus-v1.2--m2-yellow.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.2-m2/) - ( streams )
 <br>
 [![Generic badge](https://img.shields.io/badge/Nexus-v1.1.0--m8-blue.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.1.0-m8)
 
