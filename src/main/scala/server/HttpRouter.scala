@@ -275,7 +275,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                                             )
                                           case Some(e) => IO.fail(e)
                                         }
-                response2 <- if (response.raw_stream == false) IO.effectTotal(post_proc(response))
+                response2 <- if (response.raw_stream == false && req.isWebSocket == false) IO.effectTotal(post_proc(response))
                             else ZIO.succeed(response)
 
                 _ <- response_processor(c, req, response2).catchAll { e =>
@@ -316,6 +316,10 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     req: Request,
     resp: Response
   ): ZIO[ZEnv with R, Exception, Int] =
+    if( resp == NoResponse )
+    {
+      IO.succeed(0)
+    } else
     if (resp.raw_stream == true) {
       val stream = resp.streamWith[R]
       stream.foreach(chunk => { Channel.write(ch, chunk) }).refineToOrDie[Exception] *>

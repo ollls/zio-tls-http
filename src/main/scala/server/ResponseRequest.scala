@@ -51,7 +51,7 @@ object Response {
 
   def Ok(): Response = new Response(StatusCode.OK, Headers())
 
-  def raw_stream[MyEnv](str: ZStream[MyEnv, Throwable, Chunk[Byte]]) =
+  def raw_stream[MyEnv](str: ZStream[ZEnv with MyEnv, Throwable, Chunk[Byte]]) =
     new Response(StatusCode.OK, Headers(), str.asInstanceOf[ZStream[Any, Throwable, Chunk[Byte]]], true)
 
   def Error(code: StatusCode): Response = new Response(code, Headers())
@@ -76,12 +76,12 @@ sealed case class Response(
     new Response(this.code, this.headers + pair, this.stream)
   }
 
-  def streamWith[MyEnv]: ZStream[MyEnv, Throwable, Chunk[Byte]] = stream
+  def streamWith[MyEnv]: ZStream[ZEnv with MyEnv, Throwable, Chunk[Byte]] = stream
 
-  def asStream[MyEnv](s0: ZStream[MyEnv, Throwable, Chunk[Byte]]) =
+  def asStream[MyEnv](s0: ZStream[ZEnv with MyEnv, Throwable, Chunk[Byte]]) =
     new Response(this.code, this.headers, s0.asInstanceOf[ZStream[Any, Throwable, Chunk[Byte]]])
 
-  def asJsonStream[MyEnv, B: JsonEncoder](stream: ZStream[MyEnv, Throwable, B]) =
+  def asJsonStream[MyEnv, B: JsonEncoder](stream: ZStream[ZEnv with MyEnv, Throwable, B]) =
     asStream(stream.map(b => Chunk.fromArray(b.toJson.getBytes)))
 
   def asTextBody(text: String): Response = {
