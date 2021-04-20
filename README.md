@@ -11,9 +11,11 @@ https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-
 sbt example/run
 https://github.com/ollls/zio-tls-http/blob/dev/examples/start/src/main/scala/MyServer.scala
 
-DEV on 1.3-m2
+DEV on 1.2-m3
 
 # Update history.
+
+* DEV 1.2-m3 fixed compatibility issue on 1.1 websocket with 1.2 server streams. Prep, for ZStream websocket upgrade.
 
 * DEV 1.2-m2 many useful fixes, Response ZStream now works with ensuring() which is dependent on user's environment.
 
