@@ -4,6 +4,7 @@
 <br>
 <br>
 [![Generic badge](https://img.shields.io/badge/Hello%20World-template-red)](https://github.com/ollls/hello-http)
+[![Generic badge](https://img.shields.io/badge/ZIO--LDAP-bindings-blue)](https://github.com/ollls/zio-quartz-ee/blob/main/src/main/scala/zio-quartz/clients/async-ldap.scala)
 
 Appreciate any feedback, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) <br>
