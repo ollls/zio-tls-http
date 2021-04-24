@@ -16,6 +16,8 @@ DEV on 1.2-m3
 
 # Update history.
 
+* DEV 1.2-m3 Websocket support moved to ZStream interface. See, example: for "/ws-test"
+
 * DEV 1.2-m3 fixed compatibility issue on 1.1 websocket with 1.2 server streams. Prep, for ZStream websocket upgrade.
 
 * DEV 1.2-m2 many useful fixes, Response ZStream now works with ensuring() which is dependent on user's environment.
