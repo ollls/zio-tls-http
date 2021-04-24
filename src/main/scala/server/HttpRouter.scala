@@ -9,6 +9,7 @@ import zio.stream.ZStream
 import zio.stream.ZTransducer
 import zio.stream.ZSink
 import zio.ZRef
+//import java.net.SocketAddress
 
 sealed trait HTTPError                              extends Exception
 sealed case class BadInboundDataError()             extends HTTPError
@@ -18,12 +19,12 @@ sealed case class ContentLenTooBig()                extends HTTPError
 sealed case class UpgradeRequest()                  extends HTTPError
 sealed case class MediaEncodingError(msg: String)   extends Exception(msg)
 sealed case class ChunkedEncodingError(msg: String) extends Exception(msg)
+sealed case class WebSocketClosed(msg: String)      extends Exception(msg)
 
 object HttpRouter {
   val _METHOD = "%%%http_method%%%"
   val _PATH   = "%%%http_path%%%"
   val _PROTO  = "%%%http_protocol%%%"
-
 
   /*****************************************************************/
   //So the last chunk and 2 trailing headers might look like this:
@@ -142,8 +143,6 @@ object HttpRouter {
     }
   }
 
-
-
 }
 
 class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]) {
@@ -156,12 +155,9 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
   //val HTTP_HEADER_SZ          = 8096 * 2
   val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100 //104 MB
 
-  
   def route(c: Channel): ZIO[ZEnv with R, Exception, Unit] =
     route_do(c).forever.catchAll(ex => {
       ex match {
-        case _: UpgradeRequest =>
-          MyLogging.debug("console", "New websocket request spawned") *> IO.unit
 
         case _: java.nio.channels.InterruptedByTimeoutException =>
           MyLogging.debug("console", "Connection closed") *> IO.unit
@@ -174,13 +170,13 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
           MyLogging.error("console", "HTTP header exceeds allowed limit") *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad HTTP header.", true) *> IO.unit
 
-        case e: java.io.FileNotFoundException  =>
+        case e: java.io.FileNotFoundException =>
           MyLogging.error("console", "File not found " + e.toString()) *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit
 
-         case e: java.nio.file.NoSuchFileException  =>
+        case e: java.nio.file.NoSuchFileException =>
           MyLogging.error("console", "File not found " + e.toString()) *>
-            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit   
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit
 
         case _: AccessDenied =>
           MyLogging.error("console", "Access denied") *>
@@ -194,11 +190,14 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
           MyLogging.debug("console", "Remote peer closed connection") *> IO.unit
 
         case e: java.io.IOException =>
-          MyLogging.error("console", "Remote peer closed connection (1) " + e.toString() + " " + e.getMessage()) *> IO.unit
+          MyLogging
+            .error("console", "Remote peer closed connection (1) " + e.toString() + " " + e.getMessage()) *> IO.unit
 
         case e: ChunkedEncodingError =>
           MyLogging.error("console", e.toString()) *>
             ResponseWriters.writeNoBodyResponse(c, StatusCode.NotImplemented, "", true) *> IO.unit
+
+        case e: WebSocketClosed => MyLogging.debug("console", "Websocket closed: " + e.getMessage()) *> IO.unit
 
         case e: Exception =>
           MyLogging.error("console", e.toString()) *>
@@ -233,9 +232,20 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
               val T = for {
                 h <- hdrs
                 //_ <- ZIO( println( h.printHeaders ) )
+
+                isWebSocket <- ZIO.effectTotal(
+                                h.get("Upgrade")
+                                  .map(_.equalsIgnoreCase("websocket"))
+                                  .collect { case true => true }
+                                  .getOrElse(false)
+                              )
+
                 isChunked <- ZIO.effectTotal(h.getMval("transfer-encoding").exists(_.equalsIgnoreCase("chunked")))
-                isContinue <- ZIO.effectTotal( h.get( "Expect").getOrElse("").equalsIgnoreCase( "100-continue" ) )
-                _          <- ResponseWriters.writeNoBodyResponse( c, StatusCode.Continue, "", false  ).when( isChunked && isContinue )
+
+                isContinue <- ZIO.effectTotal(h.get("Expect").getOrElse("").equalsIgnoreCase("100-continue"))
+                _ <- ResponseWriters
+                      .writeNoBodyResponse(c, StatusCode.Continue, "", false)
+                      .when(isChunked && isContinue)
 
                 validate <- ZIO.effectTotal(
                              h.get(HttpRouter._METHOD)
@@ -250,10 +260,11 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                 //contentLenL <- ZIO.fromTry(Try(contentLen.toLong))
                 _ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
 
-                stream <- if (isChunked)
+                stream <- if (isWebSocket) ZIO.effect(body_stream.mapChunks(c => Chunk.single(c)))
+                         else if (isChunked)
                            ZIO.effect(
                              body_stream
-                               .aggregate( HttpRouter.chunkedDecode)
+                               .aggregate(HttpRouter.chunkedDecode)
                                .collectWhile(new PartialFunction[Chunk[Byte], Chunk[Byte]] {
                                  def apply(v1: Chunk[Byte]): Chunk[Byte]  = v1
                                  def isDefinedAt(x: Chunk[Byte]): Boolean = !x.isEmpty
@@ -262,8 +273,9 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                          else
                            ZIO.effect(
                              body_stream
-                               .take(contentLenL).mapChunks( c => Chunk.single( c ))
-                               //.grouped(Int.MaxValue) //this will be configurable
+                               .take(contentLenL)
+                               .mapChunks(c => Chunk.single(c))
+                             //.grouped(Int.MaxValue) //this will be configurable
                            )
 
                 req <- ZIO.effect(Request(h, stream, c)).refineToOrDie[Exception]
@@ -275,7 +287,8 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                                             )
                                           case Some(e) => IO.fail(e)
                                         }
-                response2 <- if (response.raw_stream == false && req.isWebSocket == false) IO.effectTotal(post_proc(response))
+                response2 <- if (response.raw_stream == false && req.isWebSocket == false)
+                              IO.effectTotal(post_proc(response))
                             else ZIO.succeed(response)
 
                 _ <- response_processor(c, req, response2).catchAll { e =>
@@ -316,11 +329,15 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     req: Request,
     resp: Response
   ): ZIO[ZEnv with R, Exception, Int] =
-    if( resp == NoResponse )
-    {
-      IO.succeed(0)
-    } else
-    if (resp.raw_stream == true) {
+    if (req.isWebSocket && resp.code.isSuccess) {
+      Channel
+        .remoteAddress(req.ch)
+        .map(c => if (c.isDefined) c.get.toInetSocketAddress.address.canonicalHostName else "N/A") >>= (
+        c => ZIO.fail(WebSocketClosed(c))
+      )
+    } else if (resp == NoResponse) {
+      ZIO.succeed(0)
+    } else if (resp.raw_stream == true) {
       val stream = resp.streamWith[R]
       stream.foreach(chunk => { Channel.write(ch, chunk) }).refineToOrDie[Exception] *>
         ZIO.succeed(0)
@@ -331,11 +348,11 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
       val status   = resp.code
 
       if (resp.isChunked) {
-        Logs.log_access(req, status, 0, "chunked" ).refineToOrDie[Exception] *>
+        Logs.log_access(req, status, 0, "chunked").refineToOrDie[Exception] *>
           ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
       } else
         (for {
-          body <- resp.streamWith[R].flatMap( c => { ZStream.fromChunk(c) }).runCollect
+          body <- resp.streamWith[R].flatMap(c => { ZStream.fromChunk(c) }).runCollect
           res <- status match {
                   case StatusCode.OK =>
                     ResponseWriters.writeFullResponseBytes(ch, resp, resp.code, body, false)
@@ -348,7 +365,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                     ResponseWriters.writeNoBodyResponse(ch, StatusCode.UnsupportedMediaType, "", true)
                   case _ => ResponseWriters.writeNoBodyResponse(ch, status, new String(body.toArray), true)
                 }
-          _ <- Logs.log_access(req, status, body.size )
+          _ <- Logs.log_access(req, status, body.size)
 
         } yield (0)).refineToOrDie[Exception]
 

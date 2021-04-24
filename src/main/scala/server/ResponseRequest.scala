@@ -11,6 +11,7 @@ sealed case class Request(headers: Headers, stream: ZStream[ZEnv, Exception, Chu
 
   def path: String             = headers.get(HttpRouter._PATH).getOrElse("")
   def method: Method           = Method(headers.get(HttpRouter._METHOD).getOrElse(""))
+  def proto: String            = headers.get(HttpRouter._PROTO).getOrElse("")
   def contentLen: String       = headers.get("content-length").getOrElse("0") //keep it string
   def uri: URI                 = new URI(path)
   def contentType: ContentType = ContentType(headers.get("content-type").getOrElse(""))

@@ -82,28 +82,24 @@ object myServer extends zio.App {
       case GET -> Root / "noavail" => ZIO(Response.Ok.asTextBody("OK "))
     }
 
-    val ws_route2 = HttpRoutes.of { req: Request =>
-      {
-        req match {
-          case GET -> Root / "websocket" =>
-            if (req.isWebSocket) {
-              val session = Websocket();
-              session.accept(req) *>
-                session.process_io(
-                  req,
-                  in => {
-                    /* expect text or cont */
-                    if (in.opcode == WebSocketFrame.BINARY) ZIO(WebSocketFrame.Close())
-                    else {
-                      zio.console.putStrLn("ABC> " + new String(in.data.toArray)) *>
-                        ZIO(WebSocketFrame.Text("Hello From Server", true))
-                    }
-                  }
-                )
-            } else ZIO(Response.Error(StatusCode.NotFound))
-        }
-      }
+    val ws_stream = HttpRoutes.of {
+      case req @ GET -> Root / "ws-test" =>
+        if (req.isWebSocket) {
+          val wsctx     = Websocket()
+          val ws_stream = wsctx.receiveTextAsStream(req)
+          for {
+            _ <- wsctx.accept(req)
+            _ <- ws_stream.foreach { frame =>
+                  MyLogging.debug("console", "Data from websocket <<< " + new String(frame.data.toArray)) *>
+                  wsctx.sendAsTextStream(
+                    req,
+                    ZStream("Websocket Rocks, this will be one packet with size: " + Websocket.WS_PACKET_SZ)
+                  )
+                }
+          } yield ( Response.Ok())
+        } else ZIO(Response.Error(StatusCode.NotFound))
     }
+
 
     val app_route_pre_post_filters = HttpRoutes.ofWithFilter(proc3, openCORS) { req =>
       req match {
@@ -138,7 +134,6 @@ object myServer extends zio.App {
 
       case req @ POST -> Root / "test" =>
         for {
-          _  <- ZIO(println("ssssssss"))
           db <- req.fromJSON[DataBlock]
         } yield (Response.Ok.asTextBody(s"JSON for ${db.name} accepted"))
 
@@ -191,10 +186,10 @@ object myServer extends zio.App {
           //curl https://localhost:8084/files2/chunked/files/picture.jpg --output out.jpg
           case req @ GET -> "files2" /: "chunked" /: remainig_path =>
             for {
-              query <- ZIO( req.uri.getQuery )
+              query <- ZIO(req.uri.getQuery)
               _ <- MyLogging.info(
                     "console",
-                    "Requested file: " + req.uri.getPath + " Query string:  " + query 
+                    "Requested file: " + req.uri.getPath + " Query string:  " + query
                   )
               path <- FileUtils.serverFilePath_(remainig_path, ROOT_CATALOG)
               str  = ZStream.fromFile(path, 16000).mapChunks(Chunk.single(_))
@@ -240,7 +235,7 @@ object myServer extends zio.App {
 
     val myHttpRouter = new HttpRouter[MyEnv3](
       /* normal app routes */
-      List(app_route_cookies_and_params, app_route_JSON, app_route_pre_post_filters, ws_route2)
+      List(app_route_cookies_and_params, app_route_JSON, app_route_pre_post_filters, ws_stream)
       /* channel ( file server) routes */
     )
 

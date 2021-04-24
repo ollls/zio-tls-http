@@ -155,11 +155,8 @@ class FrameTranscoder(val isClient: Boolean) {
       null
     else {
       val opcode = in.get(0) & OP_CODE
-      //println( opcode )
       val finished = (in.get(0) & FINISHED) != 0
-      //println( finished )
       val masked = (in.get(1) & MASK) != 0
-      //println( "masked=" + masked )
  
       if (masked && isClient)
         throw new FrameTranscoder.TranscodeError("Client received a masked message")
@@ -182,7 +179,7 @@ class FrameTranscoder(val isClient: Boolean) {
       in.position(in.limit)
       in.limit(oldLim)
 
-      opcode match {  
+      val ret = opcode match {  
        case CONTINUATION => Continuation( Chunk.fromArray( FrameTranscoder.decodeBinary(slice, m) ), finished )
        case BINARY => Binary( Chunk.fromArray( FrameTranscoder.decodeBinary(slice, m) ) , finished )
        case TEXT   => Text( new String ( FrameTranscoder.decodeBinary(slice, m), StandardCharsets.UTF_8 ), finished )
@@ -190,5 +187,8 @@ class FrameTranscoder(val isClient: Boolean) {
        case PING   => Ping( Chunk.fromArray( FrameTranscoder.decodeBinary(slice, m) ) )
        case PONG   => Pong( Chunk.fromArray( FrameTranscoder.decodeBinary(slice, m) ) )    
       }
+
+      ret
+
     }
 }
