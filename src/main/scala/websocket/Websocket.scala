@@ -9,19 +9,20 @@ import java.nio.ByteBuffer
 import zio.stream.ZStream
 
 object Websocket {
- 
+
   val WS_PACKET_SZ = 32768
 
   private val magicString =
     "258EAFA5-E914-47DA-95CA-C5AB0DC85B11".getBytes("US-ASCII")
-  def apply(isClient: Boolean = false) = new Websocket(isClient)
-
+  def apply(isClient: Boolean = false, idleTimeout : Int = 0 ) = new Websocket(isClient, idleTimeout )
 
 }
 
-class Websocket(isClient: Boolean) {
+class Websocket(isClient: Boolean, idleTimeout  : Int) {
 
   final val CRLF = "\r\n"
+  var isClosed = true
+
 
   private val IN_J_BUFFER = java.nio.ByteBuffer.allocate(0xffff * 2) //64KB * 2
   private val frames      = new FrameTranscoder(isClient)
@@ -145,7 +146,7 @@ class Websocket(isClient: Boolean) {
   }
 
   def accept(req: Request): ZIO[ZEnv with MyLogging, Exception, Unit] = {
-    Channel.keepAlive(req.ch, 0)
+    Channel.keepAlive(req.ch, idleTimeout )  //0 - no timeout
     val T = for {
       res <- ZIO.effect(serverHandshake(req))
       _ <- res match {
@@ -158,7 +159,7 @@ class Websocket(isClient: Boolean) {
                       "console",
                       "Webocket request initiated from: " + adr.get.toInetSocketAddress.address.canonicalHostName
                     )
-                ) *> Channel.write(req.ch, Chunk.fromArray(genWsResponse(response).getBytes()))
+                ) *> Channel.write(req.ch, Chunk.fromArray(genWsResponse(response).getBytes())) *> ZIO.effectTotal{ isClosed = false }
             case Left(exception) => ZIO.fail(exception)
           }
 
@@ -167,35 +168,11 @@ class Websocket(isClient: Boolean) {
     T.refineToOrDie[Exception]
   }
 
-  def acceptAndRead(req: Request): ZIO[ZEnv with MyLogging, Exception, WebSocketFrame] = {
-    Channel.keepAlive(req.ch, 0)
-    val T = for {
-      res <- ZIO.effect(serverHandshake(req))
-      _ <- res match {
-            case Right(response) =>
-              Channel
-                .remoteAddress(req.ch)
-                .flatMap(
-                  adr =>
-                    MyLogging.debug(
-                      "console",
-                      "Webocket request initiated from: " + adr.get.toInetSocketAddress.address.canonicalHostName
-                    )
-                ) *> Channel.write(req.ch, Chunk.fromArray(genWsResponse(response).getBytes()))
-            case Left(exception) => ZIO.fail(exception)
-          }
-      frame <- readFrame(req)
-    } yield (frame)
-    T.refineToOrDie[Exception]
-  }
-
-
   private def doPingPong(req: Request, f0: WebSocketFrame) =
     f0 match {
       case WebSocketFrame.Ping(data) => pongReply(req, data)
       case _                         => ZIO.succeed(0)
     }
-
 
   def receiveTextAsStream(req: Request) = {
     val stream = req.stream >>= (ZStream.fromChunk(_))
@@ -203,6 +180,7 @@ class Websocket(isClient: Boolean) {
       .aggregate(FrameTransducer.make)
       .tap(doPingPong(req, _))
       .filter(_.opcode != WebSocketFrame.PING)
+      .tap( f => if ( f.opcode == WebSocketFrame.CLOSE ) ZIO.effectTotal( this.isClosed = true ) else ZIO.unit   )
       .takeUntil(_.opcode == WebSocketFrame.CLOSE)
       .filter(_.opcode != WebSocketFrame.CLOSE)
 
@@ -215,31 +193,41 @@ class Websocket(isClient: Boolean) {
       .aggregate(FrameTransducer.make)
       .tap(doPingPong(req, _))
       .filter(_.opcode != WebSocketFrame.PING)
+      .tap( f => if ( f.opcode == WebSocketFrame.CLOSE ) ZIO.effectTotal( this.isClosed = true ) else ZIO.unit   )
       .takeUntil(_.opcode == WebSocketFrame.CLOSE)
       .filter(_.opcode != WebSocketFrame.CLOSE)
     s0
   }
 
- 
-  def sendAsTextStream(req: Request, stream: ZStream[Any, Nothing, String]) = {
-    val stream0 = stream.grouped( Websocket.WS_PACKET_SZ )
+  def sendOneString(req: Request, data: String) : ZIO[ ZEnv,Throwable,Unit] = {
+    val s0 = ZStream(data).map(WebSocketFrame.Text(_, true)) //one and last packet
+    s0.foreach( frame => writeFrame(req, frame))
+  }
+
+  def sendOneBinary(req: Request, data: Chunk[Byte]) : ZIO[ ZEnv,Throwable,Unit] = {
+    val s0 = ZStream(data).map(WebSocketFrame.Binary(_, true))
+    s0.foreach( frame => writeFrame(req, frame))
+  }
+
+  def sendAsTextStream(req: Request, stream: ZStream[Any, Nothing, String]) : ZIO[ ZEnv,Throwable,Unit] = {
+    val stream0 = stream.grouped(Websocket.WS_PACKET_SZ)
     //here we need to use special empty continuation packed marked as last.
     val last   = ZStream("").map(c => WebSocketFrame.Continuation(Chunk.fromArray(c.getBytes()), true))
     val first  = stream.take(1).map(WebSocketFrame.Text(_, false))
     val middle = stream.drop(1).map(c => WebSocketFrame.Continuation(Chunk.fromArray(c.getBytes()), false))
 
     val result: ZStream[Any, Nothing, WebSocketFrame] = first ++ middle ++ last
-    result.foreach(frame => writeFrame(req, frame).orDie)
+    result.foreach(frame => writeFrame(req, frame))
   }
 
-  def sendAsBinaryStream(req: Request, stream: ZStream[Any, Nothing, Chunk[Byte]]) = {
-     val stream0 = stream.grouped( Websocket.WS_PACKET_SZ )
-    val last   = ZStream(WebSocketFrame.Continuation(Chunk[Byte](), true))
-    val first  = stream.take(1).map(WebSocketFrame.Binary(_, false))
-    val middle = stream.drop(1).map(c => WebSocketFrame.Continuation(c, false))
+  def sendAsBinaryStream(req: Request, stream: ZStream[Any, Nothing, Chunk[Byte]]) : ZIO[ ZEnv,Throwable,Unit]= {
+    val stream0 = stream.grouped(Websocket.WS_PACKET_SZ)
+    val last    = ZStream(WebSocketFrame.Continuation(Chunk[Byte](), true))
+    val first   = stream.take(1).map(WebSocketFrame.Binary(_, false))
+    val middle  = stream.drop(1).map(c => WebSocketFrame.Continuation(c, false))
 
     val result: ZStream[Any, Nothing, WebSocketFrame] = first ++ middle ++ last
-    result.foreach(frame => writeFrame(req, frame).orDie)
+    result.foreach(frame => writeFrame(req, frame))
   }
 
 }

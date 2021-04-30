@@ -191,7 +191,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
 
         case e: java.io.IOException =>
           MyLogging
-            .error("console", "Remote peer closed connection (1) " + e.toString() + " " + e.getMessage()) *> IO.unit
+            .error("console", "Remote peer closed connection (1) " + e.getMessage()) *> IO.unit
 
         case e: ChunkedEncodingError =>
           MyLogging.error("console", e.toString()) *>
