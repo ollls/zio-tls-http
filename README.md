@@ -16,7 +16,7 @@ DEV on 1.2-m3
 
 # Update history.
 
-* Websocket example: https://github.com/ollls/zio-tls-http-slides/blob/main/WebSocket.jpg
+* Websocket example: https://github.com/ollls/zio-tls-http-slides
 
 * DEV 1.2-m3 Websocket support moved to ZStream interface. See, example: for "/ws-test"
 
