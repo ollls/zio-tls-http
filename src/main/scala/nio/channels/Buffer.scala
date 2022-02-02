@@ -25,30 +25,30 @@ abstract class Buffer[A: ClassTag] private[nio] (private[nio] val buffer: JBuffe
 
   def order: ByteOrder
 
-  final def position: UIO[Int] = IO.effectTotal(buffer.position)
+  final def position: UIO[Int] = IO.succeed(buffer.position)
 
   final def position(newPosition: Int): IO[Exception, Unit] =
-    IO.effect(buffer.position(newPosition)).unit.refineToOrDie[Exception]
+    IO.attempt(buffer.position(newPosition)).unit.refineToOrDie[Exception]
 
-  final def limit: UIO[Int] = IO.effectTotal(buffer.limit)
+  final def limit: UIO[Int] = IO.succeed(buffer.limit)
 
-  final def remaining: UIO[Int] = IO.effectTotal(buffer.remaining)
+  final def remaining: UIO[Int] = IO.succeed(buffer.remaining)
 
-  final def hasRemaining: UIO[Boolean] = IO.effectTotal(buffer.hasRemaining)
+  final def hasRemaining: UIO[Boolean] = IO.succeed(buffer.hasRemaining)
 
   final def limit(newLimit: Int): IO[Exception, Unit] =
-    IO.effect(buffer.limit(newLimit)).unit.refineToOrDie[Exception]
+    IO.attempt(buffer.limit(newLimit)).unit.refineToOrDie[Exception]
 
-  final def mark: UIO[Unit] = IO.effectTotal(buffer.mark()).unit
+  final def mark: UIO[Unit] = IO.succeed(buffer.mark()).unit
 
   final def reset: IO[Exception, Unit] =
-    IO.effect(buffer.reset()).unit.refineToOrDie[Exception]
+    IO.attempt(buffer.reset()).unit.refineToOrDie[Exception]
 
-  final def clear: UIO[Unit] = IO.effectTotal(buffer.clear()).unit
+  final def clear: UIO[Unit] = IO.succeed(buffer.clear()).unit
 
-  final def flip: UIO[Unit] = IO.effectTotal(buffer.flip()).unit
+  final def flip: UIO[Unit] = IO.succeed(buffer.flip()).unit
 
-  final def rewind: UIO[Unit] = IO.effectTotal(buffer.rewind()).unit
+  final def rewind: UIO[Unit] = IO.succeed(buffer.rewind()).unit
 
   final def isReadOnly: Boolean = buffer.isReadOnly
 
@@ -70,7 +70,7 @@ abstract class Buffer[A: ClassTag] private[nio] (private[nio] val buffer: JBuffe
     if (buffer.hasArray) {
       for {
         a      <- array.orDie
-        offset <- IO.effect(buffer.arrayOffset()).orDie
+        offset <- IO.attempt(buffer.arrayOffset()).orDie
         result <- hasArray(a, offset)
       } yield {
         result
@@ -102,74 +102,74 @@ object Buffer {
   def byte( jb : JByteBuffer ) = new ByteBuffer( jb )
 
   def byte(capacity: Int): IO[IllegalArgumentException, ByteBuffer] =
-    IO.effect(JByteBuffer.allocate(capacity))
+    IO.attempt(JByteBuffer.allocate(capacity))
       .map(new ByteBuffer(_))
       .refineToOrDie[IllegalArgumentException]
 
   def byte(chunk: Chunk[Byte]): IO[Nothing, ByteBuffer] =
-    IO.effectTotal(JByteBuffer.wrap(chunk.toArray)).map(new ByteBuffer(_))
+    IO.succeed(JByteBuffer.wrap(chunk.toArray)).map(new ByteBuffer(_))
 
   def byteDirect(capacity: Int): IO[IllegalArgumentException, ByteBuffer] =
-    IO.effect(new ByteBuffer(JByteBuffer.allocateDirect(capacity)))
+    IO.attempt(new ByteBuffer(JByteBuffer.allocateDirect(capacity)))
       .refineToOrDie[IllegalArgumentException]
 
   def char(capacity: Int): IO[IllegalArgumentException, CharBuffer] =
-    IO.effect(JCharBuffer.allocate(capacity))
+    IO.attempt(JCharBuffer.allocate(capacity))
       .map(new CharBuffer(_))
       .refineToOrDie[IllegalArgumentException]
 
   def char(chunk: Chunk[Char]): IO[Nothing, CharBuffer] =
-    IO.effectTotal(JCharBuffer.wrap(chunk.toArray)).map(new CharBuffer(_))
+    IO.succeed(JCharBuffer.wrap(chunk.toArray)).map(new CharBuffer(_))
 
   def char(
     charSequence: CharSequence,
     start: Int,
     end: Int
   ): IO[IndexOutOfBoundsException, CharBuffer] =
-    IO.effect(new CharBuffer(JCharBuffer.wrap(charSequence, start, end)))
+    IO.attempt(new CharBuffer(JCharBuffer.wrap(charSequence, start, end)))
       .refineToOrDie[IndexOutOfBoundsException]
 
   def char(charSequence: CharSequence): IO[Nothing, CharBuffer] =
-    IO.effectTotal(new CharBuffer(JCharBuffer.wrap(charSequence)))
+    IO.succeed(new CharBuffer(JCharBuffer.wrap(charSequence)))
 
   def float(capacity: Int): IO[IllegalArgumentException, FloatBuffer] =
-    IO.effect(JFloatBuffer.allocate(capacity))
+    IO.attempt(JFloatBuffer.allocate(capacity))
       .map(new FloatBuffer(_))
       .refineToOrDie[IllegalArgumentException]
 
   def float(chunk: Chunk[Float]): IO[Nothing, FloatBuffer] =
-    IO.effectTotal(JFloatBuffer.wrap(chunk.toArray)).map(new FloatBuffer(_))
+    IO.succeed(JFloatBuffer.wrap(chunk.toArray)).map(new FloatBuffer(_))
 
   def double(capacity: Int): IO[IllegalArgumentException, DoubleBuffer] =
-    IO.effect(JDoubleBuffer.allocate(capacity))
+    IO.attempt(JDoubleBuffer.allocate(capacity))
       .map(new DoubleBuffer(_))
       .refineToOrDie[IllegalArgumentException]
 
   def double(chunk: Chunk[Double]): IO[Nothing, DoubleBuffer] =
-    IO.effectTotal(JDoubleBuffer.wrap(chunk.toArray)).map(new DoubleBuffer(_))
+    IO.succeed(JDoubleBuffer.wrap(chunk.toArray)).map(new DoubleBuffer(_))
 
   def int(capacity: Int): IO[IllegalArgumentException, IntBuffer] =
-    IO.effect(JIntBuffer.allocate(capacity))
+    IO.attempt(JIntBuffer.allocate(capacity))
       .map(new IntBuffer(_))
       .refineToOrDie[IllegalArgumentException]
 
   def int(chunk: Chunk[Int]): IO[Nothing, IntBuffer] =
-    IO.effectTotal(JIntBuffer.wrap(chunk.toArray)).map(new IntBuffer(_))
+    IO.succeed(JIntBuffer.wrap(chunk.toArray)).map(new IntBuffer(_))
 
   def long(capacity: Int): IO[IllegalArgumentException, LongBuffer] =
-    IO.effect(JLongBuffer.allocate(capacity))
+    IO.attempt(JLongBuffer.allocate(capacity))
       .map(new LongBuffer(_))
       .refineToOrDie[IllegalArgumentException]
 
   def long(chunk: Chunk[Long]): IO[Nothing, LongBuffer] =
-    IO.effectTotal(JLongBuffer.wrap(chunk.toArray)).map(new LongBuffer(_))
+    IO.succeed(JLongBuffer.wrap(chunk.toArray)).map(new LongBuffer(_))
 
   def short(capacity: Int): IO[IllegalArgumentException, ShortBuffer] =
-    IO.effect(JShortBuffer.allocate(capacity))
+    IO.attempt(JShortBuffer.allocate(capacity))
       .map(new ShortBuffer(_))
       .refineToOrDie[IllegalArgumentException]
 
   def short(chunk: Chunk[Short]): IO[Nothing, ShortBuffer] =
-    IO.effectTotal(JShortBuffer.wrap(chunk.toArray)).map(new ShortBuffer(_))
+    IO.succeed(JShortBuffer.wrap(chunk.toArray)).map(new ShortBuffer(_))
 
 }

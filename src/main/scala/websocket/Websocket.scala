@@ -79,7 +79,7 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
       Base64.getEncoder.encodeToString(bytes)
     }
 
-    Response.Ok
+    Response.Ok()
       .hdr("Host" -> host)
       .hdr("Upgrade" -> "websocket")
       .hdr("Connection" -> "Upgrade")
@@ -105,7 +105,7 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
     } yield (rspKey)
 
     val zresp = result.map(key => {
-      Response.Ok.hdr("Upgrade" -> "websocket").hdr("Connection" -> "Upgrade").hdr("Sec-WebSocket-Accept" -> key)
+      Response.Ok().hdr("Upgrade" -> "websocket").hdr("Connection" -> "Upgrade").hdr("Sec-WebSocket-Accept" -> key)
     }) match {
       case None =>
         Left(
@@ -126,7 +126,7 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
       else ZIO.succeed(0)
 
     for {
-      array <- ZIO.effect(frames.frameToBuffer(frame))
+      array <- ZIO.attempt(frames.frameToBuffer(frame))
       _     <- processArray(array, 0)
 
     } yield ()
@@ -136,7 +136,7 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
 
     val T = for {
       _     <- Channel.readBuffer(req.ch, IN_J_BUFFER)
-      frame <- ZIO.effect(frames.bufferToFrame(IN_J_BUFFER))
+      frame <- ZIO.attempt(frames.bufferToFrame(IN_J_BUFFER))
       _ <- if (frame.opcode == WebSocketFrame.PING) pongReply(req)
           else ZIO.unit
     } yield (frame)
@@ -148,7 +148,7 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
   def accept(req: Request): ZIO[ZEnv with MyLogging, Exception, Unit] = {
     Channel.keepAlive(req.ch, idleTimeout )  //0 - no timeout
     val T = for {
-      res <- ZIO.effect(serverHandshake(req))
+      res <- ZIO.attempt(serverHandshake(req))
       _ <- res match {
             case Right(response) =>
               Channel
@@ -159,7 +159,7 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
                       "console",
                       "Webocket request initiated from: " + adr.get.toInetSocketAddress.address.canonicalHostName
                     )
-                ) *> Channel.write(req.ch, Chunk.fromArray(genWsResponse(response).getBytes())) *> ZIO.effectTotal{ isClosed = false }
+                ) *> Channel.write(req.ch, Chunk.fromArray(genWsResponse(response).getBytes())) *> ZIO.succeed{ isClosed = false }
             case Left(exception) => ZIO.fail(exception)
           }
 
@@ -175,12 +175,13 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
     }
 
   def receiveTextAsStream(req: Request) = {
+
     val stream = req.stream >>= (ZStream.fromChunk(_))
     val s0 = stream
       .aggregate(FrameTransducer.make)
       .tap(doPingPong(req, _))
       .filter(_.opcode != WebSocketFrame.PING)
-      .tap( f => if ( f.opcode == WebSocketFrame.CLOSE ) ZIO.effectTotal( this.isClosed = true ) else ZIO.unit   )
+      .tap( f => if ( f.opcode == WebSocketFrame.CLOSE ) ZIO.succeed( this.isClosed = true ) else ZIO.unit   )
       .takeUntil(_.opcode == WebSocketFrame.CLOSE)
       .filter(_.opcode != WebSocketFrame.CLOSE)
 
@@ -193,7 +194,7 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
       .aggregate(FrameTransducer.make)
       .tap(doPingPong(req, _))
       .filter(_.opcode != WebSocketFrame.PING)
-      .tap( f => if ( f.opcode == WebSocketFrame.CLOSE ) ZIO.effectTotal( this.isClosed = true ) else ZIO.unit   )
+      .tap( f => if ( f.opcode == WebSocketFrame.CLOSE ) ZIO.succeed( this.isClosed = true ) else ZIO.unit   )
       .takeUntil(_.opcode == WebSocketFrame.CLOSE)
       .filter(_.opcode != WebSocketFrame.CLOSE)
     s0

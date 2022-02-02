@@ -20,10 +20,10 @@ object FrameTransducer {
       for {
         frames   <- tx.get
         leftOver <- leftOverRef.get
-        data <- ZIO.effectTotal(leftOver ++ in)
-        bb   <- ZIO.effectTotal(ByteBuffer.wrap(data.toArray))
+        data <- ZIO.succeed(leftOver ++ in)
+        bb   <- ZIO.succeed(ByteBuffer.wrap(data.toArray))
 
-        byteBuf <- ZIO.effect(Option(frames.bufferToFrame(bb)))
+        byteBuf <- ZIO.attempt(Option(frames.bufferToFrame(bb)))
 
         b <- byteBuf match {
               case None =>

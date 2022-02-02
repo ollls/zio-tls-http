@@ -36,14 +36,14 @@ sealed case class Request(headers: Headers, stream: ZStream[ZEnv, Exception, Chu
     for {
       b <- stream.runCollect
       a <- ZIO
-            .absolve(ZIO.effect(new String(b(0).toArray).fromJson[A]))
+            .absolve(ZIO.attempt(new String(b(0).toArray).fromJson[A]))
             .mapError(str => new MediaEncodingError(s"JSON schema error: $str"))
     } yield (a)
 
   def bodyAsText: ZIO[ZEnv, Throwable, String] =
     for {
       b <- body
-      a <- ZIO.effect(new String(b.toArray))
+      a <- ZIO.attempt(new String(b.toArray))
     } yield (a)
 
 }

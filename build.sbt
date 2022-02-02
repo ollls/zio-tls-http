@@ -45,16 +45,15 @@ ThisBuild / publishMavenStyle := true
     organization := "io.github.ollls",
     name := "zio-tls-http",
     version := "1.2-m3",
-    scalaVersion := "2.13.1",
+    scalaVersion := "3.1.1",
     maxErrors := 3,
     retrieveManaged := true,
-    libraryDependencies ++= Seq(
-      "dev.zio"    %% "zio"         % ZioVersion,
-      "dev.zio" %% "zio-json" % "0.1.4",
-      "dev.zio" %% "zio-test" % ZioVersion % Test,
-      "dev.zio" %% "zio-test-sbt" % ZioVersion % Test
-    ),
-     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    libraryDependencies += "dev.zio" %% "zio"         % "2.0.0-RC2",
+    libraryDependencies += "dev.zio" %% "zio-streams" % "2.0.0-RC2",
+    libraryDependencies += "dev.zio" %% "zio-test"    % "2.0.0-RC2",
+    libraryDependencies += "dev.zio" %% "zio-json"    % "0.3.0-RC2",
+   
+    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
   lazy val example = (project in file("examples/start")).settings(
@@ -73,7 +72,6 @@ ThisBuild / publishMavenStyle := true
 
 // Refine scalac params from tpolecat
 scalacOptions ++= Seq(
-  "-Wunused:imports",
   "-Xfatal-warnings",
   "-deprecation", 
 )

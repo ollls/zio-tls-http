@@ -9,7 +9,7 @@ import zio.Chunk
 import java.net.URI
 import java.nio.file.{ Path => JPath }
 import java.nio.file.FileSystems
-import zio.blocking.Blocking
+
 //import java.io.FileOutputStream
 import MyLogging.MyLogging
 
@@ -24,8 +24,8 @@ object FileUtils {
   //////////////////////////////////////////////////////////////////////////
   def serverFilePath_(raw_path: Path, root_folder: String, new_file: Boolean = false) =
     for {
-      path      <- ZIO.effect( new URI( raw_path.toString ) )
-      file_path <- IO.effect {
+      path      <- ZIO.attempt( new URI( raw_path.toString ) )
+      file_path <- IO.attempt {
                     val file_path: JPath = FileSystems.getDefault().getPath(root_folder, path.getPath )
                     file_path
                   }
@@ -41,7 +41,7 @@ object FileUtils {
   //////////////////////////////////////////////////////////////////////////
   def serverFilePath(raw_path: String, root_folder: String, new_file: Boolean = false) =
     for {
-      file_path <- IO.effect {
+      file_path <- IO.attempt {
                     val path             = new URI(raw_path)
                     val file_path: JPath = FileSystems.getDefault().getPath(root_folder, path.getPath)
                     file_path
@@ -63,12 +63,12 @@ object FileUtils {
     
 
   def httpFileStream(req: Request, folder: String) 
-      : ZIO[ZEnv with MyLogging,Exception,ZStream[Blocking,Throwable,Chunk[Byte]]]= {
+      : ZIO[ZEnv with MyLogging,Exception,ZStream[Any,Throwable,Chunk[Byte]]]= {
  
     val raw_path = req.path
     (for {
       file_path <- serverFilePath(raw_path, folder)
-      file_name <- IO.effect { file_path.getFileName }
+      file_name <- IO.attempt { file_path.getFileName }
       body      <- req.body
       fstream0   <- ZIO(ZStream.fromFile(file_path, HTTP_CHUNK_SIZE) )
 

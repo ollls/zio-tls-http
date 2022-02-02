@@ -11,7 +11,7 @@ import java.nio.channels.{
 import java.nio.{ ByteBuffer => JByteBuffer }
 import java.util.concurrent.TimeUnit
 
-import zio.duration._
+
 import nio.channels.AsynchronousChannel._
 import nio.{ Buffer, SocketAddress, SocketOption }
 import zio._
@@ -53,13 +53,13 @@ class AsynchronousByteChannel(private val channel: JAsynchronousByteChannel) {
    * Closes this channel.
    */
   final val close: IO[Exception, Unit] =
-    IO.effect(channel.close()).refineToOrDie[Exception]
+    IO.attempt(channel.close()).refineToOrDie[Exception]
 
   /**
    * Tells whether or not this channel is open.
    */
   final val isOpen: UIO[Boolean] =
-    IO.effectTotal(channel.isOpen)
+    IO.succeed(channel.isOpen)
 }
 
 class AsynchronousServerSocketChannel(private val channel: JAsynchronousServerSocketChannel) {
@@ -69,29 +69,29 @@ class AsynchronousServerSocketChannel(private val channel: JAsynchronousServerSo
    * to listen for connections.
    */
   final def bind(address: SocketAddress): IO[Exception, Unit] =
-    IO.effect(channel.bind(address.jSocketAddress)).refineToOrDie[Exception].unit
+    IO.attempt(channel.bind(address.jSocketAddress)).refineToOrDie[Exception].unit
 
   /**
    * Binds the channel's socket to a local address and configures the socket
    * to listen for connections, up to backlog pending connection.
    */
   final def bind(address: SocketAddress, backlog: Int): IO[Exception, Unit] =
-    IO.effect(channel.bind(address.jSocketAddress, backlog)).refineToOrDie[Exception].unit
+    IO.attempt(channel.bind(address.jSocketAddress, backlog)).refineToOrDie[Exception].unit
 
   final def setOption[T](name: SocketOption[T], value: T): IO[Exception, Unit] =
-    IO.effect(channel.setOption(name.jSocketOption, value)).refineToOrDie[Exception].unit
+    IO.attempt(channel.setOption(name.jSocketOption, value)).refineToOrDie[Exception].unit
 
   /**
    * Accepts a connection.
    */
   final val accept: Managed[Exception, AsynchronousSocketChannel] =
-    Managed.make(
+    Managed.acquireReleaseWith(
       wrap[JAsynchronousSocketChannel](h => channel.accept((), h))
         .map(AsynchronousSocketChannel(_))
     )(_.close.orDie)
 
 
-    final val accept2: IO[Exception, AsynchronousSocketChannel] =
+  final val accept2: IO[Exception, AsynchronousSocketChannel] =
       wrap[JAsynchronousSocketChannel](h => channel.accept((), h))
         .map(AsynchronousSocketChannel(_))      
 
@@ -104,7 +104,7 @@ class AsynchronousServerSocketChannel(private val channel: JAsynchronousServerSo
    * channel's socket is not bound.
    */
   final def localAddress: IO[Exception, Option[SocketAddress]] =
-    IO.effect(
+    IO.attempt(
         Option(channel.getLocalAddress).map(new SocketAddress(_))
       )
       .refineToOrDie[Exception]
@@ -113,31 +113,31 @@ class AsynchronousServerSocketChannel(private val channel: JAsynchronousServerSo
    * Closes this channel.
    */
   final private[channels] val close: IO[Exception, Unit] =
-    IO.effect(channel.close()).refineToOrDie[Exception]
+    IO.attempt(channel.close()).refineToOrDie[Exception]
 
   /**
    * Tells whether or not this channel is open.
    */
   final val isOpen: UIO[Boolean] =
-    IO.effectTotal(channel.isOpen)
+    IO.succeed(channel.isOpen)
 }
 
 object AsynchronousServerSocketChannel {
 
   def apply(): Managed[Exception, AsynchronousServerSocketChannel] = {
     val open = IO
-      .effect(JAsynchronousServerSocketChannel.open())
+      .attempt(JAsynchronousServerSocketChannel.open())
       .refineToOrDie[Exception]
       .map(new AsynchronousServerSocketChannel(_))
 
-    Managed.make(open)(_.close.orDie)
+    Managed.acquireReleaseWith(open)(_.close.orDie)
   }
 
   def apply(
     channelGroup: AsynchronousChannelGroup
   ): Managed[Exception, AsynchronousServerSocketChannel] = {
     val open = IO
-      .effect(
+      .attempt(
         JAsynchronousServerSocketChannel.open(channelGroup.channelGroup)
       )
       .refineOrDie {
@@ -145,7 +145,7 @@ object AsynchronousServerSocketChannel {
       }
       .map(new AsynchronousServerSocketChannel(_))
 
-    Managed.make(open)(_.close.orDie)
+    Managed.acquireReleaseWith(open)(_.close.orDie)
   }
 }
 
@@ -172,26 +172,26 @@ class AsynchronousSocketChannel(private val channel: JAsynchronousSocketChannel)
     } yield r    
 
   final def bind(address: SocketAddress): IO[Exception, Unit] =
-    IO.effect(channel.bind(address.jSocketAddress)).refineToOrDie[Exception].unit
+    IO.attempt(channel.bind(address.jSocketAddress)).refineToOrDie[Exception].unit
 
   final def setOption[T](name: SocketOption[T], value: T): IO[Exception, Unit] =
-    IO.effect(channel.setOption(name.jSocketOption, value)).refineToOrDie[Exception].unit
+    IO.attempt(channel.setOption(name.jSocketOption, value)).refineToOrDie[Exception].unit
 
   final def shutdownInput: IO[Exception, Unit] =
-    IO.effect(channel.shutdownInput()).refineToOrDie[Exception].unit
+    IO.attempt(channel.shutdownInput()).refineToOrDie[Exception].unit
 
   final def shutdownOutput: IO[Exception, Unit] =
-    IO.effect(channel.shutdownOutput()).refineToOrDie[Exception].unit
+    IO.attempt(channel.shutdownOutput()).refineToOrDie[Exception].unit
 
   final def remoteAddress: IO[Exception, Option[SocketAddress]] =
-    IO.effect(
+    IO.attempt(
         Option(channel.getRemoteAddress)
           .map(new SocketAddress(_))
       )
       .refineToOrDie[Exception]
 
   final def localAddress: IO[Exception, Option[SocketAddress]] =
-    IO.effect(
+    IO.attempt(
         Option(channel.getLocalAddress)
           .map(new SocketAddress(_))
       )
@@ -268,13 +268,13 @@ class AsynchronousSocketChannel(private val channel: JAsynchronousSocketChannel)
 object AsynchronousSocketChannel {
 
   def apply(): ZIO[ZEnv, Exception, AsynchronousSocketChannel] = {
-    IO.effect(JAsynchronousSocketChannel.open())
+    IO.attempt(JAsynchronousSocketChannel.open())
       .refineToOrDie[Exception]
       .map(new AsynchronousSocketChannel(_))
   }
 
    def apply( channelGroup: AsynchronousChannelGroup ): ZIO[ZEnv, Exception, AsynchronousSocketChannel] = {
-    IO.effect(JAsynchronousSocketChannel.open( channelGroup.channelGroup ))
+    IO.attempt(JAsynchronousSocketChannel.open( channelGroup.channelGroup ))
       .refineToOrDie[Exception]
       .map(new AsynchronousSocketChannel(_))
   }
@@ -286,10 +286,10 @@ object AsynchronousSocketChannel {
 object AsynchronousChannel {
 
   private[nio] def wrap[T](op: JCompletionHandler[T, Unit] => Unit): ZIO[Any, Exception, T] =
-    ZIO.effectAsync[Any, Exception, T] { k =>
+    ZIO.async[Any, Exception, T] { k =>
       val handler = new JCompletionHandler[T, Unit] {
         def completed(result: T, u: Unit): Unit =
-          k(IO.effectTotal(result))
+          k(IO.succeed(result))
 
         def failed(t: Throwable, u: Unit): Unit =
           t match {

@@ -4,7 +4,6 @@ import zio.ZIO
 import zio.UIO
 import zio.ZLayer
 import zio.ZEnv
-import zio.Has
 import zhttp.MyLogging.MyLogging
 import zhttp.clients.ResPool
 import zio.Tag
@@ -80,7 +79,7 @@ object ResPoolCache {
 
   }
 
-  type ResPoolCache[K, V, R] = Has[ResPoolCache.Service[K, V, R]]
+  type ResPoolCache[K, V, R] = ResPoolCache.Service[K, V, R]
 
   trait Service[K, V, R] {
     def get(key: K): ZIO[zio.ZEnv with MyLogging, Throwable, Option[V]]
@@ -94,10 +93,10 @@ object ResPoolCache {
   }
 
   def get[K, V, R](key: K)(implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
-    ZIO.accessM[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].get(key))
+    ZIO.environmentWithZIO[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].get(key))
 
   def info[K, V, R](implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
-    ZIO.accessM[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].info)
+    ZIO.environmentWithZIO[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].info)
 
   def make[K, V, R](timeToLiveMs: Int, limit: Int, updatef: (R, K) => ZIO[ZEnv with MyLogging, Throwable, Option[V]])(
     implicit ord: K => Ordered[K],
@@ -107,11 +106,11 @@ object ResPoolCache {
   ): ZLayer[ZEnv with ResPool.ResPool[R] with MyLogging.MyLogging, Nothing, ResPoolCache.ResPoolCache[K, V, R]] =
     (for {
       queue <- ZQueue.bounded[K](1)
-      service <- ZIO.access[Has[ResPool.Service[R]]](
+      service <- ZIO.environment[ResPool.Service[R]](
                   rp => makeService[K, V, R](rp.get, timeToLiveMs, limit, updatef, queue)
                 )
 
-      _ <- queue.take.flatMap(key => service.doFreeSpace).repeatUntilM( _ => queue.isShutdown ).forkDaemon
+      _ <- queue.take.flatMap(key => service.doFreeSpace).repeatUntilZIO( _ => queue.isShutdown ).forkDaemon
 
     } yield (service)).toLayer
 
@@ -224,7 +223,7 @@ object ResPoolCache {
                             layerName[K, V, R] + ": key = " + key.toString() + " expired with " + cached_entry.ts
                           )
                       res <- ZManaged
-                              .make(rp.acquire)(c => rp.release(c) )//.catchAll(_ => ZIO.unit))
+                              .acquireReleaseWith(rp.acquire)(c => rp.release(c) )//.catchAll(_ => ZIO.unit))
                               .use(resource => updatef(resource, key))
                               .flatMap(ov => {
                                 ov match {
@@ -258,18 +257,18 @@ object ResPoolCache {
                           layerName[K, V, R] + ": key = " + key.toString() + " attempt to cache a new value"
                         )
                     v <- ZManaged
-                          .make(rp.acquire)(c => rp.release(c))  //.catchAll(_ => ZIO.unit))
+                          .acquireReleaseWith(rp.acquire)(c => rp.release(c))  //.catchAll(_ => ZIO.unit))
                           .use(resource => updatef(resource, key))
                           .flatMap(ov => {
                             ov match {
                               case Some(v) =>
                                 for {
-                                  entry <- ZIO.effect(new CacheEntry(v))
+                                  entry <- ZIO.attempt(new CacheEntry(v))
 
-                                  _ <- ZIO.effect(entry.timeStampIt)
+                                  _ <- ZIO.attempt(entry.timeStampIt)
 
                                   res <- cache_tbl.u_add(ValuePair(key, entry))
-                                  _   <- ZIO.effect(lru_tbl.add(new LRUQEntry[K](entry.ts, key))).when(res == true)
+                                  _   <- ZIO.attempt(lru_tbl.add(new LRUQEntry[K](entry.ts, key))).when(res == true)
                                   _   <- ZIO.succeed(adds.incrementAndGet()).when(res == true)
 
                                   _ <- MyLogging.log(
@@ -319,7 +318,7 @@ object ResPoolCache {
           _  <- f1.await
         } yield ()
 
-        zio.blocking.blocking(T)
+        zio.ZIO.blocking(T)
       }
 
       ///////////////////////////////////////////////////////////////////////////////////////

@@ -17,7 +17,7 @@ class InetSocketAddress private[nio] (private val jInetSocketAddress: JInetSocke
   def address : InetAddress = new InetAddress(jInetSocketAddress.getAddress)
 
   def hostName: IO[Exception, String] =
-    IO.effect(jInetSocketAddress.getHostName).refineToOrDie[Exception]
+    IO.attempt(jInetSocketAddress.getHostName).refineToOrDie[Exception]
 
   def hostString: String = jInetSocketAddress.getHostString
 
@@ -43,22 +43,22 @@ object SocketAddress {
   private object InetSocketAddress {
 
     def apply(port: Int): IO[Exception, InetSocketAddress] =
-      IO.effect(new JInetSocketAddress(port))
+      IO.attempt(new JInetSocketAddress(port))
         .refineToOrDie[Exception]
         .map(new InetSocketAddress(_))
 
     def apply(host: String, port: Int): IO[Exception, InetSocketAddress] =
-      IO.effect(new JInetSocketAddress(host, port))
+      IO.attempt(new JInetSocketAddress(host, port))
         .refineToOrDie[Exception]
         .map(new InetSocketAddress(_))
 
     def apply(addr: InetAddress, port: Int): IO[Exception, InetSocketAddress] =
-      IO.effect(new JInetSocketAddress(addr.jInetAddress, port))
+      IO.attempt(new JInetSocketAddress(addr.jInetAddress, port))
         .refineToOrDie[Exception]
         .map(new InetSocketAddress(_))
 
     def createUnresolved(host: String, port: Int): IO[Exception, InetSocketAddress] =
-      IO.effect(JInetSocketAddress.createUnresolved(host, port))
+      IO.attempt(JInetSocketAddress.createUnresolved(host, port))
         .refineToOrDie[Exception]
         .map(new InetSocketAddress(_))
   }

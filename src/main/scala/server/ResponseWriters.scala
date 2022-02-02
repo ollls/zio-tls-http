@@ -1,11 +1,12 @@
 package zhttp
 
 import zio.{ Chunk, IO, ZEnv, ZIO }
-import zio.blocking._
+
 //import scala.collection.immutable.ListMap
 import java.io.File
 import java.io.FileInputStream
 import zio.stream.ZStream
+import zio.ZIO.attemptBlocking
 
 object ResponseWriters {
 
@@ -85,14 +86,14 @@ object ResponseWriters {
   ): ZIO[ZEnv, Exception, Unit] = {
     val result = for {
 
-      buf <- IO.effectTotal(new Array[Byte](chunkSize))
+      buf <- IO.succeed(new Array[Byte](chunkSize))
 
-      header <- IO.effect(ResponseWriters.genResponseContentTypeFileHeader(fpath.toString, contentType))
+      header <- IO.attempt(ResponseWriters.genResponseContentTypeFileHeader(fpath.toString, contentType))
 
-      fpm = effectBlocking(new FileInputStream(fpath)).toManaged(fp => ZIO.effect(fp.close).catchAll(_ => IO.unit))
+      fpm = attemptBlocking(new FileInputStream(fpath)).toManagedWith(fp => ZIO.attempt(fp.close).catchAll(_ => IO.unit))
 
       _ <- fpm.use { fp =>
-            Channel.write(c, Chunk.fromArray(header.getBytes)) *> (effectBlocking(fp.read(buf))
+            Channel.write(c, Chunk.fromArray(header.getBytes)) *> (attemptBlocking(fp.read(buf))
               .flatMap { nBytes =>
                 {
                   if (nBytes > 0) {

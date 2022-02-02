@@ -7,11 +7,10 @@ import nio._
 import nio.channels._
 
 import zio.ExitCode
-import zio.Has
 
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
-class TcpServer[MyEnv <: Has[MyLogging.Service]](port: Int, keepAlive: Int = 2000, serverIP: String = "0.0.0.0") {
+class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, serverIP: String = "0.0.0.0") {
 
   val BINDING_SERVER_IP = serverIP //make sure certificate has that IP on SAN's list
   val KEEP_ALIVE: Long  = keepAlive //ms, good if short for testing with broken site's snaphosts with 404 pages
@@ -50,7 +49,7 @@ class TcpServer[MyEnv <: Has[MyLogging.Service]](port: Int, keepAlive: Int = 200
                         MyLogging.debug("console", "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName)
                       }) *>
                         ZManaged
-                          .make(ZIO.effect(new TcpChannel(channel.keepAlive(KEEP_ALIVE))))(Channel.close(_).orDie)
+                          .acquireReleaseWith(ZIO.attempt(new TcpChannel(channel.keepAlive(KEEP_ALIVE))))(Channel.close(_).orDie)
                           .use { c =>
                             processor(c).catchAll(e => MyLogging.error("console", e.toString) *> IO.succeed(0))
                           }
@@ -78,7 +77,7 @@ class TcpServer[MyEnv <: Has[MyLogging.Service]](port: Int, keepAlive: Int = 200
 
   def stop =
     for {
-      _ <- ZIO.effectTotal(terminate)
+      _ <- ZIO.succeed(terminate)
       //kick it one last time
       c <- clients.HttpConnection
             .connect(s"http://localhost:$SERVER_PORT")

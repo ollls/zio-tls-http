@@ -29,22 +29,22 @@ class NetworkInterface private[nio] (private[nio] val jNetworkInterface: JNetwor
   def displayName: String = jNetworkInterface.getDisplayName
 
   val isUp: IO[SocketException, Boolean] =
-    IO.effect(jNetworkInterface.isUp).refineOrDie(JustSocketException)
+    IO.attempt(jNetworkInterface.isUp).refineOrDie(JustSocketException)
 
   val isLoopback: IO[SocketException, Boolean] =
-    IO.effect(jNetworkInterface.isLoopback).refineOrDie(JustSocketException)
+    IO.attempt(jNetworkInterface.isLoopback).refineOrDie(JustSocketException)
 
   val isPointToPoint: IO[SocketException, Boolean] =
-    IO.effect(jNetworkInterface.isPointToPoint).refineOrDie(JustSocketException)
+    IO.attempt(jNetworkInterface.isPointToPoint).refineOrDie(JustSocketException)
 
   val supportsMulticast: IO[SocketException, Boolean] =
-    IO.effect(jNetworkInterface.supportsMulticast).refineOrDie(JustSocketException)
+    IO.attempt(jNetworkInterface.supportsMulticast).refineOrDie(JustSocketException)
 
   val hardwareAddress: IO[SocketException, Array[Byte]] =
-    IO.effect(jNetworkInterface.getHardwareAddress).refineOrDie(JustSocketException)
+    IO.attempt(jNetworkInterface.getHardwareAddress).refineOrDie(JustSocketException)
 
   val mtu: IO[SocketException, Int] =
-    IO.effect(jNetworkInterface.getMTU).refineOrDie(JustSocketException)
+    IO.attempt(jNetworkInterface.getMTU).refineOrDie(JustSocketException)
 
   def isVirtual: Boolean = jNetworkInterface.isVirtual
 
@@ -57,22 +57,22 @@ object NetworkInterface {
   }
 
   def byName(name: String): IO[SocketException, NetworkInterface] =
-    IO.effect(JNetworkInterface.getByName(name))
+    IO.attempt(JNetworkInterface.getByName(name))
       .refineOrDie(JustSocketException)
       .map(new NetworkInterface(_))
 
   def byIndex(index: Integer): IO[SocketException, NetworkInterface] =
-    IO.effect(JNetworkInterface.getByIndex(index))
+    IO.attempt(JNetworkInterface.getByIndex(index))
       .refineOrDie(JustSocketException)
       .map(new NetworkInterface(_))
 
   def byInetAddress(address: InetAddress): IO[SocketException, NetworkInterface] =
-    IO.effect(JNetworkInterface.getByInetAddress(address.jInetAddress))
+    IO.attempt(JNetworkInterface.getByInetAddress(address.jInetAddress))
       .refineOrDie(JustSocketException)
       .map(new NetworkInterface(_))
 
   def networkInterfaces: IO[SocketException, Iterator[NetworkInterface]] =
-    IO.effect(JNetworkInterface.getNetworkInterfaces.asScala)
+    IO.attempt(JNetworkInterface.getNetworkInterfaces.asScala)
       .refineOrDie(JustSocketException)
       .map(_.map(new NetworkInterface(_)))
 }

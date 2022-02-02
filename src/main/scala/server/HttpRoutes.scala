@@ -3,16 +3,15 @@ package zhttp
 import MyLogging.MyLogging
 
 import zio.{ ZEnv, ZIO }
-import zio.Has
 
-final case class HttpRoutes[-MyEnv <: Has[MyLogging.Service]](
+final case class HttpRoutes[-MyEnv <: MyLogging.Service](
   run: Request => ZIO[ZEnv with MyEnv, Option[Exception], Response],
   postProc: HttpRoutes.PostProc
 )
 
 object HttpRoutes {
 
-  case class WebFilterProc[-MyEnv <: Has[MyLogging.Service]](
+  case class WebFilterProc[-MyEnv <: MyLogging.Service](
     run: Request => ZIO[ZEnv with MyEnv, Throwable, Response]
   ) {
     def <> [MyEnv0 <: MyEnv](another: WebFilterProc[MyEnv0]) = combine[MyEnv0](another.run)
@@ -42,7 +41,7 @@ object HttpRoutes {
   //type WebFilterProc = Request => ZIO[ZEnv, Throwable, Response
 
   //replaces sequence and OptionT
-  def OptionToOptionalZIOError[A, MyEnv <: Has[MyLogging.Service]](
+  def OptionToOptionalZIOError[A, MyEnv <: MyLogging.Service](
     oza: Option[ZIO[ZEnv with MyEnv, Throwable, A]]
   ): ZIO[ZEnv with MyEnv, Option[Exception], A] =
     oza match {
@@ -61,15 +60,15 @@ object HttpRoutes {
   def defaultPostProc                 = _postProc
   def defaultPostProc(proc: PostProc) = _postProc = proc
 
-  def of[MyEnv <: Has[MyLogging.Service]](pf: PartialFunction[Request, ZIO[ZEnv with MyEnv, Throwable, Response]]) =
+  def of[MyEnv <: MyLogging.Service](pf: PartialFunction[Request, ZIO[ZEnv with MyEnv, Throwable, Response]]) =
     ofWithFilter[MyEnv](_filter, _postProc)(pf)
 
-  def ofWithPostProc[MyEnv <: Has[MyLogging.Service]](
+  def ofWithPostProc[MyEnv <: MyLogging.Service](
     postProc: PostProc
   )(pf: PartialFunction[Request, ZIO[ZEnv with MyEnv, Throwable, Response]]) =
     ofWithFilter[MyEnv](_filter, postProc)(pf)
 
-  def ofWithFilter[MyEnv <: Has[MyLogging.Service]](
+  def ofWithFilter[MyEnv <: MyLogging.Service](
     filter0: WebFilterProc[MyEnv],
     postProc0: PostProc = _postProc
   )(pf: PartialFunction[Request, ZIO[ZEnv with MyEnv, Throwable, Response]]): HttpRoutes[MyEnv] = {
@@ -93,7 +92,7 @@ object HttpRoutes {
       for {
         filter_resp <- OptionToOptionalZIOError[Response, MyEnv](f0.lift(req))
 
-        new_req <- ZIO.effectTotal(Request(req.headers ++ filter_resp.headers, req.stream, req.ch))
+        new_req <- ZIO.succeed(Request(req.headers ++ filter_resp.headers, req.stream, req.ch))
 
         route_resp <- if (filter_resp.code.isSuccess) OptionToOptionalZIOError[Response, MyEnv](pf.lift(new_req))
                      else ZIO.succeed(filter_resp)

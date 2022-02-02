@@ -4,19 +4,21 @@ import zio.ZIO
 import zio.test._
 //import zio.test.Assertion._
 
-import zio.duration._
-import zio.test.{ DefaultRunnableSpec, TestAspect }
+
+import zio.test.TestAspect
+import zio._
+import zio.test.ZIOSpecDefault
 
 
-trait BaseSpec extends DefaultRunnableSpec {
+trait BaseSpec extends ZIOSpecDefault {
   override def aspects = List(TestAspect.timeout(60.seconds))
 }
 
 object ExampleSpec 
   extends BaseSpec {
     def spec = suite( "ExampleSpec")( 
-       testM( "healthcheck")
+       test( "healthcheck")
        {
-        ZIO.effect{ zio.test.assert ( "op" )(zio.test.Assertion.equalTo( "op" ) )  }
+        ZIO.attempt{ zio.test.assert ( "op" )(zio.test.Assertion.equalTo( "op" ) )  }
     
       } ) }

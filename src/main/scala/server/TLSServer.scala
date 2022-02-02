@@ -3,7 +3,7 @@ package zhttp
 import zio.{ IO, ZEnv, ZIO }
 import nio.SocketAddress
 
-import zio.blocking._
+
 
 import nio._
 import nio.channels._
@@ -12,11 +12,11 @@ import java.security.KeyStore
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.KeyManagerFactory
 import zio.ExitCode
-import zio.Has
+import zio.ZIO.attemptBlocking
 
 ////{ Executors, ExecutorService, ThreadPoolExecutor }
 
-class TLSServer[MyEnv <: Has[MyLogging.Service]](
+class TLSServer[MyEnv <: MyLogging.Service](
   port: Int,
   keepAlive: Int = 2000,
   serverIP: String = "0.0.0.0",
@@ -118,11 +118,11 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
     T
   }
 
-  def buildSSLContext(protocol: String, JKSkeystore: String, password: String): ZIO[Blocking, Exception, SSLContext] = {
+  def buildSSLContext(protocol: String, JKSkeystore: String, password: String): ZIO[Any, Exception, SSLContext] = {
 
     //resource close - TODO
 
-    val test = effectBlocking {
+    val test = attemptBlocking {
 
       val sslContext: SSLContext = SSLContext.getInstance(protocol)
 
@@ -149,7 +149,7 @@ class TLSServer[MyEnv <: Has[MyLogging.Service]](
 
   def stop =
     for {
-      _ <- ZIO.effectTotal(terminate)
+      _ <- ZIO.succeed(terminate)
       //kick it one last time
       c <- clients.HttpConnection
             .connect(s"https://localhost:$SERVER_PORT", null, tlsBlindTrust = false, s"$KEYSTORE_PATH", s"$KEYSTORE_PASSWORD")

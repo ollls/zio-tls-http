@@ -3,7 +3,6 @@ package zhttp
 import nio.channels.TLSChannelError
 import zio.{ Chunk, IO, ZEnv, ZIO }
 
-import zio.Has
 
 import zio.stream.ZStream
 import zio.stream.ZTransducer
@@ -110,10 +109,10 @@ object HttpRouter {
             var res: Chunk[Chunk[Byte]] = Chunk.empty
             (for {
               leftOver <- stateRef.get
-              pair     <- ZIO.effectTotal(produceChunk(leftOver))
+              pair     <- ZIO.succeed(produceChunk(leftOver))
               _        <- stateRef.set(pair._2)
-              repeat   <- ZIO.effectTotal(pair._1.isDefined && !pair._2.isEmpty)
-              _        <- ZIO.effectTotal { res = res :+ pair._1.getOrElse(Chunk.empty) }
+              repeat   <- ZIO.succeed(pair._1.isDefined && !pair._2.isEmpty)
+              _        <- ZIO.succeed { res = res :+ pair._1.getOrElse(Chunk.empty) }
 
             } yield (repeat)).repeatWhile(c => c == true) *> ZIO.succeed(res)
 
@@ -122,12 +121,12 @@ object HttpRouter {
             var start                   = true
             (for {
               leftOver <- stateRef.get
-              pair <- if (start == true) ZIO.effectTotal(produceChunk(leftOver ++ in))
-                     else ZIO.effectTotal(produceChunk(leftOver))
-              _      <- ZIO.effectTotal { start = false }
+              pair <- if (start == true) ZIO.succeed(produceChunk(leftOver ++ in))
+                     else ZIO.succeed(produceChunk(leftOver))
+              _      <- ZIO.succeed { start = false }
               _      <- stateRef.set(pair._2)
-              repeat <- ZIO.effectTotal(pair._1.isDefined && !pair._2.isEmpty)
-              _ <- ZIO.effectTotal {
+              repeat <- ZIO.succeed(pair._1.isDefined && !pair._2.isEmpty)
+              _ <- ZIO.succeed {
                     pair._1 match {
                       case None =>
                         if (pair._3 == true) {
@@ -145,7 +144,7 @@ object HttpRouter {
 
 }
 
-class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]) {
+class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
 
   def this(rt: HttpRoutes[R]*) = {
     this(rt.toList)
@@ -210,7 +209,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     val header_pair = raw"(.{2,100}):\s+(.+)".r
     val http_line   = raw"([A-Z]{3,8})\s+(.+)\s+(HTTP/.+)".r
 
-    val rd_stream = ZStream.repeatEffect(Channel.read(c)).flatMap(ZStream.fromChunk(_))
+    val rd_stream = ZStream.repeatZIO(Channel.read(c)).flatMap(ZStream.fromChunk(_))
     val r = rd_stream.peel(ZSink.fold(Chunk[Byte]()) { c =>
       !c.endsWith("\r\n\r\n")
     }((z, i: Byte) => z :+ i))
@@ -220,7 +219,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
               val strings =
                 ZStream.fromChunk(header_bytes).aggregate(ZTransducer.usASCIIDecode >>> ZTransducer.splitLines)
 
-              val hdrs = strings.fold(Headers())((hdrs, line) => {
+              val hdrs = strings.runFold(Headers())((hdrs, line) => {
                 line match {
                   case http_line(method, path, prot) =>
                     hdrs ++ Headers(HttpRouter._METHOD -> method, HttpRouter._PATH -> path, HttpRouter._PROTO -> prot)
@@ -233,36 +232,36 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                 h <- hdrs
                 //_ <- ZIO( println( h.printHeaders ) )
 
-                isWebSocket <- ZIO.effectTotal(
+                isWebSocket <- ZIO.succeed(
                                 h.get("Upgrade")
                                   .map(_.equalsIgnoreCase("websocket"))
                                   .collect { case true => true }
                                   .getOrElse(false)
                               )
 
-                isChunked <- ZIO.effectTotal(h.getMval("transfer-encoding").exists(_.equalsIgnoreCase("chunked")))
+                isChunked <- ZIO.succeed(h.getMval("transfer-encoding").exists(_.equalsIgnoreCase("chunked")))
 
-                isContinue <- ZIO.effectTotal(h.get("Expect").getOrElse("").equalsIgnoreCase("100-continue"))
+                isContinue <- ZIO.succeed(h.get("Expect").getOrElse("").equalsIgnoreCase("100-continue"))
                 _ <- ResponseWriters
                       .writeNoBodyResponse(c, StatusCode.Continue, "", false)
                       .when(isChunked && isContinue)
 
-                validate <- ZIO.effectTotal(
+                validate <- ZIO.succeed(
                              h.get(HttpRouter._METHOD)
                                .flatMap(_ => h.get(HttpRouter._PATH).flatMap(_ => h.get(HttpRouter._PROTO)))
                            )
                 _ <- if (validate.isDefined) ZIO.unit else IO.fail(new BadInboundDataError())
 
-                contentLen  <- ZIO.effectTotal(h.get("content-length").getOrElse("0"))
+                contentLen  <- ZIO.succeed(h.get("content-length").getOrElse("0"))
                 contentLenL <- ZIO.fromTry(scala.util.Try(contentLen.toLong)).refineToOrDie[Exception]
 
                 //validate content-len
                 //contentLenL <- ZIO.fromTry(Try(contentLen.toLong))
                 _ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
 
-                stream <- if (isWebSocket) ZIO.effect(body_stream.mapChunks(c => Chunk.single(c)))
+                stream <- if (isWebSocket) ZIO.attempt(body_stream.mapChunks(c => Chunk.single(c)))
                          else if (isChunked)
-                           ZIO.effect(
+                           ZIO.attempt(
                              body_stream
                                .aggregate(HttpRouter.chunkedDecode)
                                .collectWhile(new PartialFunction[Chunk[Byte], Chunk[Byte]] {
@@ -271,14 +270,14 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                                })
                            )
                          else
-                           ZIO.effect(
+                           ZIO.attempt(
                              body_stream
                                .take(contentLenL)
                                .mapChunks(c => Chunk.single(c))
                              //.grouped(Int.MaxValue) //this will be configurable
                            )
 
-                req <- ZIO.effect(Request(h, stream, c)).refineToOrDie[Exception]
+                req <- ZIO.attempt(Request(h, stream, c)).refineToOrDie[Exception]
 
                 (response, post_proc) <- route_go(req, appRoutes).catchAll {
                                           case None =>
@@ -288,7 +287,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
                                           case Some(e) => IO.fail(e)
                                         }
                 response2 <- if (response.raw_stream == false && req.isWebSocket == false)
-                              IO.effectTotal(post_proc(response))
+                              IO.succeed(post_proc(response))
                             else ZIO.succeed(response)
 
                 _ <- response_processor(c, req, response2).catchAll { e =>
@@ -332,7 +331,7 @@ class HttpRouter[R <: Has[MyLogging.Service]](val appRoutes: List[HttpRoutes[R]]
     if (req.isWebSocket && resp.code.isSuccess) {
       Channel
         .remoteAddress(req.ch)
-        .map(c => if (c.isDefined) c.get.toInetSocketAddress.address.canonicalHostName else "N/A") >>= (
+        .map(c => if (c.isDefined) c.get.toInetSocketAddress.address.canonicalHostName else "N/A") flatMap (
         c => ZIO.fail(WebSocketClosed(c))
       )
     } else if (resp == NoResponse) {

@@ -1,6 +1,5 @@
 package zhttp
 
-import zio.Has
 import zio.ZLayer
 import zio.ZQueue
 import zio.UIO
@@ -10,21 +9,23 @@ import java.nio.file.FileSystems
 import java.nio.ByteBuffer
 
 import scala.collection.immutable.ListMap
-import zio.clock.{ currentDateTime }
 import scala.io.AnsiColor
 import scala.io.AnsiColor._
 
 import zio.{ IO, ZEnv, ZIO }
-import zio.blocking._
+
 
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.nio.file.Files
 import java.time.OffsetDateTime
+import zio.FiberId
+import zio.Clock.currentDateTime
+import zio.ZIO.attemptBlocking
 
 object MyLogging {
 
-  type MyLogging = Has[Service]
+  type MyLogging = Service
 
   val FILE_TS_FMT    = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   val REL_LOG_FOLDER = "logs/"
@@ -112,10 +113,10 @@ object MyLogging {
   }
 
   def log(name: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
-    ZIO.accessM[ZEnv with MyLogging](logenv => logenv.get[MyLogging.Service].log(name, lvl, msg))
+    ZIO.environmentWithZIO[ZEnv with MyLogging](logenv => logenv.get[MyLogging.Service].log(name, lvl, msg))
 
   def logService: ZIO[ZEnv with MyLogging, Exception, MyLogging.Service] =
-    ZIO.access[ZEnv with MyLogging](logenv => logenv.get[MyLogging.Service])
+    ZIO.environment[ZEnv with MyLogging](logenv => logenv.get[MyLogging.Service])
 
   def info(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     log(name, LogLevel.Info, msg)
@@ -138,11 +139,11 @@ object MyLogging {
     lvl: LogLevel,
     log_msg: String,
     date: OffsetDateTime,
-    fiberId: zio.Fiber.Id
+    fiberId: FiberId
   ): ZIO[ZEnv, Throwable, Unit] =
     for {
-      ts <- IO.effectTotal(LogDatetimeFormatter.humanReadableDateTimeFormatter.format(date))
-      _ <- effectBlocking(logs.get(log_name).foreach { logRec =>
+      ts <- IO.succeed(LogDatetimeFormatter.humanReadableDateTimeFormatter.format(date))
+      _ <- attemptBlocking(logs.get(log_name).foreach { logRec =>
             {
               if (lvl >= logRec.lvl) {
                 val strLvl   = lvl.render
@@ -165,8 +166,8 @@ object MyLogging {
   private def open_logs(log_names: Seq[(String, LogLevel)]): ZIO[ZEnv, Throwable, ListMap[String, LogRec]] =
     for {
       //_    <- zio.console.putStrLn( "ZIO-TLS-HTTP started, log files in: " + REL_LOG_FOLDER + log_names.mkString( ",") )
-      logs <- effectBlocking(ListMap[String, LogRec]())
-      result <- IO.effect {
+      logs <- attemptBlocking(ListMap[String, LogRec]())
+      result <- IO.attempt {
                  // ensure log folder exists
                  val logPath = FileSystems.getDefault().getPath(REL_LOG_FOLDER)
                  Files.createDirectories(logPath)
@@ -187,13 +188,13 @@ object MyLogging {
     } yield (result)
 
   private def close_logs(logs: ListMap[String, LogRec]): ZIO[ZEnv, Nothing, Unit] =
-    effectBlocking(logs.foreach(rec => rec._2.log.close())).catchAll(_ => IO.unit)
+    attemptBlocking(logs.foreach(rec => rec._2.log.close())).catchAll(_ => IO.unit)
 
   def make(
     maxLogSize: Int,
     maxLogFiles: Int,
     log_names: (String, LogLevel)*
-  ): ZLayer[ZEnv, Throwable, Has[MyLogging.Service]] = {
+  ): ZLayer[ZEnv, Throwable, MyLogging.Service] = {
     MAX_LOG_FILE_SIZE = maxLogSize
     MAX_NUMBER_ROTATED_LOGS = maxLogFiles
 
@@ -201,21 +202,21 @@ object MyLogging {
 
   }
 
-  def make(log_names: (String, LogLevel)*): ZLayer[ZEnv, Throwable, Has[MyLogging.Service]] = {
-    val managedObj = open_logs(log_names).toManaged(close_logs).flatMap { logs =>
+  def make(log_names: (String, LogLevel)*): ZLayer[ZEnv, Throwable, MyLogging.Service] = {
+    val managedObj = open_logs(log_names).toManagedWith(close_logs).flatMap { logs =>
       ZQueue
       //with unbounded queue you won't lose a single record, but with stress test it grows up to 10-15 min delay and more
       //here for perfomance reasons we use dropping queue, some messages under stress load will be lost, once it exceeds a queue
       //you always can switch off access log and avoid issue entirely
       //.unbounded[(String, LogLevel, String, OffsetDateTime)]   //<--- uncomment for unlimited, no loss queue
-        .dropping[(String, LogLevel, String, OffsetDateTime, zio.Fiber.Id)](5000)
-        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5)).repeatUntilM( _ => q.isShutdown ).forkDaemon)
-        .toManaged(c => c.shutdown)
+        .dropping[(String, LogLevel, String, OffsetDateTime, FiberId)](5000)
+        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5)).repeatUntilZIO( _ => q.isShutdown ).forkDaemon)
+        .toManagedWith(c => c.shutdown)
         .map(
           q =>
             new Service {
 
-                def listLogs = ZIO.effectTotal( logs.iterator )
+                def listLogs = ZIO.succeed( logs.iterator )
 
                 def shutdown : ZIO[ZEnv, Exception, Unit] = q.shutdown
 
@@ -246,8 +247,8 @@ object Logs {
 
   def log_access(req: Request, status: StatusCode, bodySize: Int, msg : String = "") = {
     val addr = Channel.remoteAddress(req.ch).flatMap {
-      case None    => IO.effect("???")
-      case Some(a) => IO.effect(a.toInetSocketAddress.hostString)
+      case None    => IO.attempt("???")
+      case Some(a) => IO.attempt(a.toInetSocketAddress.hostString)
     }
 
     addr.flatMap { addrStr =>

@@ -1,11 +1,9 @@
 package zhttp.clients
 
 import zio.ZEnv
-import zio.Has
 import zio.ZQueue
 import zio.ZIO
 import zio.IO
-import zio.blocking.effectBlocking
 import zhttp.MyLogging.MyLogging
 import zhttp.MyLogging
 
@@ -13,10 +11,11 @@ import zio.Tag
 import zhttp.LogLevel
 
 import zio.Runtime
+import zio.ZIO.attemptBlocking
 
 object ResPool {
 
-  type ResPool[R] = Has[ResPool.Service[R]]
+  type ResPool[R] = ResPool.Service[R]
 
   case class ResRec[R](res: R, timeToLive: Long = 0L)
 
@@ -26,10 +25,10 @@ object ResPool {
   }
 
   def acquire[R](implicit tagged: Tag[R]) =
-    ZIO.accessM[ZEnv with ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].acquire)
+    ZIO.environmentWithZIO[ZEnv with ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].acquire)
 
   def release[R](r: R)(implicit tagged: Tag[R]) =
-    ZIO.accessM[ZEnv with ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].release(r))
+    ZIO.environmentWithZIO[ZEnv with ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].release(r))
 
   private def cleanup[R](connections: zio.Queue[ResRec[R]], closeResource: (R) => Unit) =
     connections.takeAll.map { list =>
@@ -117,7 +116,7 @@ object ResPool {
       resource <- if (optR.isDefined) IO.succeed(optR.map(_.res).get)
                  else {
                    MyLogging.log("console", LogLevel.Debug, layerName[R] + s": $pool_id - create new resource") *>
-                     effectBlocking(createResource())
+                     attemptBlocking(createResource())
                  }
 
     } yield (resource)
@@ -125,7 +124,7 @@ object ResPool {
   def make[R](timeToLiveMs: Int, createResource: () => R, closeResource: (R) => Unit)(
     implicit tagged: Tag[R]
   ) = {
-    val managedObj = ZQueue.unbounded[ResRec[R]].toManaged(q => { cleanup(q, closeResource) *> q.shutdown }).map { q =>
+    val managedObj = ZQueue.unbounded[ResRec[R]].toManagedWith(q => { cleanup(q, closeResource) *> q.shutdown }).map { q =>
       new Service[R] {
         def acquire         = acquire_wrap(timeToLiveMs, "default", q, createResource, closeResource)
         def release(res: R) = q.offer(ResRec(res, new java.util.Date().getTime)).unit
@@ -142,7 +141,7 @@ object ResPool {
   )(
     implicit tagged: Tag[R]
   ) = {
-    val managedObj = ZQueue.unbounded[ResRec[R]].toManaged(q => { cleanupM(q, closeResource) *> q.shutdown }).map { q =>
+    val managedObj = ZQueue.unbounded[ResRec[R]].toManagedWith(q => { cleanupM(q, closeResource) *> q.shutdown }).map { q =>
       new Service[R] {
         def acquire         = acquire_wrapM(timeToLiveMs, "default", q, createResource, closeResource)
         def release(res: R) = q.offer(ResRec(res, new java.util.Date().getTime)).unit

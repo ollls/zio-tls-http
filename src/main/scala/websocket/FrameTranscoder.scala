@@ -14,10 +14,10 @@ import zhttp.FrameTranscoder._
 
 private object FrameTranscoder {
 
-    val OP_CODE = 0xf  
-    val LENGTH = 0x7f   
-    val FINISHED = 0x80
-    val MASK      = 0x80
+  val OP_CODE = 0xf  
+  val LENGTH = 0x7f   
+  val FINISHED = 0x80
+  val MASK      = 0x80
 
   final class TranscodeError(val message: String) extends Exception(message)
 

@@ -8,12 +8,12 @@ import java.util.concurrent.{ ExecutorService => JExecutorService, ThreadFactory
 import java.util.concurrent.TimeUnit
 
 import zio.{ IO, UIO, Managed }
-import zio.duration.Duration
+import zio.Duration
 
 object AsynchronousChannelGroup {
 
   def apply(executor: JExecutorService, initialSize: Int): IO[Exception, AsynchronousChannelGroup] =
-    IO.effect(
+    IO.attempt(
         new AsynchronousChannelGroup(
           JAsynchronousChannelGroup.withCachedThreadPool(executor, initialSize)
         )
@@ -24,7 +24,7 @@ object AsynchronousChannelGroup {
     threadsNo: Int,
     threadsFactory: JThreadFactory
   ): IO[Exception, AsynchronousChannelGroup] =
-    IO.effect(
+    IO.attempt(
         new AsynchronousChannelGroup(
           JAsynchronousChannelGroup.withFixedThreadPool(threadsNo, threadsFactory)
         )
@@ -32,7 +32,7 @@ object AsynchronousChannelGroup {
       .refineToOrDie[Exception]
 
   def apply(executor: JExecutorService): IO[Exception, AsynchronousChannelGroup] =
-    IO.effect(
+    IO.attempt(
         new AsynchronousChannelGroup(JAsynchronousChannelGroup.withThreadPool(executor))
       )
       .refineToOrDie[Exception]
@@ -44,27 +44,27 @@ object AsynchronousChannelGroup {
 class AsynchronousChannelGroup(private[channels] val channelGroup: JAsynchronousChannelGroup) {
 
   def awaitTermination(timeout: Duration): IO[Exception, Boolean] =
-    IO.effect(channelGroup.awaitTermination(timeout.toMillis, TimeUnit.MILLISECONDS))
+    IO.attempt(channelGroup.awaitTermination(timeout.toMillis, TimeUnit.MILLISECONDS))
       .refineToOrDie[Exception]
 
 
   def openAsynchronousServerSocketChannel(): Managed[Exception, AsynchronousServerSocketChannel] = 
   {
-    val open = IO.effectTotal {
+    val open = IO.succeed {
                 new AsynchronousServerSocketChannel( 
                     channelGroup.provider().openAsynchronousServerSocketChannel( channelGroup ) )
     }
-    Managed.make(open)(_.close.orDie)
+    Managed.acquireReleaseWith(open)(_.close.orDie)
   }    
 
-  val isShutdown: UIO[Boolean] = IO.effectTotal(channelGroup.isShutdown)
+  val isShutdown: UIO[Boolean] = IO.succeed(channelGroup.isShutdown)
 
-  val isTerminated: UIO[Boolean] = IO.effectTotal(channelGroup.isTerminated)
+  val isTerminated: UIO[Boolean] = IO.succeed(channelGroup.isTerminated)
 
-  val provider: UIO[JAsynchronousChannelProvider] = IO.effectTotal(channelGroup.provider())
+  val provider: UIO[JAsynchronousChannelProvider] = IO.succeed(channelGroup.provider())
 
-  val shutdown: UIO[Unit] = IO.effectTotal(channelGroup.shutdown())
+  val shutdown: UIO[Unit] = IO.succeed(channelGroup.shutdown())
 
   val shutdownNow: IO[IOException, Unit] =
-    IO.effect(channelGroup.shutdownNow()).refineToOrDie[IOException]
+    IO.attempt(channelGroup.shutdownNow()).refineToOrDie[IOException]
 }
