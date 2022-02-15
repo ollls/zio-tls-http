@@ -70,7 +70,7 @@ object FileUtils {
       file_path <- serverFilePath(raw_path, folder)
       file_name <- IO.attempt { file_path.getFileName }
       body      <- req.body
-      fstream0   <- ZIO(ZStream.fromFile(file_path, HTTP_CHUNK_SIZE) )
+      fstream0   <- ZIO(ZStream.fromFile(file_path.toFile(), HTTP_CHUNK_SIZE) )
 
       fstream  <- ZIO( fstream0.grouped( HTTP_CHUNK_SIZE ) )
 

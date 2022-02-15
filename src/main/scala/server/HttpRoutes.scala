@@ -49,7 +49,7 @@ object HttpRoutes {
       case None    => ZIO.fromOption(None)
     }
 
-  private var _filter             = WebFilterProc((_) => ZIO(Response.Ok))
+  private var _filter             = WebFilterProc((_) => ZIO(Response.Ok()))
   private var _postProc: PostProc = (r: Response) => r
 
   //default flter ony with MyLogging, supporting all envs will incur serious chnages.

@@ -26,15 +26,15 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
   def myAppLogic: ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
     for {
 
-      metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.metrics)
+      metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.runtimeConfig.executor.unsafeMetrics ) 
 
       _ <- MyLogging.info("console", s"HTTP Service started. ZIO concurrency lvl: " + metr.get.concurrency + " threads")
       _ <- MyLogging.info(
             "console",
             "Listens TCP: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms"
           )
-      executor <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.asECES)
-      //executor1     <- ZIO.effect ( java.util.concurrent.Executors.newFixedThreadPool(4) )
+      //executor <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.runtimeConfig.executor.asExecutionContext. )
+      executor     <- ZIO.attempt( java.util.concurrent.Executors.newCachedThreadPool() ) // .newFixedThreadPool(4) )
       address <- SocketAddress.inetSocketAddress(BINDING_SERVER_IP, SERVER_PORT)
       group   <- AsynchronousChannelGroup(executor)
       _ <- group.openAsynchronousServerSocketChannel().use { srv =>

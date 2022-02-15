@@ -39,7 +39,8 @@ object ResPoolCache {
     }
   }
 
-  class LRUQEntry[K](val timestamp: Long, val key: K)(implicit ord: K => Ordered[K]) extends Ordered[LRUQEntry[K]] {
+  import math.Ordered.orderingToOrdered
+  class LRUQEntry[K](val timestamp: Long, val key: K)( implicit ord: K => Ordered[K]) extends Ordered[LRUQEntry[K]] {
 
     override def compare(that: LRUQEntry[K]): Int =
       if (timestamp > that.timestamp) 1
@@ -106,7 +107,7 @@ object ResPoolCache {
   ): ZLayer[ZEnv with ResPool.ResPool[R] with MyLogging.MyLogging, Nothing, ResPoolCache.ResPoolCache[K, V, R]] =
     (for {
       queue <- ZQueue.bounded[K](1)
-      service <- ZIO.environment[ResPool.Service[R]](
+      service <- ZIO.environmentWith[ResPool.Service[R]](
                   rp => makeService[K, V, R](rp.get, timeToLiveMs, limit, updatef, queue)
                 )
 

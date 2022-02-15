@@ -5,10 +5,11 @@ import zio.{ Chunk, IO, ZEnv, ZIO }
 
 
 import zio.stream.ZStream
-import zio.stream.ZTransducer
+import zio.stream.ZPipeline
+import zio.stream.ZChannel
 import zio.stream.ZSink
 import zio.ZRef
-//import java.net.SocketAddress
+
 
 sealed trait HTTPError                              extends Exception
 sealed case class BadInboundDataError()             extends HTTPError
@@ -25,13 +26,117 @@ object HttpRouter {
   val _PATH   = "%%%http_path%%%"
   val _PROTO  = "%%%http_protocol%%%"
 
+
+  def parseTrail(in: Chunk[Byte], pos: Int): Boolean = {
+      if (in.size - pos < 4) return false //more data
+      if (in(pos) == '\r' && in(pos + 1) == '\n') {
+
+        var idx       = pos + 2
+        var bb: Byte  = 0
+        var pbb: Byte = 0
+        var splitAt   = 0
+        var found     = false
+
+        while (idx < in.size && found == false) {
+          pbb = bb
+          bb = in(idx)
+          idx += 1
+          if (bb == '\n' && pbb == '\r') {
+            splitAt = idx - 2
+            found = true
+          }
+        }
+
+        if (found == false) return false //more data
+
+        //we will ignore trailing block here, but it can be provided, right after empty block for further use.
+        //TODO
+        val trailingHeaders = new String(in.slice(pos + 2, splitAt).toArray)
+        true
+      } else throw new BadInboundDataError()
+      true
+    }
+
+
+
+  def produceChunk(in: Chunk[Byte]): (Option[Chunk[Byte]], Chunk[Byte], Boolean) = {
+
+      var bb: Byte      = 0
+      var pbb: Byte     = 0
+      var splitAt: Int  = 0
+      var idx: Int      = 0
+      var stop: Boolean = false
+
+      //extract size
+      while (idx < in.size && stop == false) {
+        pbb = bb
+        bb = in(idx)
+        if (bb == '\n' && pbb == '\r') {
+          splitAt = idx - 2 + 1
+          stop = true
+        } else {
+          idx += 1
+        }
+      }
+
+      val str_str = new String(in.slice(0, splitAt).toArray)
+
+      val chunkSize = Integer.parseInt(new String(in.slice(0, splitAt).toArray), 16)
+
+      if (chunkSize > 0 && chunkSize < in.size - idx + 2 + 1) {
+
+        val chunk    = in.slice(splitAt + 2, splitAt + 2 + chunkSize)
+        val leftOver = in.slice(splitAt + 2 + chunkSize + 2, in.size)
+
+        (Some(chunk), leftOver, false)
+      } else {
+        if (chunkSize == 0) {
+          if (parseTrail(in, splitAt) == true) (None, in, true)
+          else (None, in, false) //more data
+        } else (None, in, false)
+      }
+
+    }
+
+  /*+:class ZPipeline[-Env, +Err, -In, +Out](val channel: ZChannel[Env, Nothing, Chunk[In], Any, Err, Chunk[Out], Any])
+  */
+
+  def chunkedDecode : zio.stream.ZPipeline[Any, Exception, Byte, Chunk[Byte] ] = {
+
+  def chunk_converter( leftOver: Chunk[Byte] ) : ZChannel[Any, Exception, Chunk[Byte], Any, Exception, Chunk[Chunk[Byte]], Any] =
+  {
+    val converter : ZChannel[Any, Exception, Chunk[Byte], Any, Exception, Chunk[Chunk[Byte]], Any] 
+                    = ZChannel.readWith( ( in : Chunk[Byte] ) => { 
+
+                       val res = produceChunk( leftOver ++ in )
+
+                       res match {
+                         case ( Some( chunk), leftover, false ) => ZChannel.write( Chunk.single( chunk ) ) *> chunk_converter( leftover )
+                         case ( None, leftover, false ) => chunk_converter( leftover ) //no chunk yet but data coming
+                         case ( None, leftover, true ) => ZChannel.succeed( true )
+                         case _ => ZChannel.fail( new Exception( "TEMP") )  //TODO
+              
+                       }
+                    },
+
+                   (err: Exception) => ZChannel.fail(err),
+                   (done: Any) => ZChannel.succeed( true ) )
+      converter              
+    }               
+
+   ZPipeline.fromChannel( chunk_converter( Chunk.empty ))
+
+  }
+
+
   /*****************************************************************/
   //So the last chunk and 2 trailing headers might look like this:
   //0<CRLF>
   //Date:Sun, 06 Nov 1994 08:49:37 GMT<CRLF>
   //Content-MD5:1B2M2Y8AsgTpgAmY7PhCfg==<CRLF>
   //<CRLF>
-  def chunkedDecode: ZTransducer[Any, Nothing, Byte, Chunk[Byte]] = {
+  /*
+  def chunkedDecode: ZPipeline[Any, Nothing, Byte, Chunk[Byte]] = {
 
     def parseTrail(in: Chunk[Byte], pos: Int): Boolean = {
       if (in.size - pos < 4) return false //more data
@@ -63,6 +168,7 @@ object HttpRouter {
       true
     }
 
+    
     def produceChunk(in: Chunk[Byte]): (Option[Chunk[Byte]], Chunk[Byte], Boolean) = {
 
       var bb: Byte      = 0
@@ -101,7 +207,10 @@ object HttpRouter {
       }
 
     }
-    ZTransducer[Any, Nothing, Byte, Chunk[Byte]] {
+
+
+
+    ZPipeline[Any, Nothing, Byte, Chunk[Byte]] {
       ZRef
         .makeManaged[Chunk[Byte]](Chunk.empty)
         .map(stateRef => {
@@ -140,9 +249,9 @@ object HttpRouter {
 
         })
     }
-  }
+  } */
 
-}
+} 
 
 class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
 
@@ -209,7 +318,8 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
     val header_pair = raw"(.{2,100}):\s+(.+)".r
     val http_line   = raw"([A-Z]{3,8})\s+(.+)\s+(HTTP/.+)".r
 
-    val rd_stream = ZStream.repeatZIO(Channel.read(c)).flatMap(ZStream.fromChunk(_))
+    val rd_stream : ZStream[ZEnv with R, Exception, Byte] = ZStream.repeatZIO( Channel.read(c)).flatMap(ZStream.fromChunk(_))
+
     val r = rd_stream.peel(ZSink.fold(Chunk[Byte]()) { c =>
       !c.endsWith("\r\n\r\n")
     }((z, i: Byte) => z :+ i))
@@ -217,9 +327,9 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
       _ <- r.use[ZEnv with R, Exception, Unit] {
             case (header_bytes, body_stream) =>
               val strings =
-                ZStream.fromChunk(header_bytes).aggregate(ZTransducer.usASCIIDecode >>> ZTransducer.splitLines)
+                ZStream.fromChunk(header_bytes).via( ZPipeline.usASCIIDecode >>> ZPipeline.splitLines)
 
-              val hdrs = strings.runFold(Headers())((hdrs, line) => {
+              val hdrs : ZIO[ ZEnv with R, Exception, Headers]  = strings.runFold[Headers](Headers())((hdrs, line) => {
                 line match {
                   case http_line(method, path, prot) =>
                     hdrs ++ Headers(HttpRouter._METHOD -> method, HttpRouter._PATH -> path, HttpRouter._PROTO -> prot)
@@ -229,7 +339,7 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
               })
 
               val T = for {
-                h <- hdrs
+                h : Headers <- hdrs
                 //_ <- ZIO( println( h.printHeaders ) )
 
                 isWebSocket <- ZIO.succeed(
@@ -260,14 +370,14 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
                 _ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
 
                 stream <- if (isWebSocket) ZIO.attempt(body_stream.mapChunks(c => Chunk.single(c)))
-                         else if (isChunked)
+                         else if (isChunked) 
                            ZIO.attempt(
-                             body_stream
-                               .aggregate(HttpRouter.chunkedDecode)
+                             body_stream.via(HttpRouter.chunkedDecode)
+                             /*
                                .collectWhile(new PartialFunction[Chunk[Byte], Chunk[Byte]] {
                                  def apply(v1: Chunk[Byte]): Chunk[Byte]  = v1
                                  def isDefinedAt(x: Chunk[Byte]): Boolean = !x.isEmpty
-                               })
+                               })*/
                            )
                          else
                            ZIO.attempt(

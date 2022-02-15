@@ -6,6 +6,7 @@ package zhttp.clients.util
 
 import java.util.concurrent.atomic.AtomicMarkableReference
 import annotation.tailrec
+import math.Ordered.orderingToOrdered
 
 object Node {
 

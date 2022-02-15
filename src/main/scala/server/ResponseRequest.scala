@@ -103,7 +103,7 @@ sealed case class Response(
   def contentType(type0: ContentType): Response =
     new Response(this.code, this.headers + ("content-type" -> type0.toString()), this.stream)
 
-  def isChunked: Boolean = transferEncoding.exists(_.equalsIgnoreCase("chunked"))
+  def isChunked: Boolean = transferEncoding().exists(_.equalsIgnoreCase("chunked"))
 
   def transferEncoding(): Set[String] = headers.getMval("transfer-encoding")
 

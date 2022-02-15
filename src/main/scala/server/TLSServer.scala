@@ -42,7 +42,7 @@ class TLSServer[MyEnv <: MyLogging.Service](
   def myAppLogic(sslctx: SSLContext = null): ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
     for {
 
-      metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.metrics)
+      metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.runtimeConfig.executor.unsafeMetrics ) 
 
       _ <- MyLogging.info(
             "console",
@@ -53,7 +53,9 @@ class TLSServer[MyEnv <: MyLogging.Service](
             "Listens: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms"
           )
 
-      executor <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.asECES)
+      //executor <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.asECES)
+      //TODO - decide what to do here
+      executor     <- ZIO.attempt( java.util.concurrent.Executors.newCachedThreadPool() )
 
       ssl_context <- if (sslctx == null) buildSSLContext(TLS_PROTO, KEYSTORE_PATH, KEYSTORE_PASSWORD)
                     else ZIO.succeed(sslctx)

@@ -115,8 +115,12 @@ object MyLogging {
   def log(name: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     ZIO.environmentWithZIO[ZEnv with MyLogging](logenv => logenv.get[MyLogging.Service].log(name, lvl, msg))
 
-  def logService: ZIO[ZEnv with MyLogging, Exception, MyLogging.Service] =
-    ZIO.environment[ZEnv with MyLogging](logenv => logenv.get[MyLogging.Service])
+
+  def logService = ZIO.environmentWith[MyLogging.MyLogging]( logenv => logenv.get[MyLogging.Service] )
+
+ // def logService: ZIO[ZEnv with MyLogging, Exception, MyLogging.Service] = ZIO. environment[ZEnv with MyLogging]  //.get[MyLogging.Service]
+
+  //  ZIO.environment[ZEnv with MyLogging]( logenv => logenv.get[MyLogging.Service])
 
   def info(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
     log(name, LogLevel.Info, msg)
@@ -147,7 +151,7 @@ object MyLogging {
             {
               if (lvl >= logRec.lvl) {
                 val strLvl   = lvl.render
-                val fiberNum = fiberId.seqNumber
+                val fiberNum = fiberId.toString// .seqNumber
                 val line     = s"$ts [$strLvl] [$fiberNum] $log_msg\n"
                 if (log_name == "console" && PRINT_CONSOLE == true) {
                   val TS           = withColor(AnsiColor.GREEN, ts)
@@ -223,7 +227,7 @@ object MyLogging {
                 def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit] =
                 for {
                   fiberId <- ZIO.fiberId
-                  time    <- currentDateTime.orDie
+                  time    <- currentDateTime //.orDie
                   _ <- logs.get(log) match {
                         case None => IO.unit
                         case Some(logRec) =>

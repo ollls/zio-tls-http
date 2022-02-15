@@ -176,9 +176,8 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
 
   def receiveTextAsStream(req: Request) = {
 
-    val stream = req.stream >>= (ZStream.fromChunk(_))
-    val s0 = stream
-      .aggregate(FrameTransducer.make)
+    val stream = req.stream.flatMap(ZStream.fromChunk(_))
+    val s0 = stream.via( FramePipeline.make )
       .tap(doPingPong(req, _))
       .filter(_.opcode != WebSocketFrame.PING)
       .tap( f => if ( f.opcode == WebSocketFrame.CLOSE ) ZIO.succeed( this.isClosed = true ) else ZIO.unit   )
@@ -189,9 +188,8 @@ class Websocket(isClient: Boolean, idleTimeout  : Int) {
   }
 
   def receiveBinaryAsStream(req: Request) = {
-    val stream = req.stream >>= (ZStream.fromChunk(_))
-    val s0 = stream
-      .aggregate(FrameTransducer.make)
+    val stream = req.stream.flatMap(ZStream.fromChunk(_))
+    val s0 =  stream.via( FramePipeline.make )
       .tap(doPingPong(req, _))
       .filter(_.opcode != WebSocketFrame.PING)
       .tap( f => if ( f.opcode == WebSocketFrame.CLOSE ) ZIO.succeed( this.isClosed = true ) else ZIO.unit   )

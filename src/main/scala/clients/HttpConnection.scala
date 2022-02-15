@@ -6,7 +6,7 @@ import zio.Chunk
 import zio.json._
 import zio.stream.ZStream
 import zio.stream.ZSink
-import zio.stream.ZTransducer
+import zio.stream.ZPipeline
 
 import zhttp.{ Channel, TcpChannel, TlsChannel }
 import zhttp.Method
@@ -279,7 +279,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
       response <- r.use {
                    case (header_bytes, body_stream) =>
                      val strings =
-                       ZStream.fromChunk(header_bytes).aggregate(ZTransducer.usASCIIDecode >>> ZTransducer.splitLines)
+                       ZStream.fromChunk(header_bytes).via(ZPipeline.usASCIIDecode >>> ZPipeline.splitLines)
                      val hdrs = strings.runFold(Headers())((hdrs, line) => {
                        line match {
                          case http_line(prot, code, emsg) =>
@@ -309,12 +309,12 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
 
                        stream <- if (isChunked)
                                   ZIO.attempt(
-                                    body_stream
-                                      .aggregate(HttpRouter.chunkedDecode)
+                                    body_stream.via(HttpRouter.chunkedDecode)
+                                      /*
                                       .collectWhile(new PartialFunction[Chunk[Byte], Chunk[Byte]] {
                                         def apply(v1: Chunk[Byte]): Chunk[Byte]  = v1
                                         def isDefinedAt(x: Chunk[Byte]): Boolean = !x.isEmpty
-                                      })
+                                      })*/
                                   )
                                 else
                                   ZIO.attempt(
@@ -371,7 +371,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
       _ <- MyLogging.debug(
             "client",
             "http <<<: " + "http code = " + response.httpString + " " +
-              "bytes = " + req.transferEncoding.mkString(",")
+              "bytes = " + req.transferEncoding().mkString(",")
               //with stream only client can evaluate the text, can't log text here
               //+ " text = " + text
               //.substring(0, if (text.length() < 30) text.length() else 30)

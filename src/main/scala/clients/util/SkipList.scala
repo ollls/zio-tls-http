@@ -7,6 +7,7 @@ package zhttp.clients.util
 import java.util.concurrent.atomic.AtomicReference
 import scala.collection.mutable.ListBuffer
 import zio.ZIO
+import math.Ordered.orderingToOrdered
 
 class ValReference[A](var a: A)
 

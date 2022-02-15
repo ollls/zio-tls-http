@@ -60,7 +60,7 @@ ThisBuild / publishMavenStyle := true
     organization := "com.ols",
     name := "zio-tls-http-exampe",
     version := "0.0.1",
-    scalaVersion := "2.13.1",
+    scalaVersion := "3.1.1",
     maxErrors := 3,
     libraryDependencies ++= Seq(
     ),
