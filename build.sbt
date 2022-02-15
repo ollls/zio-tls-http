@@ -1,4 +1,3 @@
-val ZioVersion    = "1.0.6"
 val Specs2Version = "4.7.0"
 
 resolvers += Resolver.sonatypeRepo("releases")
@@ -44,7 +43,7 @@ ThisBuild / publishMavenStyle := true
   .settings(
     organization := "io.github.ollls",
     name := "zio-tls-http",
-    version := "1.2-m3",
+    version := "2.0-m1",
     scalaVersion := "3.1.1",
     maxErrors := 3,
     retrieveManaged := true,
