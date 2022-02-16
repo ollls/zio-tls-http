@@ -4,11 +4,10 @@ import zio.ZIO
 import zio.ZEnv
 import zhttp._
 import zhttp.dsl._
-import zio.Has
 
 import java.time.ZonedDateTime
 
-import zio.blocking._
+//import zio.blocking._
 import zhttp.HttpRoutes.WebFilterProc
 import Method._
 
@@ -37,7 +36,7 @@ object myServer extends zio.App {
   val sylo = new SkipList[String]
 
   HttpRoutes.defaultFilter(
-    (_) => ZIO(Response.Ok.hdr("default_PRE_Filter" -> "to see me use print() method on headers"))
+    (_) => ZIO(Response.Ok().hdr("default_PRE_Filter" -> "to see me use print() method on headers"))
   )
   HttpRoutes.defaultPostProc(r => r.hdr("default_POST_Filter" -> "to see me check response in browser debug tool"))
 
@@ -48,21 +47,21 @@ object myServer extends zio.App {
   val proc0 = WebFilterProc((_) => ZIO(Response.Error(StatusCode.NotImplemented)))
 
   val proc1 = WebFilterProc(
-    (_) => ZIO(Response.Ok.hdr("Injected-Header-Value" -> "1234").hdr("Injected-Header-Value" -> "more"))
+    (_) => ZIO(Response.Ok().hdr("Injected-Header-Value" -> "1234").hdr("Injected-Header-Value" -> "more"))
   )
 
   val proc11 = WebFilterProc(
     (_) =>
       for {
-        a <- ZIO.access[Has[String]](attr => attr)
-      } yield (Response.Ok.hdr("StringFromEnv" -> a.get))
+        a <- ZIO.access[String](attr => attr)
+      } yield (Response.Ok().hdr("StringFromEnv" -> a.get))
   )
 
   val proc2 = WebFilterProc(
     req =>
       ZIO {
         if (req.headers.getMval("Injected-Header-Value").exists(_ == "1234"))
-          Response.Ok.hdr("Injected-Header-Value" -> "CheckPassed")
+          Response.Ok().hdr("Injected-Header-Value" -> "CheckPassed")
         else Response.Error(StatusCode.Forbidden)
       }
   )
@@ -79,7 +78,7 @@ object myServer extends zio.App {
 
     //Web filter fires first, always returns not implemented
     val route_with_filter = HttpRoutes.ofWithFilter(proc0) {
-      case GET -> Root / "noavail" => ZIO(Response.Ok.asTextBody("OK "))
+      case GET -> Root / "noavail" => ZIO(Response.Ok().asTextBody("OK "))
     }
 
     val ws_stream = HttpRoutes.of {
@@ -105,60 +104,60 @@ object myServer extends zio.App {
       req match {
         case GET -> Root / "print" =>
           MyLogging.trace("console", "Hello from app") *>
-            ZIO(Response.Ok.asTextBody(req.headers.printHeaders))
-        case GET -> Root / "Ok" => ZIO(Response.Ok)
+            ZIO(Response.Ok().asTextBody(req.headers.printHeaders))
+        case GET -> Root / "Ok" => ZIO(Response.Ok())
       }
     }
 
     val app_route_JSON = HttpRoutes.ofWithFilter(proc1) {
 
       case req @ POST -> Root / "chunked" =>
-        req.bodyAsText.map(text => Response.Ok.asTextBody(req.headers.printHeaders + "\n\n\n" + text))
+        req.bodyAsText.map(text => Response.Ok().asTextBody(req.headers.printHeaders + "\n\n\n" + text))
 
       case POST -> Root / "container" / StringVar(name) =>
-        sylo.u_add(name).map(b => Response.Ok.asTextBody(b.toString()))
+        sylo.u_add(name).map(b => Response.Ok().asTextBody(b.toString()))
 
       case GET -> Root / "container" =>
         ZIO(
-          Response.Ok.asTextBody(
+          Response.Ok().asTextBody(
             sylo.debug_print(new StringBuilder).toString + "\n\n" + sylo.debug_print_layers(new StringBuilder).toString
           )
         )
 
       case DELETE -> Root / "container" / StringVar(name) =>
-        sylo.u_remove(name).map(b => Response.Ok.asTextBody(b.toString()))
+        sylo.u_remove(name).map(b => Response.Ok().asTextBody(b.toString()))
       //ZIO(Response.Ok.asTextBody( sylo.remove( name ).toString ) )
 
       case GET -> Root / "test" =>
-        ZIO(Response.Ok.asJsonBody(DataBlock("Thomas", "1001 Dublin Blvd", Chunk("red", "blue", "green"))))
+        ZIO(Response.Ok().asJsonBody(DataBlock("Thomas", "1001 Dublin Blvd", Chunk("red", "blue", "green"))))
 
       case req @ POST -> Root / "test" =>
         for {
           db <- req.fromJSON[DataBlock]
-        } yield (Response.Ok.asTextBody(s"JSON for ${db.name} accepted"))
+        } yield (Response.Ok().asTextBody(s"JSON for ${db.name} accepted"))
 
     }
 
-    val app_route_cookies_and_params = HttpRoutes.of { req: Request =>
+    val app_route_cookies_and_params = HttpRoutes.of { (req: Request) =>
       {
         req match {
 
-          case req @ GET -> Root / "health" => ZIO(Response.Ok.asTextBody("Health Check is OK"))
+          case req @ GET -> Root / "health" => ZIO(Response.Ok().asTextBody("Health Check is OK"))
 
-          case req @ GET -> Root / "app" / StringVar(userId1) / "get" => ZIO(Response.Ok.asTextBody(userId1))
+          case req @ GET -> Root / "app" / StringVar(userId1) / "get" => ZIO(Response.Ok().asTextBody(userId1))
 
           case req @ POST -> Root / "app" / "update" =>
             for {
               text <- req.bodyAsText
-              _    <- ZIO(println(req.bodyAsText + "\n\n" + req.headers.printHeaders))
-            } yield (Response.Ok)
+              _    <- ZIO(println( text + "\n\n" + req.headers.printHeaders))
+            } yield (Response.Ok())
 
           case req @ GET -> Root / "complex_param" =>
             val q = Option(req.uri.getQuery())
-            ZIO(Response.Ok.asTextBody("java.URL.getQuery() returns: " + q.getOrElse("empty string")))
+            ZIO(Response.Ok().asTextBody("java.URL.getQuery() returns: " + q.getOrElse("empty string")))
 
           case req @ GET -> Root / "hello" / "1" / "2" / "user2" :? param1(test) :? param2(test2) =>
-            ZIO(Response.Ok.asTextBody("param1=" + test + "  " + "param2=" + test2))
+            ZIO(Response.Ok().asTextBody("param1=" + test + "  " + "param2=" + test2))
 
           case GET -> Root / "hello" / "user" / StringVar(userId) :? param1(par) =>
             val headers = Headers("procid" -> "header_value_from_server", "Content-Type" -> ContentType.Plain.toString)
@@ -169,7 +168,7 @@ object myServer extends zio.App {
               Cookie("testCookie3", "1A8BD0FC645E0", secure = false, expires = Some(ZonedDateTime.now.plusHours(5)))
 
             ZIO(
-              Response.Ok
+              Response.Ok()
                 .hdr(headers)
                 .cookie(c1)
                 .cookie(c2)
@@ -192,7 +191,7 @@ object myServer extends zio.App {
                     "Requested file: " + req.uri.getPath + " Query string:  " + query
                   )
               path <- FileUtils.serverFilePath_(remainig_path, ROOT_CATALOG)
-              str  = ZStream.fromFile(path, 16000).mapChunks(Chunk.single(_))
+              str  = ZStream.fromFile(path.toFile, 16000).mapChunks(Chunk.single(_))
             } yield (Response.Ok().asStream(str).transferEncoding("chunked"))
 
           //Just exact file name in the ROOT_CATALOG
@@ -200,7 +199,7 @@ object myServer extends zio.App {
           case GET -> Root / "files2" / StringVar(filename) =>
             for {
               path <- FileUtils.serverFilePath(filename, ROOT_CATALOG)
-              str  = ZStream.fromFile(path).mapChunks(Chunk.single(_))
+              str  = ZStream.fromFile(path.toFile).mapChunks(Chunk.single(_))
             } yield (Response.Ok().asStream(str))
 
           //file submission to ROOT_CATALOG, entire file preloaded to memory
@@ -209,18 +208,18 @@ object myServer extends zio.App {
               _ <- ZIO(println(req.contentType.value))
               b <- req.body
               _ <- ZIO(println(s"bytes = ${b.size}"))
-              _ <- effectBlocking {
+              _ <- ZIO.attemptBlocking {
                     val infile = new java.io.FileOutputStream(ROOT_CATALOG + "/" + fileName)
                     infile.write(b.toArray)
                     infile.close()
                   }
-            } yield (Response.Ok)
+            } yield (Response.Ok())
 
         }
       }
     }
 
-    type MyEnv3 = MyLogging with Has[String]
+    type MyEnv3 = MyLogging with String
 
     val myHttp = new TLSServer[MyEnv3](
       port = 8084,

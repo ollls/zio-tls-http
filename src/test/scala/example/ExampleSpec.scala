@@ -11,7 +11,7 @@ import zio.test.ZIOSpecDefault
 
 
 trait BaseSpec extends ZIOSpecDefault {
-  override def aspects = List(TestAspect.timeout(60.seconds))
+ // override def aspects = List(TestAspect.timeout(60.seconds))
 }
 
 object ExampleSpec 
