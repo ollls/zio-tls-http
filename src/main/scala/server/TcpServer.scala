@@ -26,9 +26,9 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
   def myAppLogic: ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
     for {
 
-      metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.runtimeConfig.executor.unsafeMetrics ) 
+      //metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.runtimeConfig.executor.unsafeMetrics ) 
 
-      _ <- MyLogging.info("console", s"HTTP Service started. ZIO concurrency lvl: " + metr.get.concurrency + " threads")
+      //_ <- MyLogging.info("console", s"HTTP Service started. ZIO concurrency lvl: " + metr.get.concurrency + " threads")
       _ <- MyLogging.info(
             "console",
             "Listens TCP: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms"
