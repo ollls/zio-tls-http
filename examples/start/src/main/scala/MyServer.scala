@@ -1,13 +1,12 @@
 package example
 
 import zio.ZIO
-import zio.ZEnv
+import zio.ZLayer
 import zhttp._
 import zhttp.dsl._
 
 import java.time.ZonedDateTime
 
-//import zio.blocking._
 import zhttp.HttpRoutes.WebFilterProc
 import Method._
 
@@ -15,12 +14,18 @@ import zio.json._
 import zio.Chunk
 import zio.stream.ZStream
 
+import zio.ZIOAppDefault
+
 import MyLogging.MyLogging
+import zio.ZIOApp
+import zio.ZEnvironment
 
 object param1 extends QueryParam("param1")
 object param2 extends QueryParam("param2")
 
 import zhttp.clients.util.SkipList
+
+ import example.myServer.validateEnv
 
 object DataBlock {
 
@@ -31,12 +36,16 @@ object DataBlock {
 
 case class DataBlock(val name: String, val address: String, val colors: Chunk[String])
 
-object myServer extends zio.App {
+object myServer extends zio.ZIOAppDefault {
+
+ //type Environment = MyLogging with String
+
+ //override type Environment = zio.ZEnv
 
   val sylo = new SkipList[String]
 
   HttpRoutes.defaultFilter(
-    (_) => ZIO(Response.Ok().hdr("default_PRE_Filter" -> "to see me use print() method on headers"))
+    (_) => ZIO.succeed(Response.Ok().hdr("default_PRE_Filter" -> "to see me use print() method on headers"))
   )
   HttpRoutes.defaultPostProc(r => r.hdr("default_POST_Filter" -> "to see me check response in browser debug tool"))
 
@@ -44,22 +53,22 @@ object myServer extends zio.App {
   val ROOT_CATALOG = "/Users/ostrygun/web_root"
 
   //pre proc examples, aka web filters
-  val proc0 = WebFilterProc((_) => ZIO(Response.Error(StatusCode.NotImplemented)))
+  val proc0 = WebFilterProc((_) => ZIO.succeed(Response.Error(StatusCode.NotImplemented)))
 
   val proc1 = WebFilterProc(
-    (_) => ZIO(Response.Ok().hdr("Injected-Header-Value" -> "1234").hdr("Injected-Header-Value" -> "more"))
+    (_) => ZIO.succeed(Response.Ok().hdr("Injected-Header-Value" -> "1234").hdr("Injected-Header-Value" -> "more"))
   )
 
   val proc11 = WebFilterProc(
     (_) =>
       for {
-        a <- ZIO.access[String](attr => attr)
+        a <- ZIO.environmentWith[String](attr => attr)
       } yield (Response.Ok().hdr("StringFromEnv" -> a.get))
   )
 
   val proc2 = WebFilterProc(
     req =>
-      ZIO {
+      ZIO.succeed {
         if (req.headers.getMval("Injected-Header-Value").exists(_ == "1234"))
           Response.Ok().hdr("Injected-Header-Value" -> "CheckPassed")
         else Response.Error(StatusCode.Forbidden)
@@ -74,11 +83,13 @@ object myServer extends zio.App {
       .hdr(("Access-Control-Allow-Method" -> "POST, GET, PUT"))
 
   //////////////////////////////////
-  def run(args: List[String]) = {
+  //def run(args: List[String]) = {
+  // def run(args: List[String]) = {
+  def run  = {
 
     //Web filter fires first, always returns not implemented
     val route_with_filter = HttpRoutes.ofWithFilter(proc0) {
-      case GET -> Root / "noavail" => ZIO(Response.Ok().asTextBody("OK "))
+      case GET -> Root / "noavail" => ZIO.succeed(Response.Ok().asTextBody("OK "))
     }
 
     val ws_stream = HttpRoutes.of {
@@ -96,7 +107,7 @@ object myServer extends zio.App {
                   )
                 }
           } yield ( Response.Ok())
-        } else ZIO(Response.Error(StatusCode.NotFound))
+        } else ZIO.succeed(Response.Error(StatusCode.NotFound))
     }
 
 
@@ -104,8 +115,8 @@ object myServer extends zio.App {
       req match {
         case GET -> Root / "print" =>
           MyLogging.trace("console", "Hello from app") *>
-            ZIO(Response.Ok().asTextBody(req.headers.printHeaders))
-        case GET -> Root / "Ok" => ZIO(Response.Ok())
+            ZIO.succeed(Response.Ok().asTextBody(req.headers.printHeaders))
+        case GET -> Root / "Ok" => ZIO.succeed(Response.Ok())
       }
     }
 
@@ -118,7 +129,7 @@ object myServer extends zio.App {
         sylo.u_add(name).map(b => Response.Ok().asTextBody(b.toString()))
 
       case GET -> Root / "container" =>
-        ZIO(
+        ZIO.succeed(
           Response.Ok().asTextBody(
             sylo.debug_print(new StringBuilder).toString + "\n\n" + sylo.debug_print_layers(new StringBuilder).toString
           )
@@ -129,7 +140,7 @@ object myServer extends zio.App {
       //ZIO(Response.Ok.asTextBody( sylo.remove( name ).toString ) )
 
       case GET -> Root / "test" =>
-        ZIO(Response.Ok().asJsonBody(DataBlock("Thomas", "1001 Dublin Blvd", Chunk("red", "blue", "green"))))
+        ZIO.succeed(Response.Ok().asJsonBody(DataBlock("Thomas", "1001 Dublin Blvd", Chunk("red", "blue", "green"))))
 
       case req @ POST -> Root / "test" =>
         for {
@@ -138,26 +149,26 @@ object myServer extends zio.App {
 
     }
 
-    val app_route_cookies_and_params = HttpRoutes.of { (req: Request) =>
+    val app_route_cookies_and_params : HttpRoutes[MyLogging]= HttpRoutes.of { (req: Request) =>
       {
         req match {
 
-          case req @ GET -> Root / "health" => ZIO(Response.Ok().asTextBody("Health Check is OK"))
+          case req @ GET -> Root / "health" => ZIO.succeed(Response.Ok().asTextBody("Health Check is OK"))
 
-          case req @ GET -> Root / "app" / StringVar(userId1) / "get" => ZIO(Response.Ok().asTextBody(userId1))
+          case req @ GET -> Root / "app" / StringVar(userId1) / "get" => ZIO.succeed(Response.Ok().asTextBody(userId1))
 
           case req @ POST -> Root / "app" / "update" =>
             for {
               text <- req.bodyAsText
-              _    <- ZIO(println( text + "\n\n" + req.headers.printHeaders))
+              _    <- ZIO.succeed(println( text + "\n\n" + req.headers.printHeaders))
             } yield (Response.Ok())
 
           case req @ GET -> Root / "complex_param" =>
             val q = Option(req.uri.getQuery())
-            ZIO(Response.Ok().asTextBody("java.URL.getQuery() returns: " + q.getOrElse("empty string")))
+            ZIO.succeed(Response.Ok().asTextBody("java.URL.getQuery() returns: " + q.getOrElse("empty string")))
 
           case req @ GET -> Root / "hello" / "1" / "2" / "user2" :? param1(test) :? param2(test2) =>
-            ZIO(Response.Ok().asTextBody("param1=" + test + "  " + "param2=" + test2))
+            ZIO.succeed(Response.Ok().asTextBody("param1=" + test + "  " + "param2=" + test2))
 
           case GET -> Root / "hello" / "user" / StringVar(userId) :? param1(par) =>
             val headers = Headers("procid" -> "header_value_from_server", "Content-Type" -> ContentType.Plain.toString)
@@ -167,7 +178,7 @@ object myServer extends zio.App {
             val c3 =
               Cookie("testCookie3", "1A8BD0FC645E0", secure = false, expires = Some(ZonedDateTime.now.plusHours(5)))
 
-            ZIO(
+            ZIO.succeed(
               Response.Ok()
                 .hdr(headers)
                 .cookie(c1)
@@ -185,7 +196,7 @@ object myServer extends zio.App {
           //curl https://localhost:8084/files2/chunked/files/picture.jpg --output out.jpg
           case req @ GET -> "files2" /: "chunked" /: remainig_path =>
             for {
-              query <- ZIO(req.uri.getQuery)
+              query <- ZIO.succeed(req.uri.getQuery)
               _ <- MyLogging.info(
                     "console",
                     "Requested file: " + req.uri.getPath + " Query string:  " + query
@@ -205,9 +216,9 @@ object myServer extends zio.App {
           //file submission to ROOT_CATALOG, entire file preloaded to memory
           case POST -> Root / "receiver" / StringVar(fileName) =>
             for {
-              _ <- ZIO(println(req.contentType.value))
+              _ <- ZIO.succeed(println(req.contentType.value))
               b <- req.body
-              _ <- ZIO(println(s"bytes = ${b.size}"))
+              _ <- ZIO.succeed(println(s"bytes = ${b.size}"))
               _ <- ZIO.attemptBlocking {
                     val infile = new java.io.FileOutputStream(ROOT_CATALOG + "/" + fileName)
                     infile.write(b.toArray)
@@ -219,9 +230,9 @@ object myServer extends zio.App {
       }
     }
 
-    type MyEnv3 = MyLogging with String
+    type Environment2 = MyLogging with String
 
-    val myHttp = new TLSServer[MyEnv3](
+    val myHttp = new TLSServer[Environment2](
       port = 8084,
       keepAlive = 4000,
       serverIP = "0.0.0.0",
@@ -232,18 +243,25 @@ object myServer extends zio.App {
 
     // val myHttp = new zhttp.TcpServer[MyEnv3]( 8080 )
 
-    val myHttpRouter = new HttpRouter[MyEnv3](
+    val myHttpRouter = new HttpRouter[Environment2](
       /* normal app routes */
-      List(app_route_cookies_and_params, app_route_JSON, app_route_pre_post_filters, ws_stream)
+      List( app_route_cookies_and_params, 
+            app_route_JSON, 
+            app_route_pre_post_filters, 
+            ws_stream)
       /* channel ( file server) routes */
     )
 
-    val AttributeLayer = ZIO.succeed("flag#1-1").toLayer
+    val AttributeLayer = ZLayer.fromZIO( ZIO.succeed("flag#1-1") )
 
-    myHttp
-      .run(myHttpRouter.route)
-      .provideSomeLayer[ZEnv with MyLogging](AttributeLayer)
-      .provideSomeLayer[ZEnv](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
-      .exitCode
+    
+    val R1 = myHttp.run(myHttpRouter.route)
+               .provideSomeLayer[MyLogging](AttributeLayer)
+               .provideSomeLayer[Environment](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
+
+    R1
+
   }
+
+
 }

@@ -2,7 +2,6 @@ package zhttp
 
 import zio.IO
 import zio.ZIO
-import zio.ZEnv
 import zio.stream._
 import zio.Chunk
 
@@ -63,41 +62,41 @@ object FileUtils {
     
 
   def httpFileStream(req: Request, folder: String) 
-      : ZIO[ZEnv with MyLogging,Exception,ZStream[Any,Throwable,Chunk[Byte]]]= {
+      : ZIO[ MyLogging,Exception,ZStream[Any,Throwable,Chunk[Byte]]]= {
  
     val raw_path = req.path
     (for {
       file_path <- serverFilePath(raw_path, folder)
       file_name <- IO.attempt { file_path.getFileName }
       body      <- req.body
-      fstream0   <- ZIO(ZStream.fromFile(file_path.toFile(), HTTP_CHUNK_SIZE) )
+      fstream0   <- ZIO.attempt(ZStream.fromFile(file_path.toFile(), HTTP_CHUNK_SIZE) )
 
-      fstream  <- ZIO( fstream0.grouped( HTTP_CHUNK_SIZE ) )
+      fstream  <- ZIO.attempt( fstream0.grouped( HTTP_CHUNK_SIZE ) )
 
       _ <- Logs.log_access(req, StatusCode.OK, body.size)
 
       s <- if (file_name.toString.endsWith(".jpg")) {
-            ZIO(headerStream("image/jpeg", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("image/jpeg", file_path.toString) ++ fstream)
           } else if (file_name.toString.endsWith(".ttf"))
-            ZIO(headerStream("font/ttf", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("font/ttf", file_path.toString) ++ fstream)
           else if (file_name.toString.endsWith(".eot"))
-            ZIO(headerStream("application/vnd.ms-fontobject", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("application/vnd.ms-fontobject", file_path.toString) ++ fstream)
           else if (file_name.toString.endsWith(".woff"))
-            ZIO(headerStream("font/woff", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("font/woff", file_path.toString) ++ fstream)
           else if (file_name.toString.endsWith(".svg"))
-            ZIO(headerStream("image/svg+xml", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("image/svg+xml", file_path.toString) ++ fstream)
           else if (file_name.toString.endsWith(".gif"))
-            ZIO(headerStream("image/gif", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("image/gif", file_path.toString) ++ fstream)
           else if (file_name.toString.endsWith(".png"))
-            ZIO(headerStream("image/png", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("image/png", file_path.toString) ++ fstream)
           else if (file_name.toString.endsWith(".html") || file_name.toString.endsWith(".txt"))
-            ZIO(headerStream("text/html", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("text/html", file_path.toString) ++ fstream)
           else if (file_name.toString.endsWith(".css"))
-            ZIO(headerStream("text/css", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("text/css", file_path.toString) ++ fstream)
           else if (file_name.toString.endsWith(".js") || file_name.toString.endsWith(".js.download"))
-            ZIO(headerStream("application/javascript", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("application/javascript", file_path.toString) ++ fstream)
           else {
-            ZIO(headerStream("text/html", file_path.toString) ++ fstream)
+            ZIO.attempt(headerStream("text/html", file_path.toString) ++ fstream)
           }
     } yield (s)).refineToOrDie[Exception]
 

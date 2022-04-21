@@ -7,8 +7,7 @@ import zio.ZEnv
 import zhttp.MyLogging.MyLogging
 import zhttp.clients.ResPool
 import zio.Tag
-import zio.ZManaged
-import zio.ZQueue
+import zio.Queue
 import zio.Semaphore
 
 import zhttp.clients.util.SkipList
@@ -105,15 +104,18 @@ object ResPoolCache {
     tagged1: Tag[K],
     tagged2: Tag[V]
   ): ZLayer[ZEnv with ResPool.ResPool[R] with MyLogging.MyLogging, Nothing, ResPoolCache.ResPoolCache[K, V, R]] =
-    (for {
-      queue <- ZQueue.bounded[K](1)
+  {
+    val effect = for {
+      queue <- Queue.bounded[K](1)
       service <- ZIO.environmentWith[ResPool.Service[R]](
                   rp => makeService[K, V, R](rp.get, timeToLiveMs, limit, updatef, queue)
                 )
 
       _ <- queue.take.flatMap(key => service.doFreeSpace).repeatUntilZIO( _ => queue.isShutdown ).forkDaemon
-
-    } yield (service)).toLayer
+    } yield (service)
+    
+    ZLayer.fromZIO( effect )
+  }
 
   private def layerName[K, V, R](implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]): String = {
     val kt = tagged.tag.shortName
@@ -151,7 +153,7 @@ object ResPoolCache {
       val adds    = new AtomicLong(0)
       val evcts   = new AtomicLong(0)
 
-      def info = ZIO {
+      def info = ZIO.succeed {
         val sb = new StringBuilder()
         sb.append("*Cache table*\n")
         cache_tbl.print(sb)
@@ -199,8 +201,8 @@ object ResPoolCache {
 
       def get(key: K): ZIO[zio.ZEnv with MyLogging, Throwable, Option[V]] =
         for {
-          (_, sem) <- acquireSemaphore(key) //compare and set based singleton for the given key - only one for the key
-          result   <- sem.withPermit(get_(key))
+          semPair <- acquireSemaphore(key) //compare and set based singleton for the given key - only one for the key
+          result   <- semPair._2.withPermit(get_(key))
           _        <- cleanLRU(key)
         } yield (result)
 
@@ -223,9 +225,7 @@ object ResPoolCache {
                             LogLevel.Trace,
                             layerName[K, V, R] + ": key = " + key.toString() + " expired with " + cached_entry.ts
                           )
-                      res <- ZManaged
-                              .acquireReleaseWith(rp.acquire)(c => rp.release(c) )//.catchAll(_ => ZIO.unit))
-                              .use(resource => updatef(resource, key))
+                      res <- ZIO.acquireReleaseWith(rp.acquire)(c => rp.release(c) )(resource => updatef(resource, key))
                               .flatMap(ov => {
                                 ov match {
                                   case Some(v) =>
@@ -257,9 +257,7 @@ object ResPoolCache {
                           LogLevel.Trace,
                           layerName[K, V, R] + ": key = " + key.toString() + " attempt to cache a new value"
                         )
-                    v <- ZManaged
-                          .acquireReleaseWith(rp.acquire)(c => rp.release(c))  //.catchAll(_ => ZIO.unit))
-                          .use(resource => updatef(resource, key))
+                    v <- ZIO.acquireReleaseWith(rp.acquire)(c => rp.release(c))(resource => updatef(resource, key))
                           .flatMap(ov => {
                             ov match {
                               case Some(v) =>
@@ -290,7 +288,7 @@ object ResPoolCache {
 
       private def cleanLRU(key: K) =
         for {
-          cntr <- ZIO(lru_tbl.count)
+          cntr <- ZIO.succeed(lru_tbl.count)
           _    <- q.offer(key).when(lru_tbl.count > limit)
         } yield ()
 
@@ -302,9 +300,9 @@ object ResPoolCache {
                 LogLevel.Trace,
                 layerName[K, V, R] + ": Remove LRU entry = " + e.key.toString()
               )
-          b <- ZIO(lru_tbl.remove(e))
-          _ <- ZIO { cache_tbl.remove(ValuePair(e.key)) }.when(b == true)
-          _ <- ZIO(evcts.incrementAndGet())
+          b <- ZIO.attempt(lru_tbl.remove(e))
+          _ <- ZIO.attempt { cache_tbl.remove(ValuePair(e.key)) }.when(b == true)
+          _ <- ZIO.attempt(evcts.incrementAndGet())
 
         } yield ()
         acquireSemaphore(e.key).flatMap(p1 => { p1._2.withPermit(T) })
@@ -314,7 +312,7 @@ object ResPoolCache {
         val temp  = lru_tbl.count - limit
         val temp2 = if (temp > 0) temp else 0
         val T = for {
-          a  <- ZIO(lru_tbl.lru_tbl.head)
+          a  <- ZIO.succeed(lru_tbl.lru_tbl.head)
           f1 <- cleanLRU3_par(a).fork
           _  <- f1.await
         } yield ()
@@ -325,8 +323,8 @@ object ResPoolCache {
       ///////////////////////////////////////////////////////////////////////////////////////
       private def acquireSemaphore(key: K) = {
         //println( key.hashCode.toString + "  " + code )
-        val T = for {
-          code <- ZIO(key.hashCode % 1024)
+        val T : ZIO[Any, Throwable, (Boolean, Semaphore)] = for {
+          code <- ZIO.succeed(key.hashCode % 1024)
           //_ <- ZIO( println ( code ))
           val1 <- s_tbl.u_get(ValuePair[Int, Semaphore](code, null))
           result <- val1 match {
@@ -338,9 +336,9 @@ object ResPoolCache {
                            s_tbl
                              .u_add(ValuePair(code, sem))
                              .flatMap(added => {
-                               if (added == true) UIO(true, sem)
+                               if (added == true) UIO.succeed(true, sem)
                                else
-                                 UIO(false, null) //already added, repeat it to read what was added by other fiber
+                                 UIO.succeed(false, null) //already added, repeat it to read what was added by other fiber
                              })
 
                          })
@@ -348,7 +346,8 @@ object ResPoolCache {
 
         } yield (result)
 
-        T.repeatWhile(_._2 == null)
+        T.repeatWhile( p => { p._2 == null } )
+
       }
 
     } //end

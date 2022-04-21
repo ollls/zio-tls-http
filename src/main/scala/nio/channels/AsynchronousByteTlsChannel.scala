@@ -10,8 +10,6 @@ import javax.net.ssl.{ SSLEngineResult, SSLSession }
 import javax.net.ssl.SSLEngineResult.HandshakeStatus._
 
 import zio.Duration
-import zio.ZManaged
-import zio.ZEnv
 
 import zio.{ Chunk, IO, ZIO }
 
@@ -27,7 +25,7 @@ object AsynchronousTlsByteChannel {
   def apply(
     raw_ch: AsynchronousSocketChannel,
     sslContext: SSLContext
-  ): ZIO[ZEnv, Exception, AsynchronousTlsByteChannel] = {
+  ): ZIO[Any, Exception, AsynchronousTlsByteChannel] = {
     val open = (for {
       ssl_engine <- IO.attempt(new SSLEngine(sslContext.createSSLEngine()))
       _          <- ssl_engine.setUseClientMode(true)
@@ -140,7 +138,7 @@ object AsynchronousTlsByteChannel {
 
                                       } yield (r)
 
-                                    } else IO(r)
+                                    } else IO.succeed(r)
 
                               } yield (r.getHandshakeStatus)
                             }
@@ -185,9 +183,9 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
   final def getSession: IO[Exception, SSLSession] =
     IO.attempt(sslEngine.engine.getSession()).refineToOrDie[Exception]
 
-  final def remoteAddress: ZIO[ZEnv, Exception, Option[SocketAddress]] = channel.remoteAddress
+  final def remoteAddress: ZIO[Any, Exception, Option[SocketAddress]] = channel.remoteAddress
 
-  final def readBuffer(out_b: java.nio.ByteBuffer): ZIO[ZEnv, Exception, Unit] = {
+  final def readBuffer(out_b: java.nio.ByteBuffer): ZIO[Any, Exception, Unit] = {
 
     val out = Buffer.byte(out_b)
 
@@ -224,7 +222,7 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
   }
 
   //////////////////////////////////////////////////////////////////////////
-  final def read: ZIO[ZEnv, Exception, Chunk[Byte]] = {
+  final def read: ZIO[Any, Exception, Chunk[Byte]] = {
     val OUT_BUF_SZ = APP_PACKET_SZ * 2
     val result = for {
 
@@ -266,7 +264,7 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
     result.refineToOrDie[Exception]
   }
 
-  final def write(chunk: Chunk[Byte]): ZIO[ZEnv, Exception, Int] = {
+  final def write(chunk: Chunk[Byte]): ZIO[ Any, Exception, Int] = {
     val res = for {
 
       in <- Buffer.byte(chunk)
@@ -297,7 +295,7 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
     channel.close.catchAll(_ => IO.unit)
 
   //close with TLS close_notify
-  final def close: ZIO[ZEnv, Nothing, Unit] = {
+  final def close: ZIO[ Any, Nothing, Unit] = {
     val result = for {
       _     <- IO.attempt(sslEngine.engine.getSession().invalidate())
       _     <- sslEngine.closeOutbound()
@@ -325,7 +323,7 @@ object AsynchronousServerTlsByteChannel {
   def apply(
     raw_ch: AsynchronousSocketChannel,
     sslContext: SSLContext
-  ): ZManaged[ZEnv, Exception, AsynchronousTlsByteChannel] = {
+  ) /*: ZIO[ ZEnv & zio.Scope, Exception, AsynchronousTlsByteChannel]*/= {
 
     val open = (for {
       ssl_engine <- IO.attempt(new SSLEngine(sslContext.createSSLEngine()))
@@ -340,7 +338,7 @@ object AsynchronousServerTlsByteChannel {
       r <- IO.attempt(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
     } yield (r)).catchAll(e => { raw_ch.close *> ZIO.fail(e) })
 
-    ZManaged.acquireReleaseWith(open.refineToOrDie[Exception]) { _.close }
+    ZIO.acquireReleaseWith(open.refineToOrDie[Exception]) { _.close }
 
   }
 

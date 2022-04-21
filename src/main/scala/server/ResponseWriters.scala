@@ -1,6 +1,6 @@
 package zhttp
 
-import zio.{ Chunk, IO, ZEnv, ZIO }
+import zio.{ Chunk, IO, ZIO }
 
 //import scala.collection.immutable.ListMap
 import java.io.File
@@ -20,7 +20,7 @@ object ResponseWriters {
     code: StatusCode,
     msg: String,
     close: Boolean
-  ): ZIO[ZEnv, Exception, Int] =
+  ): ZIO[Any, Exception, Int] =
     Channel.write(c, Chunk.fromArray(genResponse(code, msg, close).getBytes()))
 
   /////////////////////////////////////////////////////////////////////////////
@@ -50,7 +50,7 @@ object ResponseWriters {
     code: StatusCode,
     data: Chunk[Byte],
     close: Boolean
-  ): ZIO[ZEnv, Exception, Int] =
+  ): ZIO[Any, Exception, Int] =
     for {
       n <- ZIO.succeed(data.size)
       _ <- Channel.write(c, Chunk.fromArray(getContentResponse(rs, code, n, false).getBytes()))
@@ -64,16 +64,16 @@ object ResponseWriters {
     code: StatusCode,
     msg: String,
     close: Boolean
-  ): ZIO[ZEnv, Exception, Int] =
+  ): ZIO[Any, Exception, Int] =
     Channel.write(c, Chunk.fromArray(genResponseFromResponse(rs, code, msg, close).getBytes()))
 
-  def writeResponseMethodNotAllowed(c: Channel, allow: String): ZIO[ZEnv, Exception, Int] =
+  def writeResponseMethodNotAllowed(c: Channel, allow: String): ZIO[Any, Exception, Int] =
     Channel.write(c, Chunk.fromArray(genResponseMethodNotAllowed(allow).getBytes()))
 
-  def writeResponseUnsupportedMediaType(c: Channel): ZIO[ZEnv, Exception, Int] =
+  def writeResponseUnsupportedMediaType(c: Channel): ZIO[Any, Exception, Int] =
     Channel.write(c, Chunk.fromArray(genResponseUnsupportedMediaType().getBytes()))
 
-  def writeResponseRedirect(c: Channel, location: String): ZIO[ZEnv, Exception, Int] =
+  def writeResponseRedirect(c: Channel, location: String): ZIO[Any, Exception, Int] =
     Channel.write(c, Chunk.fromArray(genResponseRedirect(location).getBytes()))
 
   ///////////////////////////////////////////////////////////
@@ -83,16 +83,16 @@ object ResponseWriters {
     chunkSize: Int,
     contentType: String,
     fpath: File
-  ): ZIO[ZEnv, Exception, Unit] = {
+  ): ZIO[Any, Exception, Unit] = {
     val result = for {
 
       buf <- IO.succeed(new Array[Byte](chunkSize))
 
       header <- IO.attempt(ResponseWriters.genResponseContentTypeFileHeader(fpath.toString, contentType))
 
-      fpm = attemptBlocking(new FileInputStream(fpath)).toManagedWith(fp => ZIO.attempt(fp.close).catchAll(_ => IO.unit))
+      fpm = ZIO.acquireRelease( attemptBlocking( new FileInputStream(fpath))) ( fp => ZIO.attempt(fp.close ).catchAll(_ => IO.unit) )
 
-      _ <- fpm.use { fp =>
+      y <- ZIO.scoped { fpm.flatMap{ fp =>
             Channel.write(c, Chunk.fromArray(header.getBytes)) *> (attemptBlocking(fp.read(buf))
               .flatMap { nBytes =>
                 {
@@ -102,24 +102,13 @@ object ResponseWriters {
                 }
               })
               .repeat(zio.Schedule.recurWhile(_ > 0))
-          }
+          } }
 
     } yield ()
 
     result.refineToOrDie[Exception]
   }
 
-  /*
-  private def genBadRequest(code: StatusCode, msg: String): String = {
-    val r = new StringBuilder
-
-    r ++= "HTTP/1.1 " + code.value + " " + msg + "\n"
-    r ++= "Content-Length: 0\n"
-    r ++= "Connection: keep-alive\n"
-    r ++= "\n"
-
-    r.toString
-  }*/
 
   ///////////////////////////////////////////////////////////////////////
   private def getContentResponse(resp: Response, code: StatusCode, contLen: Int, close: Boolean): String = {

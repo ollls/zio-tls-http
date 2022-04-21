@@ -276,7 +276,8 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
     }((z, i: Byte) => z :+ i))
 
     for {
-      response <- r.use {
+      response <- ZIO.scoped {
+                   r.flatMap {
                    case (header_bytes, body_stream) =>
                      val strings =
                        ZStream.fromChunk(header_bytes).via(ZPipeline.usASCIIDecode >>> ZPipeline.splitLines)
@@ -324,6 +325,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
 
                      } yield (new ClientResponse(h, StatusCode(code_i), stream))
 
+                    }
                  }
 
     } yield (response)

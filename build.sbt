@@ -47,10 +47,10 @@ ThisBuild / publishMavenStyle := true
     scalaVersion := "3.1.1",
     maxErrors := 3,
     retrieveManaged := true,
-    libraryDependencies += "dev.zio" %% "zio"         % "2.0.0-RC2",
-    libraryDependencies += "dev.zio" %% "zio-streams" % "2.0.0-RC2",
-    libraryDependencies += "dev.zio" %% "zio-test"    % "2.0.0-RC2",
-    libraryDependencies += "dev.zio" %% "zio-json"    % "0.3.0-RC2",
+    libraryDependencies += "dev.zio" %% "zio"         % "2.0.0-RC5",
+    libraryDependencies += "dev.zio" %% "zio-streams" % "2.0.0-RC5",
+    libraryDependencies += "dev.zio" %% "zio-test"    % "2.0.0-RC5",
+    libraryDependencies += "dev.zio" %% "zio-json"    % "0.3.0-RC5",
    
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )

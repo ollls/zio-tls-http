@@ -4,10 +4,9 @@ import zio.Chunk
 import java.net.URI
 import zio.json._
 import zio.stream.ZStream
-import zio.ZEnv
 import zio.ZIO
 
-sealed case class Request(headers: Headers, stream: ZStream[ZEnv, Exception, Chunk[Byte]], ch: Channel) {
+sealed case class Request(headers: Headers, stream: ZStream[Any, Exception, Chunk[Byte]], ch: Channel) {
 
   def path: String             = headers.get(HttpRouter._PATH).getOrElse("")
   def method: Method           = Method(headers.get(HttpRouter._METHOD).getOrElse(""))
@@ -28,7 +27,7 @@ sealed case class Request(headers: Headers, stream: ZStream[ZEnv, Exception, Chu
 
   def isChunked = transferEncoding.exists(_.equalsIgnoreCase("chunked"))
 
-  def body = stream.runCollect.map(_.flatten): ZIO[ZEnv, Exception, Chunk[Byte]]
+  def body = stream.runCollect.map(_.flatten): ZIO[Any, Exception, Chunk[Byte]]
 
   def fromJSONToStream[A: JsonDecoder] = stream.map(chunk => new String(chunk.toArray).fromJson[A])
 
@@ -40,7 +39,7 @@ sealed case class Request(headers: Headers, stream: ZStream[ZEnv, Exception, Chu
             .mapError(str => new MediaEncodingError(s"JSON schema error: $str"))
     } yield (a)
 
-  def bodyAsText: ZIO[ZEnv, Throwable, String] =
+  def bodyAsText: ZIO[Any, Throwable, String] =
     for {
       b <- body
       a <- ZIO.attempt(new String(b.toArray))
@@ -52,7 +51,7 @@ object Response {
 
   def Ok(): Response = new Response(StatusCode.OK, Headers())
 
-  def raw_stream[MyEnv](str: ZStream[ZEnv with MyEnv, Throwable, Chunk[Byte]]) =
+  def raw_stream[MyEnv](str: ZStream[ MyEnv, Throwable, Chunk[Byte]]) =
     new Response(StatusCode.OK, Headers(), str.asInstanceOf[ZStream[Any, Throwable, Chunk[Byte]]], true)
 
   def Error(code: StatusCode): Response = new Response(code, Headers())
@@ -77,12 +76,12 @@ sealed case class Response(
     new Response(this.code, this.headers + pair, this.stream)
   }
 
-  def streamWith[MyEnv]: ZStream[ZEnv with MyEnv, Throwable, Chunk[Byte]] = stream
+  def streamWith[MyEnv]: ZStream[ MyEnv, Throwable, Chunk[Byte]] = stream
 
-  def asStream[MyEnv](s0: ZStream[ZEnv with MyEnv, Throwable, Chunk[Byte]]) =
+  def asStream[MyEnv](s0: ZStream[ MyEnv, Throwable, Chunk[Byte]]) =
     new Response(this.code, this.headers, s0.asInstanceOf[ZStream[Any, Throwable, Chunk[Byte]]])
 
-  def asJsonStream[MyEnv, B: JsonEncoder](stream: ZStream[ZEnv with MyEnv, Throwable, B]) =
+  def asJsonStream[MyEnv, B: JsonEncoder](stream: ZStream[ MyEnv, Throwable, B]) =
     asStream(stream.map(b => Chunk.fromArray(b.toJson.getBytes)))
 
   def asTextBody(text: String): Response = {

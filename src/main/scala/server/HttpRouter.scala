@@ -1,14 +1,14 @@
 package zhttp
 
 import nio.channels.TLSChannelError
-import zio.{ Chunk, IO, ZEnv, ZIO }
+import zio.{ Chunk, IO, ZIO }
 
 
 import zio.stream.ZStream
 import zio.stream.ZPipeline
 import zio.stream.ZChannel
 import zio.stream.ZSink
-import zio.ZRef
+//import zio.ZRef
 
 
 sealed trait HTTPError                              extends Exception
@@ -263,7 +263,7 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
   //val HTTP_HEADER_SZ          = 8096 * 2
   val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100 //104 MB
 
-  def route(c: Channel): ZIO[ZEnv with R, Exception, Unit] =
+  def route(c: Channel): ZIO[ R, Exception, Unit] =
     route_do(c).forever.catchAll(ex => {
       ex match {
 
@@ -313,23 +313,23 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
       }
     })
 
-  private def route_do(c: Channel): ZIO[ZEnv with R, Exception, Unit] = {
+  private def route_do(c: Channel): ZIO[R, Exception, Unit] = {
 
     val header_pair = raw"(.{2,100}):\s+(.+)".r
     val http_line   = raw"([A-Z]{3,8})\s+(.+)\s+(HTTP/.+)".r
 
-    val rd_stream : ZStream[ZEnv with R, Exception, Byte] = ZStream.repeatZIO( Channel.read(c)).flatMap(ZStream.fromChunk(_))
+    val rd_stream : ZStream[ R, Exception, Byte] = ZStream.repeatZIO( Channel.read(c)).flatMap(ZStream.fromChunk(_))
 
     val r = rd_stream.peel(ZSink.fold(Chunk[Byte]()) { c =>
       !c.endsWith("\r\n\r\n")
     }((z, i: Byte) => z :+ i))
     for {
-      _ <- r.use[ZEnv with R, Exception, Unit] {
+      _ <- ZIO.scoped { r.flatMap {
             case (header_bytes, body_stream) =>
               val strings =
                 ZStream.fromChunk(header_bytes).via( ZPipeline.usASCIIDecode >>> ZPipeline.splitLines)
 
-              val hdrs : ZIO[ ZEnv with R, Exception, Headers]  = strings.runFold[Headers](Headers())((hdrs, line) => {
+              val hdrs : ZIO[ R, Exception, Headers]  = strings.runFold[Headers](Headers())((hdrs, line) => {
                 line match {
                   case http_line(method, path, prot) =>
                     hdrs ++ Headers(HttpRouter._METHOD -> method, HttpRouter._PATH -> path, HttpRouter._PROTO -> prot)
@@ -389,26 +389,30 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
 
                 req <- ZIO.attempt(Request(h, stream, c)).refineToOrDie[Exception]
 
-                (response, post_proc) <- route_go(req, appRoutes).catchAll {
+                /*(response, post_proc)*/
+                response_t <- route_go(req, appRoutes).catchAll {
                                           case None =>
                                             IO.succeed(
                                               (Response.Error(StatusCode.NotFound), HttpRoutes.defaultPostProc)
                                             )
                                           case Some(e) => IO.fail(e)
                                         }
-                response2 <- if (response.raw_stream == false && req.isWebSocket == false)
-                              IO.succeed(post_proc(response))
-                            else ZIO.succeed(response)
+                response = response_t._1    
+                post_proc =  response_t._2                   
+
+                response2 <- if ( response.raw_stream == false && req.isWebSocket == false)
+                              IO.succeed( post_proc (response))
+                            else ZIO.succeed(response_t._1)
 
                 _ <- response_processor(c, req, response2).catchAll { e =>
                       ZIO.fail(e)
                     }
 
-              } yield (response)
+              } yield (response_t._1)
 
               T.unit.refineToOrDie[Exception]
 
-          }
+     } } /* use or scope */
 
     } yield ()
 
@@ -417,7 +421,7 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
   private def route_go(
     req: Request,
     appRoutes: List[HttpRoutes[R]]
-  ): ZIO[ZEnv with R, Option[Exception], (Response, HttpRoutes.PostProc)] =
+  ): ZIO[ R, Option[Exception], (Response, HttpRoutes.PostProc)] =
     appRoutes match {
       case h :: tail => {
         for {
@@ -437,7 +441,7 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
     ch: Channel,
     req: Request,
     resp: Response
-  ): ZIO[ZEnv with R, Exception, Int] =
+  ): ZIO[ R, Exception, Int] =
     if (req.isWebSocket && resp.code.isSuccess) {
       Channel
         .remoteAddress(req.ch)

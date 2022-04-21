@@ -381,7 +381,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
   def count(): Int =
     OrderedList.count[A](vals)
 
-  def u_get(a: A) = ZIO(get(a))
+  def u_get(a: A) = ZIO.succeed(get(a))
 
   //////////////////////////////////////////////////////////////////////
   def get(a: A): Option[A] = {
@@ -492,7 +492,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     }
   }
 
-  final def u_add(a: A) = ZIO(add(a))
+  final def u_add(a: A) = ZIO.succeed(add(a))
 
   ///////////////////////////////////////////////////////////////////
   final def add(a: A): Boolean = {
@@ -529,7 +529,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     result
   }
 
-  final def u_remove(a: A) = ZIO(remove(a))
+  final def u_remove(a: A) = ZIO.succeed(remove(a))
 
   ///////////////////////////////////////////////////////////////////
   final def remove(a: A): Boolean = {

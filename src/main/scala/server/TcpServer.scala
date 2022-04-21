@@ -1,6 +1,6 @@
 package zhttp
 
-import zio.{ IO, ZEnv, ZIO, ZManaged }
+import zio.{ IO, ZIO }
 import nio.SocketAddress
 
 import nio._
@@ -16,19 +16,16 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
   val KEEP_ALIVE: Long  = keepAlive //ms, good if short for testing with broken site's snaphosts with 404 pages
   val SERVER_PORT       = port
 
-  private var processor: Channel => ZIO[ZEnv with MyEnv, Exception, Unit] = null
+  private var processor: Channel => ZIO[ Any with MyEnv, Exception, Unit] = null
 
   private var f_terminate = false
   def terminate           = f_terminate = true
   def isTerminated        = f_terminate
 
   /////////////////////////////////
-  def myAppLogic: ZIO[ZEnv with MyEnv, Throwable, ExitCode] =
+  def myAppLogic: ZIO[ MyEnv, Throwable, ExitCode] =
     for {
 
-      //metr <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.runtimeConfig.executor.unsafeMetrics ) 
-
-      //_ <- MyLogging.info("console", s"HTTP Service started. ZIO concurrency lvl: " + metr.get.concurrency + " threads")
       _ <- MyLogging.info(
             "console",
             "Listens TCP: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms"
@@ -37,20 +34,17 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
       executor     <- ZIO.attempt( java.util.concurrent.Executors.newCachedThreadPool() ) // .newFixedThreadPool(4) )
       address <- SocketAddress.inetSocketAddress(BINDING_SERVER_IP, SERVER_PORT)
       group   <- AsynchronousChannelGroup(executor)
-      _ <- group.openAsynchronousServerSocketChannel().use { srv =>
+      _ <- group.openAsynchronousServerSocketChannelWith() { srv =>
             {
               for {
                 _ <- srv.bind(address)
-
                 loop = srv.accept2
                   .flatMap(
                     channel =>
                       channel.remoteAddress.flatMap(c => {
                         MyLogging.debug("console", "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName)
                       }) *>
-                        ZManaged
-                          .acquireReleaseWith(ZIO.attempt(new TcpChannel(channel.keepAlive(KEEP_ALIVE))))(Channel.close(_).orDie)
-                          .use { c =>
+                        ZIO.acquireReleaseWith(ZIO.attempt(new TcpChannel(channel.keepAlive(KEEP_ALIVE))))(Channel.close(_).orDie) { c =>
                             processor(c).catchAll(e => MyLogging.error("console", e.toString) *> IO.succeed(0))
                           }
                           .fork
@@ -64,7 +58,7 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
     } yield (ExitCode(0))
 
   //////////////////////////////////////////////////
-  def run(proc: Channel => ZIO[ZEnv with MyEnv, Exception, Unit]) = {
+  def run(proc: Channel => ZIO[MyEnv, Exception, Unit]) = {
 
     processor = proc
 

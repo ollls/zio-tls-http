@@ -1,7 +1,7 @@
 package zhttp
 
 import zio.ZLayer
-import zio.ZQueue
+import zio.Queue
 import zio.UIO
 
 import java.nio.channels.FileChannel
@@ -12,7 +12,7 @@ import scala.collection.immutable.ListMap
 import scala.io.AnsiColor
 import scala.io.AnsiColor._
 
-import zio.{ IO, ZEnv, ZIO }
+import zio.{ IO, ZIO }
 
 
 import java.time.LocalDateTime
@@ -107,13 +107,13 @@ object MyLogging {
     }
 
   trait Service {
-    def log(logName: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit]
+    def log(logName: String, lvl: LogLevel, msg: String): ZIO[Any, Exception, Unit]
     def listLogs : UIO[Iterator[(String, LogRec)]]
-    def shutdown : ZIO[ZEnv, Exception, Unit]
+    def shutdown : ZIO[Any, Exception, Unit]
   }
 
-  def log(name: String, lvl: LogLevel, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
-    ZIO.environmentWithZIO[ZEnv with MyLogging](logenv => logenv.get[MyLogging.Service].log(name, lvl, msg))
+  def log(name: String, lvl: LogLevel, msg: String): ZIO[ MyLogging, Exception, Unit] =
+    ZIO.environmentWithZIO[ MyLogging](logenv => logenv.get[MyLogging.Service].log(name, lvl, msg))
 
 
   def logService = ZIO.environmentWith[MyLogging.MyLogging]( logenv => logenv.get[MyLogging.Service] )
@@ -122,19 +122,19 @@ object MyLogging {
 
   //  ZIO.environment[ZEnv with MyLogging]( logenv => logenv.get[MyLogging.Service])
 
-  def info(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
+  def info(name: String, msg: String): ZIO[ MyLogging, Exception, Unit] =
     log(name, LogLevel.Info, msg)
 
-  def debug(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
+  def debug(name: String, msg: String): ZIO[ MyLogging, Exception, Unit] =
     log(name, LogLevel.Debug, msg)
 
-  def error(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
+  def error(name: String, msg: String): ZIO[ MyLogging, Exception, Unit] =
     log(name, LogLevel.Error, msg)
 
-  def trace(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
+  def trace(name: String, msg: String): ZIO[ MyLogging, Exception, Unit] =
     log(name, LogLevel.Trace, msg)
 
-  def warn(name: String, msg: String): ZIO[ZEnv with MyLogging, Exception, Unit] =
+  def warn(name: String, msg: String): ZIO[ MyLogging, Exception, Unit] =
     log(name, LogLevel.Warn, msg)
 
   private def write_logs(
@@ -144,7 +144,7 @@ object MyLogging {
     log_msg: String,
     date: OffsetDateTime,
     fiberId: FiberId
-  ): ZIO[ZEnv, Throwable, Unit] =
+  ): ZIO[Any, Throwable, Unit] =
     for {
       ts <- IO.succeed(LogDatetimeFormatter.humanReadableDateTimeFormatter.format(date))
       _ <- attemptBlocking(logs.get(log_name).foreach { logRec =>
@@ -167,7 +167,7 @@ object MyLogging {
           })
     } yield ()
 
-  private def open_logs(log_names: Seq[(String, LogLevel)]): ZIO[ZEnv, Throwable, ListMap[String, LogRec]] =
+  private def open_logs(log_names: Seq[(String, LogLevel)]): ZIO[ Any, Throwable, ListMap[String, LogRec]] =
     for {
       //_    <- zio.console.putStrLn( "ZIO-TLS-HTTP started, log files in: " + REL_LOG_FOLDER + log_names.mkString( ",") )
       logs <- attemptBlocking(ListMap[String, LogRec]())
@@ -191,14 +191,14 @@ object MyLogging {
                }
     } yield (result)
 
-  private def close_logs(logs: ListMap[String, LogRec]): ZIO[ZEnv, Nothing, Unit] =
+  private def close_logs(logs: ListMap[String, LogRec]): ZIO[ Any, Nothing, Unit] =
     attemptBlocking(logs.foreach(rec => rec._2.log.close())).catchAll(_ => IO.unit)
 
   def make(
     maxLogSize: Int,
     maxLogFiles: Int,
     log_names: (String, LogLevel)*
-  ): ZLayer[ZEnv, Throwable, MyLogging.Service] = {
+  ): ZLayer[Any, Throwable, MyLogging.Service] = {
     MAX_LOG_FILE_SIZE = maxLogSize
     MAX_NUMBER_ROTATED_LOGS = maxLogFiles
 
@@ -206,25 +206,25 @@ object MyLogging {
 
   }
 
-  def make(log_names: (String, LogLevel)*): ZLayer[ZEnv, Throwable, MyLogging.Service] = {
-    val managedObj = open_logs(log_names).toManagedWith(close_logs).flatMap { logs =>
-      ZQueue
+  def make(log_names: (String, LogLevel)*): ZLayer[Any, Throwable, MyLogging.Service] = {
+    val managedObj = ZIO.acquireRelease( open_logs(log_names))(close_logs).flatMap { logs =>
+      ZIO.acquireRelease{
       //with unbounded queue you won't lose a single record, but with stress test it grows up to 10-15 min delay and more
       //here for perfomance reasons we use dropping queue, some messages under stress load will be lost, once it exceeds a queue
       //you always can switch off access log and avoid issue entirely
       //.unbounded[(String, LogLevel, String, OffsetDateTime)]   //<--- uncomment for unlimited, no loss queue
-        .dropping[(String, LogLevel, String, OffsetDateTime, FiberId)](5000)
-        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5)).repeatUntilZIO( _ => q.isShutdown ).forkDaemon)
-        .toManagedWith(c => c.shutdown)
+        Queue.dropping[(String, LogLevel, String, OffsetDateTime, FiberId)](5000)
+        .tap(q => q.take.flatMap(msg => write_logs(logs, msg._1, msg._2, msg._3, msg._4, msg._5)).repeatUntilZIO( _ => q.isShutdown ).forkDaemon) }
+        ( c => c.shutdown )
         .map(
           q =>
             new Service {
 
                 def listLogs = ZIO.succeed( logs.iterator )
 
-                def shutdown : ZIO[ZEnv, Exception, Unit] = q.shutdown
+                def shutdown : ZIO[Any, Exception, Unit] = q.shutdown
 
-                def log(log: String, lvl: LogLevel, msg: String): ZIO[ZEnv, Exception, Unit] =
+                def log(log: String, lvl: LogLevel, msg: String): ZIO[Any, Exception, Unit] =
                 for {
                   fiberId <- ZIO.fiberId
                   time    <- currentDateTime //.orDie
@@ -241,7 +241,7 @@ object MyLogging {
 
     }
 
-    managedObj.toLayer[MyLogging.Service]
+    ZLayer.scoped( managedObj ) //managedObj.toLayer[MyLogging.Service]
 
   }
 

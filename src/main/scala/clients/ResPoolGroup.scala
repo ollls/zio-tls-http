@@ -7,7 +7,7 @@ import zio.Chunk
 import zio.Tag
 
 import zio.Queue
-import zio.ZQueue
+
 
 import zhttp.MyLogging
 import zhttp.MyLogging.MyLogging
@@ -33,7 +33,7 @@ object ResPoolGroup {
   }
 
   //cleanup with sequence
-  private def cleanup2[R](pools: Chunk[(RPD[R], Queue[ResRec[R]])]) = {
+  private def cleanup2[R](pools: Chunk[(RPD[R], Queue[ResRec[R]])]) : ZIO[ ZEnv with MyLogging, Nothing, Matchable] = {
 
     val chunkOfZIOwork = pools.map { q =>
       for {
@@ -41,10 +41,10 @@ object ResPoolGroup {
         all_conections <- q._2.takeAll
         UnitOfWork <- ZIO.attempt(all_conections.foreach(rec => {
                        q._1.closeRes(rec.res)
-                       val pool_id = q._1.name
-                       zio.Runtime.default.unsafeRun(
-                         logSvc.log("console", LogLevel.Trace, s"ResPoolGroup: $pool_id - closing resource on shutdown")
-                       )
+                       //val pool_id = q._1.name
+                       //zio.Runtime.default.unsafeRunTask(
+                        // logSvc.log("console", LogLevel.Trace, s"ResPoolGroup: $pool_id - closing resource on shutdown")
+                       //)
                      }))
       } yield (UnitOfWork)
 
@@ -108,16 +108,12 @@ object ResPoolGroup {
   )(implicit tagged: Tag[R]): ZLayer[zio.ZEnv with MyLogging, Nothing, ResPoolGroup.Service[R]] = {
 
     val chunkOfZIOQueues = Chunk.fromArray(rpdm.toArray).map { pool_id =>
-      (pool_id, ZQueue.unbounded[ResRec[R]])
+      (pool_id, Queue.unbounded[ResRec[R]])
     }
 
-    //traverse
-    val zioChunkOfQueues = ZIO.collect(chunkOfZIOQueues)(a => a._2.map(q => (a._1, q)))
+    val managedQueues2 = ZIO.acquireRelease( ZIO.collect(chunkOfZIOQueues)(a => a._2.map(q => (a._1, q))) )( chunk => cleanupM(chunk) *> shutdownAllM(chunk) )
 
-    //managed Chunk of Queues
-    val managedQueues = zioChunkOfQueues.toManagedWith(chunk => cleanupM(chunk) *> shutdownAllM(chunk))
-
-    val oneServicebyNameForAllQueues = managedQueues.map { queues =>
+    val oneServicebyNameForAllQueues = managedQueues2.map { queues =>
       new Service[R] {
 
         def acquire(pool_id: String) =
@@ -132,7 +128,8 @@ object ResPoolGroup {
         }
       }
     }
-    oneServicebyNameForAllQueues.toLayer[ResPoolGroup.Service[R]]
+   
+    ZLayer.scoped( oneServicebyNameForAllQueues )
 
   }
 
@@ -141,19 +138,15 @@ object ResPoolGroup {
     timeToLiveMs : Int,
     rpd: RPD[R]*)(
     implicit tagged: Tag[R]
-  ): ZLayer[zio.ZEnv with MyLogging, Nothing, ResPoolGroup.Service[R]] = {
+  ) : ZIO[zio.Clock & zio.Console & (zio.System & zio.Random & MyLogging ), Nothing, Service[R]]= {
 
     val chunkOfZIOQueues = Chunk.fromArray(rpd.toArray).map { pool_id =>
-      (pool_id, ZQueue.unbounded[ResRec[R]])
+      (pool_id, Queue.unbounded[ResRec[R]])
     }
 
-    //traverse
-    val zioChunkOfQueues = ZIO.collect(chunkOfZIOQueues)(a => a._2.map(q => (a._1, q)))
+     val managedQueues2 = ZIO.acquireRelease( ZIO.collect(chunkOfZIOQueues)(a => a._2.map(q => (a._1, q))) )( chunk => cleanup2(chunk) *> shutdownAll(chunk) )
 
-    //managed Chunk of Queues
-    val managedQueues = zioChunkOfQueues.toManagedWith(chunk => cleanup2(chunk) *> shutdownAll(chunk))
-
-    val oneServicebyNameForAllQueues = managedQueues.map { queues =>
+    val oneServicebyNameForAllQueues = managedQueues2.map { queues =>
       new Service[R] {
 
         def acquire(pool_id: String) =
@@ -168,7 +161,8 @@ object ResPoolGroup {
         }
       }
     }
-    oneServicebyNameForAllQueues.toLayer[ResPoolGroup.Service[R]]
+
+    ZIO.scoped( oneServicebyNameForAllQueues )
 
   }
 

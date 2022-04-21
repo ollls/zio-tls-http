@@ -7,8 +7,10 @@ import java.nio.channels.spi.{ AsynchronousChannelProvider => JAsynchronousChann
 import java.util.concurrent.{ ExecutorService => JExecutorService, ThreadFactory => JThreadFactory }
 import java.util.concurrent.TimeUnit
 
-import zio.{ IO, UIO, Managed }
+import zio.{ IO, UIO }
 import zio.Duration
+import zio.ZIO
+import zio.Scope
 
 object AsynchronousChannelGroup {
 
@@ -48,14 +50,23 @@ class AsynchronousChannelGroup(private[channels] val channelGroup: JAsynchronous
       .refineToOrDie[Exception]
 
 
-  def openAsynchronousServerSocketChannel(): Managed[Exception, AsynchronousServerSocketChannel] = 
+  def openAsynchronousServerSocketChannel() : ZIO[Scope, Nothing, AsynchronousServerSocketChannel] = 
   {
     val open = IO.succeed {
                 new AsynchronousServerSocketChannel( 
                     channelGroup.provider().openAsynchronousServerSocketChannel( channelGroup ) )
     }
-    Managed.acquireReleaseWith(open)(_.close.orDie)
+    ZIO.acquireRelease(open)(_.close.orDie)
   }    
+
+  def openAsynchronousServerSocketChannelWith() = 
+  {
+    val open = IO.succeed {
+                new AsynchronousServerSocketChannel( 
+                    channelGroup.provider().openAsynchronousServerSocketChannel( channelGroup ) )
+    }
+    ZIO.acquireReleaseWith(open)(_.close.orDie)
+  } 
 
   val isShutdown: UIO[Boolean] = IO.succeed(channelGroup.isShutdown)
 

@@ -84,8 +84,8 @@ class AsynchronousServerSocketChannel(private val channel: JAsynchronousServerSo
   /**
    * Accepts a connection.
    */
-  final val accept: Managed[Exception, AsynchronousSocketChannel] =
-    Managed.acquireReleaseWith(
+  final val accept : ZIO[Scope, Exception, AsynchronousSocketChannel] =
+    ZIO.acquireRelease(
       wrap[JAsynchronousSocketChannel](h => channel.accept((), h))
         .map(AsynchronousSocketChannel(_))
     )(_.close.orDie)
@@ -124,18 +124,18 @@ class AsynchronousServerSocketChannel(private val channel: JAsynchronousServerSo
 
 object AsynchronousServerSocketChannel {
 
-  def apply(): Managed[Exception, AsynchronousServerSocketChannel] = {
+  def apply() : ZIO[Scope, Exception, AsynchronousServerSocketChannel] = {
     val open = IO
       .attempt(JAsynchronousServerSocketChannel.open())
       .refineToOrDie[Exception]
       .map(new AsynchronousServerSocketChannel(_))
 
-    Managed.acquireReleaseWith(open)(_.close.orDie)
+    ZIO.acquireRelease(open)(_.close.orDie)
   }
 
   def apply(
     channelGroup: AsynchronousChannelGroup
-  ): Managed[Exception, AsynchronousServerSocketChannel] = {
+  ) : ZIO[Scope, Exception, AsynchronousServerSocketChannel]= {
     val open = IO
       .attempt(
         JAsynchronousServerSocketChannel.open(channelGroup.channelGroup)
@@ -145,7 +145,7 @@ object AsynchronousServerSocketChannel {
       }
       .map(new AsynchronousServerSocketChannel(_))
 
-    Managed.acquireReleaseWith(open)(_.close.orDie)
+    ZIO.acquireRelease(open)(_.close.orDie)
   }
 }
 
