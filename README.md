@@ -6,6 +6,8 @@
 [![Generic badge](https://img.shields.io/badge/Hello%20World-template-red)](https://github.com/ollls/hello-http)
 [![Generic badge](https://img.shields.io/badge/ZIO--LDAP-bindings-blue)](https://github.com/ollls/zio-quartz-ee/blob/main/src/main/scala/zio-quartz/clients/async-ldap.scala)
 
+Update ( 05-03-2022 ) branch 2.0.CURRENT with ZIO2-RC6, no more connection leak issue with RC6. ZStream.peel was fixed in RC6.
+
 Update ( 04-21-2022 ) branch dev_zio2_rc5 ZIO2 RC5 port.
 
 Update ( 02-15-2022 ) branch dev_zio2 can be built now, not tested and profiled yet, more to come.
