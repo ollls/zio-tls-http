@@ -24,34 +24,34 @@ object FileUtils {
   def serverFilePath_(raw_path: Path, root_folder: String, new_file: Boolean = false) =
     for {
       path      <- ZIO.attempt( new URI( raw_path.toString ) )
-      file_path <- IO.attempt {
+      file_path <- ZIO.attempt {
                     val file_path: JPath = FileSystems.getDefault().getPath(root_folder, path.getPath )
                     file_path
                   }
       _ <- if (file_path.toFile.isDirectory) {
-            IO.fail(new AccessDenied())
-          } else IO.succeed(file_path)
+            ZIO.fail(new AccessDenied())
+          } else ZIO.succeed(file_path)
 
       _ <- if (new_file == false && file_path.toFile().exists() == false) {
-            IO.fail(new java.io.FileNotFoundException(file_path.toString))
-          } else IO.succeed(0).unit
+            ZIO.fail(new java.io.FileNotFoundException(file_path.toString))
+          } else ZIO.succeed(0).unit
     } yield (file_path)
 
   //////////////////////////////////////////////////////////////////////////
   def serverFilePath(raw_path: String, root_folder: String, new_file: Boolean = false) =
     for {
-      file_path <- IO.attempt {
+      file_path <- ZIO.attempt {
                     val path             = new URI(raw_path)
                     val file_path: JPath = FileSystems.getDefault().getPath(root_folder, path.getPath)
                     file_path
                   }
       _ <- if (file_path.toFile.isDirectory) {
-            IO.fail(new AccessDenied())
-          } else IO.succeed(file_path)
+            ZIO.fail(new AccessDenied())
+          } else ZIO.succeed(file_path)
 
       _ <- if (new_file == false && file_path.toFile().exists() == false) {
-            IO.fail(new java.io.FileNotFoundException(file_path.toString))
-          } else IO.succeed(0).unit
+            ZIO.fail(new java.io.FileNotFoundException(file_path.toString))
+          } else ZIO.succeed(0).unit
     } yield (file_path)
 
   
@@ -67,7 +67,7 @@ object FileUtils {
     val raw_path = req.path
     (for {
       file_path <- serverFilePath(raw_path, folder)
-      file_name <- IO.attempt { file_path.getFileName }
+      file_name <- ZIO.attempt { file_path.getFileName }
       body      <- req.body
       fstream0   <- ZIO.attempt(ZStream.fromFile(file_path.toFile(), HTTP_CHUNK_SIZE) )
 

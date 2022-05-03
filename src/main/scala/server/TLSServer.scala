@@ -14,8 +14,8 @@ import javax.net.ssl.KeyManagerFactory
 import zio.ExitCode
 import zio.ZIO.attemptBlocking
 import scala.concurrent.ExecutionContext
-import zio.Executor
-import zio.RuntimeConfig
+
+
 
 import java.util.concurrent.ExecutorService
 
@@ -42,13 +42,13 @@ class TLSServer[MyEnv <: MyLogging.Service](
   def isTerminated        = f_terminate
 
   /////////////////////////////////
-  def myAppLogic( executor : ExecutorService, threadsNum : Int, sslctx: SSLContext = null ): ZIO[ MyEnv, Throwable, ExitCode] =
+  def myAppLogic( sslctx: SSLContext = null ): ZIO[ MyEnv, Throwable, ExitCode] =
 
     for {
       _ <- MyLogging.info(
             "console",
-            s"TLS HTTP Service started on " + SERVER_PORT + ", ZIO concurrency lvl: " + threadsNum + " threads"
-          ) 
+            s"TLS HTTP Service started on " + SERVER_PORT )  //, ZIO concurrency lvl: " + threadsNum + " threads"
+         //) 
       _ <- MyLogging.info(
             "console",
             "Listens: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms"
@@ -57,6 +57,8 @@ class TLSServer[MyEnv <: MyLogging.Service](
       //executor <- ZIO.runtime.map((runtime: zio.Runtime[Any]) => runtime.platform.executor.asECES)
       //TODO - decide what to do here
       //executor     <- ZIO.attempt( java.util.concurrent.Executors.newCachedThreadPool() )
+
+      executor     <- ZIO.attempt( java.util.concurrent.Executors.newCachedThreadPool() )
 
       ssl_context <- if (sslctx == null) buildSSLContext(TLS_PROTO, KEYSTORE_PATH, KEYSTORE_PASSWORD)
                     else ZIO.succeed(sslctx)
@@ -75,18 +77,17 @@ class TLSServer[MyEnv <: MyLogging.Service](
                   .flatMap(
                     channel =>
                       channel.remoteAddress.flatMap(
-                        c =>
-                          MyLogging
-                            .debug("console", "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName)
+                        c => MyLogging
+                             .debug("console", "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName)
                       ) *>
                         AsynchronousServerTlsByteChannel(channel, ssl_context)(c => processor(new TlsChannel(c.keepAlive(KEEP_ALIVE))))
                           .catchAll( e => {
                             MyLogging.error("console", e.toString ) *>
-                            IO.succeed(0)
+                            ZIO.succeed(0)
                           })
                           .fork
                   )
-                  .catchAll(_ => IO.succeed(0)) 
+                  .catchAll(_ => ZIO.succeed(0)) 
 
                 _ <- loop.repeatUntil(_ => isTerminated)
 
@@ -101,24 +102,25 @@ class TLSServer[MyEnv <: MyLogging.Service](
 
     processor = proc
 
-    val cores = Runtime.getRuntime().availableProcessors();
+    //val cores = Runtime.getRuntime().availableProcessors();
 
-    val es   = java.util.concurrent.Executors.newFixedThreadPool( cores )  
-    val ec         = ExecutionContext.fromExecutor(  es  ) 
-    val zio_executor = Executor.fromExecutionContext( 1024 )(ec )
+    //val es   = java.util.concurrent.Executors.newFixedThreadPool( cores )  
+    //val ec         = ExecutionContext.fromExecutor(  es  ) 
+    //val zio_executor = Executor.fromExecutionContext( 1024 )(ec )
 
-    val rtc = RuntimeConfig.default.copy( executor = zio_executor )
+    //val rtc = RuntimeConfig.default.copy( executor = zio_executor )
 
-    val T = myAppLogic( es, cores, sslContext ).fold(e => {
+    val T = myAppLogic( sslContext ).fold(e => {
       e.printStackTrace(); zio.ExitCode(1)
     }, _ => zio.ExitCode(0))
 
-     T.withRuntimeConfig( rtc )
+     T
   }
   
   ///////////////////////////////////////////////////
   //al executor = Executor.fromExecutionContext(1024)(ExecutionContext.global)
   //////////////////////////////////////////////////
+  /*
   def run(proc: Channel => ZIO[ MyEnv, Exception, Unit]) = {
 
     processor = proc
@@ -138,7 +140,23 @@ class TLSServer[MyEnv <: MyLogging.Service](
 
     T.withRuntimeConfig( rtc )
 
-  }
+  }*/
+
+
+
+    //////////////////////////////////////////////////
+  def run(proc: Channel => ZIO[MyEnv, Exception, Unit]) = {
+
+    processor = proc
+
+    val T = myAppLogic().fold(e => {
+      e.printStackTrace(); zio.ExitCode(1)
+    }, _ => zio.ExitCode(0))
+
+    T
+  } 
+
+
 
   def buildSSLContext(protocol: String, JKSkeystore: String, password: String): ZIO[Any, Exception, SSLContext] = {
 
@@ -152,7 +170,7 @@ class TLSServer[MyEnv <: MyLogging.Service](
 
       val ks = new java.io.FileInputStream(JKSkeystore)
 
-      if (ks == null) IO.fail(new java.io.FileNotFoundException(JKSkeystore + " keystore file not found."))
+      if (ks == null) ZIO.fail(new java.io.FileNotFoundException(JKSkeystore + " keystore file not found."))
 
       keyStore.load(ks, password.toCharArray())
 

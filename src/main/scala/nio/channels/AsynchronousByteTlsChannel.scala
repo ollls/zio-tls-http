@@ -27,7 +27,7 @@ object AsynchronousTlsByteChannel {
     sslContext: SSLContext
   ): ZIO[Any, Exception, AsynchronousTlsByteChannel] = {
     val open = (for {
-      ssl_engine <- IO.attempt(new SSLEngine(sslContext.createSSLEngine()))
+      ssl_engine <- ZIO.attempt(new SSLEngine(sslContext.createSSLEngine()))
       _          <- ssl_engine.setUseClientMode(true)
       _          <- ssl_engine.setNeedClientAuth(false)
       x          <- AsynchronousTlsByteChannel.open(raw_ch, ssl_engine)
@@ -36,7 +36,7 @@ object AsynchronousTlsByteChannel {
             ZIO.fail(new TLSChannelError("TLS client Handshake error, plain text connection?"))
           } else ZIO.unit
 
-      r <- IO.attempt(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
+      r <- ZIO.attempt(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
     } yield (r)).catchAll(e => { raw_ch.close *> ZIO.fail(e) })
 
     open.refineToOrDie[Exception]
@@ -67,10 +67,10 @@ object AsynchronousTlsByteChannel {
               result <- ssl_engine.wrap(empty, out_buf)
               _      <- out_buf.flip
               //prevent reset to read if buffer has more data, now we can realy on underflow processing later
-              _ <- if (pos_ > 0 && pos_ < lim_) IO.unit
+              _ <- if (pos_ > 0 && pos_ < lim_) ZIO.unit
                   else sequential_unwrap_flag.set(false)
 
-              handshakeStatus <- raw_ch.writeBuffer(out_buf) *> IO.attempt(result.getHandshakeStatus)
+              handshakeStatus <- raw_ch.writeBuffer(out_buf) *> ZIO.attempt(result.getHandshakeStatus)
             } yield (handshakeStatus)
 
           case NEED_UNWRAP => {
@@ -87,7 +87,7 @@ object AsynchronousTlsByteChannel {
                              Duration(READ_CLIENT_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
                            )
                            .mapError(e => new TLSChannelError("TLS Handshake error timeout: " + e.toString))
-                    _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
+                    _ <- if (nb == -1) ZIO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else ZIO.unit
 
                     _      <- in_buf.flip
                     _      <- sequential_unwrap_flag.set(true)
@@ -101,7 +101,7 @@ object AsynchronousTlsByteChannel {
                     lim <- in_buf.limit
 
                     hStat <- if (pos == lim) {
-                              sequential_unwrap_flag.set(false) *> IO.succeed(NEED_UNWRAP)
+                              sequential_unwrap_flag.set(false) *> ZIO.succeed(NEED_UNWRAP)
                             } else {
                               for {
                                 r <- ssl_engine.unwrap(in_buf, out_buf)
@@ -126,8 +126,8 @@ object AsynchronousTlsByteChannel {
                                                .mapError(
                                                  e => new TLSChannelError("TLS Handshake error timeout: " + e.toString)
                                                )
-                                        _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe"))
-                                            else IO.unit
+                                        _ <- if (nb == -1) ZIO.fail(new TLSChannelError("TLS Handshake, broken pipe"))
+                                            else ZIO.unit
 
                                         p2 <- in_buf.position //new limit
                                         _  <- in_buf.limit(p2)
@@ -138,7 +138,7 @@ object AsynchronousTlsByteChannel {
 
                                       } yield (r)
 
-                                    } else IO.succeed(r)
+                                    } else ZIO.succeed(r)
 
                               } yield (r.getHandshakeStatus)
                             }
@@ -146,14 +146,14 @@ object AsynchronousTlsByteChannel {
             )
           }
 
-          case NEED_TASK => ssl_engine.getDelegatedTask() *> IO.succeed(NEED_TASK)
+          case NEED_TASK => ssl_engine.getDelegatedTask() *> ZIO.succeed(NEED_TASK)
 
-          case NOT_HANDSHAKING => IO.succeed(NOT_HANDSHAKING)
+          case NOT_HANDSHAKING => ZIO.succeed(NOT_HANDSHAKING)
 
-          case FINISHED => IO.succeed(FINISHED)
+          case FINISHED => ZIO.succeed(FINISHED)
 
           case _ =>
-            IO.fail(new TLSChannelError("unknown: getHandshakeStatus() - possible SSLEngine commpatibility problem"))
+            ZIO.fail(new TLSChannelError("unknown: getHandshakeStatus() - possible SSLEngine commpatibility problem"))
         }
       }
       r <- loop
@@ -181,7 +181,7 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
   final def keepAlive(ms: Long) = { READ_TIMEOUT_MS = ms; this }
 
   final def getSession: IO[Exception, SSLSession] =
-    IO.attempt(sslEngine.engine.getSession()).refineToOrDie[Exception]
+    ZIO.attempt(sslEngine.engine.getSession()).refineToOrDie[Exception]
 
   final def remoteAddress: ZIO[Any, Exception, Option[SocketAddress]] = channel.remoteAddress
 
@@ -191,23 +191,23 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
 
     val result = for {
 
-      in <- IO.succeed(new nio.ByteBuffer(IN_J_BUFFER)) //reuse carryover buffer from previous read(), buffer was compacted with compact(), only non-processed data left
+      in <- ZIO.succeed(new nio.ByteBuffer(IN_J_BUFFER)) //reuse carryover buffer from previous read(), buffer was compacted with compact(), only non-processed data left
 
       nb <- channel.readBuffer(in, Duration(READ_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS))
 
-      _ <- if (nb == -1) IO.fail(new TLSChannelError("AsynchronousServerTlsByteChannel#read() with -1 "))
-          else IO.unit
+      _ <- if (nb == -1) ZIO.fail(new TLSChannelError("AsynchronousServerTlsByteChannel#read() with -1 "))
+          else ZIO.unit
 
       _ <- in.flip
 
       loop = for {
         res  <- sslEngine.unwrap(in, out)
-        stat <- IO.attempt(res.getStatus())
+        stat <- ZIO.attempt(res.getStatus())
         rem <- if (stat != SSLEngineResult.Status.OK) {
                 if (stat == SSLEngineResult.Status.BUFFER_UNDERFLOW || stat == SSLEngineResult.Status.BUFFER_OVERFLOW)
-                  IO.succeed(0)
+                  ZIO.succeed(0)
                 else
-                  IO.fail(new TLSChannelError("AsynchronousTlsByteChannel#read() " + res.toString()))
+                  ZIO.fail(new TLSChannelError("AsynchronousTlsByteChannel#read() " + res.toString()))
               } else in.remaining
       } yield (rem)
       _ <- loop.repeat(zio.Schedule.recurWhile(_ != 0))
@@ -227,26 +227,26 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
     val result = for {
 
       out <- Buffer.byte(OUT_BUF_SZ)
-      in  <- IO.succeed(new nio.ByteBuffer(IN_J_BUFFER)) //reuse carryover buffer from previous read(), buffer was compacted with compact(), only non-processed data left
+      in  <- ZIO.succeed(new nio.ByteBuffer(IN_J_BUFFER)) //reuse carryover buffer from previous read(), buffer was compacted with compact(), only non-processed data left
 
       //_   <- zio.console.putStrLn( "before read " + expected_size + " " + OUT_BUF_SZ )
 
       nb <- channel.readBuffer(in, Duration(READ_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS))
 
-      _ <- if (nb == -1) IO.fail(new TLSChannelError("AsynchronousServerTlsByteChannel#read() with -1 "))
-          else IO.unit
+      _ <- if (nb == -1) ZIO.fail(new TLSChannelError("AsynchronousServerTlsByteChannel#read() with -1 "))
+          else ZIO.unit
 
       _ <- in.flip
 
       loop = for {
         res  <- sslEngine.unwrap(in, out)
-        stat <- IO.attempt(res.getStatus())
+        stat <- ZIO.attempt(res.getStatus())
         //_    <- zio.console.putStrLn( "read " + stat.toString() )
         rem <- if (stat != SSLEngineResult.Status.OK) {
                 if (stat == SSLEngineResult.Status.BUFFER_UNDERFLOW || stat == SSLEngineResult.Status.BUFFER_OVERFLOW)
-                  IO.succeed(0)
+                  ZIO.succeed(0)
                 else
-                  IO.fail(new TLSChannelError("AsynchronousTlsByteChannel#read() " + res.toString()))
+                  ZIO.fail(new TLSChannelError("AsynchronousTlsByteChannel#read() " + res.toString()))
               } else in.remaining
       } yield (rem)
       _ <- loop.repeat(zio.Schedule.recurWhile(_ != 0))
@@ -257,7 +257,7 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
       limit <- out.limit
       array <- out.array
 
-      chunk <- IO.attempt(Chunk.fromArray(array).take(limit))
+      chunk <- ZIO.attempt(Chunk.fromArray(array).take(limit))
 
     } yield (chunk)
 
@@ -274,10 +274,10 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
 
       loop = for {
         res  <- sslEngine.wrap(in, out)
-        stat <- IO.attempt(res.getStatus())
+        stat <- ZIO.attempt(res.getStatus())
         _ <- if (stat != SSLEngineResult.Status.OK)
-              IO.fail(new TLSChannelError("AsynchronousTlsByteChannel#write() " + res.toString()))
-            else IO.unit
+              ZIO.fail(new TLSChannelError("AsynchronousTlsByteChannel#write() " + res.toString()))
+            else ZIO.unit
         rem <- in.remaining
       } yield (rem)
       _ <- loop.repeat(zio.Schedule.recurWhile(_ != 0))
@@ -292,12 +292,12 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
 
   //just a socket close on already closed/broken connection
   final def close_socket_only: IO[Nothing, Unit] =
-    channel.close.catchAll(_ => IO.unit)
+    channel.close.catchAll(_ => ZIO.unit)
 
   //close with TLS close_notify
   final def close: ZIO[ Any, Nothing, Unit] = {
     val result = for {
-      _     <- IO.attempt(sslEngine.engine.getSession().invalidate())
+      _     <- ZIO.attempt(sslEngine.engine.getSession().invalidate())
       _     <- sslEngine.closeOutbound()
       empty <- Buffer.byte(0)
       out   <- Buffer.byte(TLS_PACKET_SZ)
@@ -310,7 +310,7 @@ class AsynchronousTlsByteChannel(private val channel: AsynchronousSocketChannel,
 
     result.catchAll { e =>
       //println( e.printStackTrace );
-      IO.unit
+      ZIO.unit
     }
   }
 
@@ -326,7 +326,7 @@ object AsynchronousServerTlsByteChannel {
   ) /*: ZIO[ ZEnv & zio.Scope, Exception, AsynchronousTlsByteChannel]*/= {
 
     val open = (for {
-      ssl_engine <- IO.attempt(new SSLEngine(sslContext.createSSLEngine()))
+      ssl_engine <- ZIO.attempt(new SSLEngine(sslContext.createSSLEngine()))
       _          <- ssl_engine.setUseClientMode(false)
 
       x <- AsynchronousServerTlsByteChannel.open(raw_ch, ssl_engine)
@@ -335,7 +335,7 @@ object AsynchronousServerTlsByteChannel {
             ZIO.fail(new TLSChannelError("TLS Handshake error, plain text connection?"))
           } else ZIO.unit
 
-      r <- IO.attempt(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
+      r <- ZIO.attempt(new AsynchronousTlsByteChannel(raw_ch, ssl_engine))
     } yield (r)).catchAll(e => { raw_ch.close *> ZIO.fail(e) })
 
     ZIO.acquireReleaseWith(open.refineToOrDie[Exception]) { _.close }
@@ -358,7 +358,7 @@ object AsynchronousServerTlsByteChannel {
       nb <- raw_ch
              .readBuffer(in_buf, Duration(READ_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS))
              .mapError(e => new TLSChannelError("TLS Handshake error timeout: " + e.toString))
-      _ <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
+      _ <- if (nb == -1) ZIO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else ZIO.unit
       _ <- in_buf.flip
       _ <- ssl_engine.unwrap(in_buf, out_buf)
       loop = ssl_engine.getHandshakeStatus().flatMap {
@@ -370,7 +370,7 @@ object AsynchronousServerTlsByteChannel {
               result          <- ssl_engine.wrap(empty, out_buf)
               _               <- out_buf.flip
               _               <- sequential_unwrap_flag.set(false)
-              handshakeStatus <- raw_ch.writeBuffer(out_buf) *> IO.attempt(result.getHandshakeStatus)
+              handshakeStatus <- raw_ch.writeBuffer(out_buf) *> ZIO.attempt(result.getHandshakeStatus)
             } yield (handshakeStatus)
 
           case NEED_UNWRAP => {
@@ -386,7 +386,7 @@ object AsynchronousServerTlsByteChannel {
                              Duration(READ_HANDSHAKE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
                            )
                            .mapError(e => new TLSChannelError("TLS Handshake error timeout: " + e.toString))
-                    _      <- if (nb == -1) IO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else IO.unit
+                    _      <- if (nb == -1) ZIO.fail(new TLSChannelError("TLS Handshake, broken pipe")) else ZIO.unit
                     _      <- in_buf.flip
                     _      <- sequential_unwrap_flag.set(true)
                     result <- ssl_engine.unwrap(in_buf, out_buf)
@@ -399,21 +399,21 @@ object AsynchronousServerTlsByteChannel {
                     lim <- in_buf.limit
 
                     hStat <- if (pos == lim)
-                              sequential_unwrap_flag.set(false) *> IO.succeed(NEED_UNWRAP)
+                              sequential_unwrap_flag.set(false) *> ZIO.succeed(NEED_UNWRAP)
                             else
                               ssl_engine.unwrap(in_buf, out_buf).map(_.getHandshakeStatus())
                   } yield (hStat)
             )
           }
 
-          case NEED_TASK => ssl_engine.getDelegatedTask() *> IO.succeed(NEED_TASK)
+          case NEED_TASK => ssl_engine.getDelegatedTask() *> ZIO.succeed(NEED_TASK)
 
-          case NOT_HANDSHAKING => IO.succeed(NOT_HANDSHAKING)
+          case NOT_HANDSHAKING => ZIO.succeed(NOT_HANDSHAKING)
 
-          case FINISHED => IO.succeed(FINISHED)
+          case FINISHED => ZIO.succeed(FINISHED)
 
           case _ =>
-            IO.fail(new TLSChannelError("unknown: getHandshakeStatus() - possible SSLEngine commpatibility problem"))
+            ZIO.fail(new TLSChannelError("unknown: getHandshakeStatus() - possible SSLEngine commpatibility problem"))
 
         }
       }

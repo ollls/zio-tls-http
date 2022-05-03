@@ -45,7 +45,7 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
                         MyLogging.debug("console", "Connected: " + c.get.toInetSocketAddress.address.canonicalHostName)
                       }) *>
                         ZIO.acquireReleaseWith(ZIO.attempt(new TcpChannel(channel.keepAlive(KEEP_ALIVE))))(Channel.close(_).orDie) { c =>
-                            processor(c).catchAll(e => MyLogging.error("console", e.toString) *> IO.succeed(0))
+                            processor(c).catchAll(e => MyLogging.error("console", e.toString) *> ZIO.succeed(0))
                           }
                           .fork
                   )

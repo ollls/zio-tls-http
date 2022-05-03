@@ -268,48 +268,48 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
       ex match {
 
         case _: java.nio.channels.InterruptedByTimeoutException =>
-          MyLogging.debug("console", "Connection closed") *> IO.unit
+          MyLogging.debug("console", "Connection closed") *> ZIO.unit
 
         case _: BadInboundDataError =>
           MyLogging.debug("console", "Bad request, connection closed") *>
-            ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request.", true) *> IO.unit
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request.", true) *> ZIO.unit
 
         case _: HTTPHeaderTooBig =>
           MyLogging.error("console", "HTTP header exceeds allowed limit") *>
-            ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad HTTP header.", true) *> IO.unit
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad HTTP header.", true) *> ZIO.unit
 
         case e: java.io.FileNotFoundException =>
           MyLogging.error("console", "File not found " + e.toString()) *>
-            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> ZIO.unit
 
         case e: java.nio.file.NoSuchFileException =>
           MyLogging.error("console", "File not found " + e.toString()) *>
-            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> IO.unit
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> ZIO.unit
 
         case _: AccessDenied =>
           MyLogging.error("console", "Access denied") *>
-            ResponseWriters.writeNoBodyResponse(c, StatusCode.Forbidden, "Access denied.", true) *> IO.unit
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.Forbidden, "Access denied.", true) *> ZIO.unit
 
         case _: scala.MatchError =>
           MyLogging.error("console", "Bad request(1)") *>
-            ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request (1).", true) *> IO.unit
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request (1).", true) *> ZIO.unit
 
         case e: TLSChannelError =>
-          MyLogging.debug("console", "Remote peer closed connection") *> IO.unit
+          MyLogging.debug("console", "Remote peer closed connection") *> ZIO.unit
 
         case e: java.io.IOException =>
           MyLogging
-            .error("console", "Remote peer closed connection (1) " + e.getMessage()) *> IO.unit
+            .error("console", "Remote peer closed connection (1) " + e.getMessage()) *> ZIO.unit
 
         case e: ChunkedEncodingError =>
           MyLogging.error("console", e.toString()) *>
-            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotImplemented, "", true) *> IO.unit
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.NotImplemented, "", true) *> ZIO.unit
 
-        case e: WebSocketClosed => MyLogging.debug("console", "Websocket closed: " + e.getMessage()) *> IO.unit
+        case e: WebSocketClosed => MyLogging.debug("console", "Websocket closed: " + e.getMessage()) *> ZIO.unit
 
         case e: Exception =>
           MyLogging.error("console", e.toString()) *>
-            ResponseWriters.writeNoBodyResponse(c, StatusCode.InternalServerError, "", true) *> IO.unit
+            ResponseWriters.writeNoBodyResponse(c, StatusCode.InternalServerError, "", true) *> ZIO.unit
       }
     })
 
@@ -360,7 +360,7 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
                              h.get(HttpRouter._METHOD)
                                .flatMap(_ => h.get(HttpRouter._PATH).flatMap(_ => h.get(HttpRouter._PROTO)))
                            )
-                _ <- if (validate.isDefined) ZIO.unit else IO.fail(new BadInboundDataError())
+                _ <- if (validate.isDefined) ZIO.unit else ZIO.fail(new BadInboundDataError())
 
                 contentLen  <- ZIO.succeed(h.get("content-length").getOrElse("0"))
                 contentLenL <- ZIO.fromTry(scala.util.Try(contentLen.toLong)).refineToOrDie[Exception]
@@ -392,16 +392,16 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
                 /*(response, post_proc)*/
                 response_t <- route_go(req, appRoutes).catchAll {
                                           case None =>
-                                            IO.succeed(
+                                            ZIO.succeed(
                                               (Response.Error(StatusCode.NotFound), HttpRoutes.defaultPostProc)
                                             )
-                                          case Some(e) => IO.fail(e)
+                                          case Some(e) => ZIO.fail(e)
                                         }
                 response = response_t._1    
                 post_proc =  response_t._2                   
 
                 response2 <- if ( response.raw_stream == false && req.isWebSocket == false)
-                              IO.succeed( post_proc (response))
+                              ZIO.succeed( post_proc (response))
                             else ZIO.succeed(response_t._1)
 
                 _ <- response_processor(c, req, response2).catchAll { e =>

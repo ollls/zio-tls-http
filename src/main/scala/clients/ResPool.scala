@@ -88,7 +88,7 @@ object ResPool {
                    } else false
                )
              }
-      resource <- if (optR.isDefined) IO.succeed(optR.map(_.res).get)
+      resource <- if (optR.isDefined) ZIO.succeed(optR.map(_.res).get)
                  else {
                    MyLogging.log("console", LogLevel.Debug, layerNameM[R] + s": $pool_id - create new resource") *>
                      createResource()
@@ -117,7 +117,7 @@ object ResPool {
                    } else false
                )
              }
-      resource <- if (optR.isDefined) IO.succeed(optR.map(_.res).get)
+      resource <- if (optR.isDefined) ZIO.succeed(optR.map(_.res).get)
                  else {
                    MyLogging.log("console", LogLevel.Debug, layerName[R] + s": $pool_id - create new resource") *>
                      attemptBlocking(createResource())

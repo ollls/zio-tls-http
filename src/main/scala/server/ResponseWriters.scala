@@ -86,19 +86,19 @@ object ResponseWriters {
   ): ZIO[Any, Exception, Unit] = {
     val result = for {
 
-      buf <- IO.succeed(new Array[Byte](chunkSize))
+      buf <- ZIO.succeed(new Array[Byte](chunkSize))
 
-      header <- IO.attempt(ResponseWriters.genResponseContentTypeFileHeader(fpath.toString, contentType))
+      header <- ZIO.attempt(ResponseWriters.genResponseContentTypeFileHeader(fpath.toString, contentType))
 
-      fpm = ZIO.acquireRelease( attemptBlocking( new FileInputStream(fpath))) ( fp => ZIO.attempt(fp.close ).catchAll(_ => IO.unit) )
+      fpm = ZIO.acquireRelease( attemptBlocking( new FileInputStream(fpath))) ( fp => ZIO.attempt(fp.close ).catchAll(_ => ZIO.unit) )
 
       y <- ZIO.scoped { fpm.flatMap{ fp =>
             Channel.write(c, Chunk.fromArray(header.getBytes)) *> (attemptBlocking(fp.read(buf))
               .flatMap { nBytes =>
                 {
                   if (nBytes > 0) {
-                    Channel.write(c, Chunk.fromArray(buf).take(nBytes)) *> IO.succeed(nBytes)
-                  } else IO.succeed(nBytes)
+                    Channel.write(c, Chunk.fromArray(buf).take(nBytes)) *> ZIO.succeed(nBytes)
+                  } else ZIO.succeed(nBytes)
                 }
               })
               .repeat(zio.Schedule.recurWhile(_ > 0))

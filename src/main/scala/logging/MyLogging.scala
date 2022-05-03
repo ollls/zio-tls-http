@@ -146,7 +146,7 @@ object MyLogging {
     fiberId: FiberId
   ): ZIO[Any, Throwable, Unit] =
     for {
-      ts <- IO.succeed(LogDatetimeFormatter.humanReadableDateTimeFormatter.format(date))
+      ts <- ZIO.succeed(LogDatetimeFormatter.humanReadableDateTimeFormatter.format(date))
       _ <- attemptBlocking(logs.get(log_name).foreach { logRec =>
             {
               if (lvl >= logRec.lvl) {
@@ -171,7 +171,7 @@ object MyLogging {
     for {
       //_    <- zio.console.putStrLn( "ZIO-TLS-HTTP started, log files in: " + REL_LOG_FOLDER + log_names.mkString( ",") )
       logs <- attemptBlocking(ListMap[String, LogRec]())
-      result <- IO.attempt {
+      result <- ZIO.attempt {
                  // ensure log folder exists
                  val logPath = FileSystems.getDefault().getPath(REL_LOG_FOLDER)
                  Files.createDirectories(logPath)
@@ -192,7 +192,7 @@ object MyLogging {
     } yield (result)
 
   private def close_logs(logs: ListMap[String, LogRec]): ZIO[ Any, Nothing, Unit] =
-    attemptBlocking(logs.foreach(rec => rec._2.log.close())).catchAll(_ => IO.unit)
+    attemptBlocking(logs.foreach(rec => rec._2.log.close())).catchAll(_ => ZIO.unit)
 
   def make(
     maxLogSize: Int,
@@ -229,11 +229,11 @@ object MyLogging {
                   fiberId <- ZIO.fiberId
                   time    <- currentDateTime //.orDie
                   _ <- logs.get(log) match {
-                        case None => IO.unit
+                        case None => ZIO.unit
                         case Some(logRec) =>
                           if (logRec.lvl <= lvl) {
                             q.offer((log, lvl, msg, time, fiberId)).unit
-                          } else IO.unit
+                          } else ZIO.unit
                       }
                 } yield ()
             }
@@ -251,8 +251,8 @@ object Logs {
 
   def log_access(req: Request, status: StatusCode, bodySize: Int, msg : String = "") = {
     val addr = Channel.remoteAddress(req.ch).flatMap {
-      case None    => IO.attempt("???")
-      case Some(a) => IO.attempt(a.toInetSocketAddress.hostString)
+      case None    => ZIO.attempt("???")
+      case Some(a) => ZIO.attempt(a.toInetSocketAddress.hostString)
     }
 
     addr.flatMap { addrStr =>

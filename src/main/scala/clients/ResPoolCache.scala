@@ -328,7 +328,7 @@ object ResPoolCache {
           //_ <- ZIO( println ( code ))
           val1 <- s_tbl.u_get(ValuePair[Int, Semaphore](code, null))
           result <- val1 match {
-                     case Some(rec) => UIO.succeed((false, rec.value))
+                     case Some(rec) => ZIO.succeed((false, rec.value))
                      case None =>
                        Semaphore
                          .make(permits = 1)
@@ -336,9 +336,9 @@ object ResPoolCache {
                            s_tbl
                              .u_add(ValuePair(code, sem))
                              .flatMap(added => {
-                               if (added == true) UIO.succeed(true, sem)
+                               if (added == true) ZIO.succeed(true, sem)
                                else
-                                 UIO.succeed(false, null) //already added, repeat it to read what was added by other fiber
+                                 ZIO.succeed(false, null) //already added, repeat it to read what was added by other fiber
                              })
 
                          })

@@ -15,7 +15,7 @@ import zio.Scope
 object AsynchronousChannelGroup {
 
   def apply(executor: JExecutorService, initialSize: Int): IO[Exception, AsynchronousChannelGroup] =
-    IO.attempt(
+    ZIO.attempt(
         new AsynchronousChannelGroup(
           JAsynchronousChannelGroup.withCachedThreadPool(executor, initialSize)
         )
@@ -26,7 +26,7 @@ object AsynchronousChannelGroup {
     threadsNo: Int,
     threadsFactory: JThreadFactory
   ): IO[Exception, AsynchronousChannelGroup] =
-    IO.attempt(
+    ZIO.attempt(
         new AsynchronousChannelGroup(
           JAsynchronousChannelGroup.withFixedThreadPool(threadsNo, threadsFactory)
         )
@@ -34,7 +34,7 @@ object AsynchronousChannelGroup {
       .refineToOrDie[Exception]
 
   def apply(executor: JExecutorService): IO[Exception, AsynchronousChannelGroup] =
-    IO.attempt(
+    ZIO.attempt(
         new AsynchronousChannelGroup(JAsynchronousChannelGroup.withThreadPool(executor))
       )
       .refineToOrDie[Exception]
@@ -46,13 +46,13 @@ object AsynchronousChannelGroup {
 class AsynchronousChannelGroup(private[channels] val channelGroup: JAsynchronousChannelGroup) {
 
   def awaitTermination(timeout: Duration): IO[Exception, Boolean] =
-    IO.attempt(channelGroup.awaitTermination(timeout.toMillis, TimeUnit.MILLISECONDS))
+    ZIO.attempt(channelGroup.awaitTermination(timeout.toMillis, TimeUnit.MILLISECONDS))
       .refineToOrDie[Exception]
 
 
   def openAsynchronousServerSocketChannel() : ZIO[Scope, Nothing, AsynchronousServerSocketChannel] = 
   {
-    val open = IO.succeed {
+    val open = ZIO.succeed {
                 new AsynchronousServerSocketChannel( 
                     channelGroup.provider().openAsynchronousServerSocketChannel( channelGroup ) )
     }
@@ -61,21 +61,21 @@ class AsynchronousChannelGroup(private[channels] val channelGroup: JAsynchronous
 
   def openAsynchronousServerSocketChannelWith() = 
   {
-    val open = IO.succeed {
+    val open = ZIO.succeed {
                 new AsynchronousServerSocketChannel( 
                     channelGroup.provider().openAsynchronousServerSocketChannel( channelGroup ) )
     }
     ZIO.acquireReleaseWith(open)(_.close.orDie)
   } 
 
-  val isShutdown: UIO[Boolean] = IO.succeed(channelGroup.isShutdown)
+  val isShutdown: UIO[Boolean] = ZIO.succeed(channelGroup.isShutdown)
 
-  val isTerminated: UIO[Boolean] = IO.succeed(channelGroup.isTerminated)
+  val isTerminated: UIO[Boolean] = ZIO.succeed(channelGroup.isTerminated)
 
-  val provider: UIO[JAsynchronousChannelProvider] = IO.succeed(channelGroup.provider())
+  val provider: UIO[JAsynchronousChannelProvider] = ZIO.succeed(channelGroup.provider())
 
-  val shutdown: UIO[Unit] = IO.succeed(channelGroup.shutdown())
+  val shutdown: UIO[Unit] = ZIO.succeed(channelGroup.shutdown())
 
   val shutdownNow: IO[IOException, Unit] =
-    IO.attempt(channelGroup.shutdownNow()).refineToOrDie[IOException]
+    ZIO.attempt(channelGroup.shutdownNow()).refineToOrDie[IOException]
 }

@@ -2,7 +2,7 @@ package nio
 
 import java.net.{ InetSocketAddress => JInetSocketAddress, SocketAddress => JSocketAddress }
 
-import zio.IO
+import zio.{ZIO, IO }
 
 class SocketAddress private[nio] (private[nio] val jSocketAddress: JSocketAddress)
 {
@@ -17,7 +17,7 @@ class InetSocketAddress private[nio] (private val jInetSocketAddress: JInetSocke
   def address : InetAddress = new InetAddress(jInetSocketAddress.getAddress)
 
   def hostName: IO[Exception, String] =
-    IO.attempt(jInetSocketAddress.getHostName).refineToOrDie[Exception]
+    ZIO.attempt(jInetSocketAddress.getHostName).refineToOrDie[Exception]
 
   def hostString: String = jInetSocketAddress.getHostString
 
@@ -43,22 +43,22 @@ object SocketAddress {
   private object InetSocketAddress {
 
     def apply(port: Int): IO[Exception, InetSocketAddress] =
-      IO.attempt(new JInetSocketAddress(port))
+      ZIO.attempt(new JInetSocketAddress(port))
         .refineToOrDie[Exception]
         .map(new InetSocketAddress(_))
 
     def apply(host: String, port: Int): IO[Exception, InetSocketAddress] =
-      IO.attempt(new JInetSocketAddress(host, port))
+      ZIO.attempt(new JInetSocketAddress(host, port))
         .refineToOrDie[Exception]
         .map(new InetSocketAddress(_))
 
     def apply(addr: InetAddress, port: Int): IO[Exception, InetSocketAddress] =
-      IO.attempt(new JInetSocketAddress(addr.jInetAddress, port))
+      ZIO.attempt(new JInetSocketAddress(addr.jInetAddress, port))
         .refineToOrDie[Exception]
         .map(new InetSocketAddress(_))
 
     def createUnresolved(host: String, port: Int): IO[Exception, InetSocketAddress] =
-      IO.attempt(JInetSocketAddress.createUnresolved(host, port))
+      ZIO.attempt(JInetSocketAddress.createUnresolved(host, port))
         .refineToOrDie[Exception]
         .map(new InetSocketAddress(_))
   }

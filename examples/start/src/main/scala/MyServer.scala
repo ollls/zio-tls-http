@@ -257,7 +257,7 @@ object myServer extends zio.ZIOAppDefault {
     
     val R1 = myHttp.run(myHttpRouter.route)
                .provideSomeLayer[MyLogging](AttributeLayer)
-               .provideSomeLayer[Environment](MyLogging.make(("console" -> LogLevel.Trace), ("access" -> LogLevel.Info)))
+               .provideSomeLayer[Environment](MyLogging.make(("console" -> LogLevel.Info), ("access" -> LogLevel.Info)))
 
     R1
 

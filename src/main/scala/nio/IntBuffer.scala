@@ -6,29 +6,29 @@ import java.nio.{ BufferUnderflowException, ByteOrder, ReadOnlyBufferException, 
 final class IntBuffer(val intBuffer: JIntBuffer) extends Buffer[Int](intBuffer) {
 
   override protected[nio] def array: IO[Exception, Array[Int]] =
-    IO.attempt(intBuffer.array()).refineToOrDie[Exception]
+    ZIO.attempt(intBuffer.array()).refineToOrDie[Exception]
 
   override def order: ByteOrder = intBuffer.order
 
   override def slice: IO[Nothing, IntBuffer] =
-    IO.succeed(intBuffer.slice()).map(new IntBuffer(_))
+    ZIO.succeed(intBuffer.slice()).map(new IntBuffer(_))
 
   override def compact: IO[ReadOnlyBufferException, Unit] =
-    IO.attempt(intBuffer.compact()).unit.refineToOrDie[ReadOnlyBufferException]
+    ZIO.attempt(intBuffer.compact()).unit.refineToOrDie[ReadOnlyBufferException]
 
   override def duplicate: IO[Nothing, IntBuffer] =
-    IO.succeed(new IntBuffer(intBuffer.duplicate()))
+    ZIO.succeed(new IntBuffer(intBuffer.duplicate()))
 
   def withJavaBuffer[R, E, A](f: JIntBuffer => ZIO[R, E, A]): ZIO[R, E, A] = f(intBuffer)
 
   override def get: IO[BufferUnderflowException, Int] =
-    IO.attempt(intBuffer.get()).refineToOrDie[BufferUnderflowException]
+    ZIO.attempt(intBuffer.get()).refineToOrDie[BufferUnderflowException]
 
   override def get(i: Int): IO[IndexOutOfBoundsException, Int] =
-    IO.attempt(intBuffer.get(i)).refineToOrDie[IndexOutOfBoundsException]
+    ZIO.attempt(intBuffer.get(i)).refineToOrDie[IndexOutOfBoundsException]
 
   override def getChunk(maxLength: Int = Int.MaxValue): IO[BufferUnderflowException, Chunk[Int]] =
-    IO.attempt {
+    ZIO.attempt {
         val array = Array.ofDim[Int](math.min(maxLength, intBuffer.remaining()))
         intBuffer.get(array)
         Chunk.fromArray(array)
@@ -36,13 +36,13 @@ final class IntBuffer(val intBuffer: JIntBuffer) extends Buffer[Int](intBuffer) 
       .refineToOrDie[BufferUnderflowException]
 
   override def put(element: Int): IO[Exception, Unit] =
-    IO.attempt(intBuffer.put(element)).unit.refineToOrDie[Exception]
+    ZIO.attempt(intBuffer.put(element)).unit.refineToOrDie[Exception]
 
   override def put(index: Int, element: Int): IO[Exception, Unit] =
-    IO.attempt(intBuffer.put(index, element)).unit.refineToOrDie[Exception]
+    ZIO.attempt(intBuffer.put(index, element)).unit.refineToOrDie[Exception]
 
   override def putChunk(chunk: Chunk[Int]): IO[Exception, Unit] =
-    IO.attempt {
+    ZIO.attempt {
         val array = chunk.toArray
         intBuffer.put(array)
       }
@@ -50,6 +50,6 @@ final class IntBuffer(val intBuffer: JIntBuffer) extends Buffer[Int](intBuffer) 
       .refineToOrDie[Exception]
 
   override def asReadOnlyBuffer: IO[Nothing, IntBuffer] =
-    IO.succeed(intBuffer.asReadOnlyBuffer()).map(new IntBuffer(_))
+    ZIO.succeed(intBuffer.asReadOnlyBuffer()).map(new IntBuffer(_))
 
 }
