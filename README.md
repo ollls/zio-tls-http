@@ -15,7 +15,7 @@ Update ( 02-15-2022 ) branch dev_zio2 can be built now, not tested and profiled 
 Appreciate any feedback, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) <br>
 
-sbt example/run
+To run from sbt:  "sbt example/run"
 <br>
 https://github.com/ollls/zio-tls-http/blob/dev/examples/start/src/main/scala/MyServer.scala
 
