@@ -10,7 +10,8 @@ Appreciate any feedback, please use, my email or open issue, or use
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) 
 <br>
 
-To run from sbt:  "sbt example/run".  Example file: "/zio-tls-http/examples/start/src/main/scala/MyServer.scala"
+To run from sbt:  "sbt example/run". <br>
+Example file: "/zio-tls-http/examples/start/src/main/scala/MyServer.scala"
 <br>
 https://github.com/ollls/zio-tls-http/blob/dev/examples/start/src/main/scala/MyServer.scala
 
