@@ -7,7 +7,8 @@
 [![Generic badge](https://img.shields.io/badge/ZIO--LDAP-bindings-blue)](https://github.com/ollls/zio-quartz-ee/blob/main/src/main/scala/zio-quartz/clients/async-ldap.scala)
 
 Appreciate any feedback, please use, my email or open issue, or use 
-https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) <br>
+https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) 
+<br>
 
 To run from sbt:  "sbt example/run".  Example file: "/zio-tls-http/examples/start/src/main/scala/MyServer.scala"
 <br>
