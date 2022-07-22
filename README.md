@@ -19,7 +19,8 @@ DEV on 1.2-m3
 
 # Update history.
 
-* Extraction of all the usefull things from zio-tls-http is here <a>https://github.com/ollls/netio</a>
+* Update( 07-21-2022 ) Extraction of all the usefull things from zio-tls-http is here <a>https://github.com/ollls/netio</a>
+  ZIO1 port will be provided, due to perf limitations ZIO2 port is not planned.
 
 
 * Update ( 07-16-2022 ) As you know ZIO2 is not optimized for aync (callback based monadic composition). At this moment there are no specific plans to complete testing process for ZIO2 branch. Tests shows 40% slowness with ZIO2 port. My personal stand that new JDK virtual threads and Java Loom project won't affect low level API like Java NIO Sync/Async channels. Java NIO with ByteBuffer and its completion routies will be same way viable for high performance network work on latest Loom enabled JDK as before.<br> Some interesting CATS effect 3/fs2 stream initiatives will be posted soon. Including standalone CATS effect 3 TLS client/server channel abstraction. 
