@@ -1,7 +1,6 @@
 package zhttp.clients
 
 import zio.ZLayer
-import zio.ZEnv
 import zio.ZIO
 import zio.Chunk
 import zio.Tag
@@ -19,8 +18,8 @@ object ResPoolGroup {
   case class RPD[R](createRes: () => R, closeRes: (R) => Unit, name: String)
 
   case class RPDM[R](
-    createRes: () => ZIO[ZEnv, Exception, R],
-    closeRes: (R) => ZIO[ZEnv, Exception, Unit],
+    createRes: () => ZIO[Any, Exception, R],
+    closeRes: (R) => ZIO[Any, Exception, Unit],
     name: String
   )
 
@@ -28,12 +27,12 @@ object ResPoolGroup {
   type ResPoolGroup[R] = ResPoolGroup.Service[R]
 
   trait Service[R] {
-    def acquire(pool_id: String): ZIO[ZEnv with MyLogging, Throwable, R]
-    def release(pool_id: String, res: R): ZIO[ZEnv with MyLogging, Throwable, Unit]
+    def acquire(pool_id: String): ZIO[MyLogging, Throwable, R]
+    def release(pool_id: String, res: R): ZIO[MyLogging, Throwable, Unit]
   }
 
   //cleanup with sequence
-  private def cleanup2[R](pools: Chunk[(RPD[R], Queue[ResRec[R]])]) : ZIO[ ZEnv with MyLogging, Nothing, Matchable] = {
+  private def cleanup2[R](pools: Chunk[(RPD[R], Queue[ResRec[R]])]) : ZIO[ MyLogging, Nothing, Matchable] = {
 
     val chunkOfZIOwork = pools.map { q =>
       for {
@@ -94,10 +93,10 @@ object ResPoolGroup {
     ZIO.succeed(connections.foreach { _._2.shutdown })
 
   def acquire[R](pool_id: String)(implicit tagged: Tag[R]) =
-    ZIO.environmentWithZIO[ZEnv with ResPoolGroup[R] with MyLogging](cpool => cpool.get[ResPoolGroup.Service[R]].acquire(pool_id))
+    ZIO.environmentWithZIO[ResPoolGroup[R] with MyLogging](cpool => cpool.get[ResPoolGroup.Service[R]].acquire(pool_id))
 
   def release[R](pool_id: String, r: R)(implicit tagged: Tag[R]) =
-    ZIO.environmentWithZIO[ZEnv with ResPoolGroup[R] with MyLogging](
+    ZIO.environmentWithZIO[ResPoolGroup[R] with MyLogging](
       cpool => cpool.get[ResPoolGroup.Service[R]].release(pool_id, r)
     )
 
@@ -105,7 +104,7 @@ object ResPoolGroup {
   def makeM[R](
     timeToLiveMs : Int,
     rpdm: RPDM[R]*
-  )(implicit tagged: Tag[R]): ZLayer[zio.ZEnv with MyLogging, Nothing, ResPoolGroup.Service[R]] = {
+  )(implicit tagged: Tag[R]): ZLayer[MyLogging, Nothing, ResPoolGroup.Service[R]] = {
 
     val chunkOfZIOQueues = Chunk.fromArray(rpdm.toArray).map { pool_id =>
       (pool_id, Queue.unbounded[ResRec[R]])

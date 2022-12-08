@@ -1,7 +1,6 @@
 package zhttp.clients
 
 import zio.ZIO
-import zio.ZEnv
 import zio.Chunk
 import zio.json._
 import zio.stream.ZStream
@@ -40,7 +39,7 @@ sealed case class HttpResponseHeaderError(msg: String) extends Exception(msg)
 case class ClientResponse(
   val hdrs: Headers,
   val code: StatusCode,
-  val stream: ZStream[ZEnv, Throwable, Chunk[Byte]] = ZStream.empty
+  val stream: ZStream[Any, Throwable, Chunk[Byte]] = ZStream.empty
 ) {
   def protocol    = hdrs.get("%prot").getOrElse("")
   def httpString  = code.toString + " " + hdrs.get("%message").getOrElse("")
@@ -48,7 +47,7 @@ case class ClientResponse(
 
   def body = stream.runCollect.map(_.flatten)
 
-  def bodyAsText: ZIO[ZEnv, Throwable, String] =
+  def bodyAsText: ZIO[Any, Throwable, String] =
     for {
       b <- body
       a <- ZIO.attempt(new String(b.toArray))
@@ -70,10 +69,10 @@ case class ClientRequest(
   val method: Method,
   val path: String,
   val hdrs: Headers = Headers(),
-  val stream: ZStream[ZEnv, Throwable, Chunk[Byte]] = ZStream.empty
+  val stream: ZStream[Any, Throwable, Chunk[Byte]] = ZStream.empty
 ) {
 
-  def body(stream: ZStream[ZEnv, Throwable, Chunk[Byte]]): ClientRequest =
+  def body(stream: ZStream[Any, Throwable, Chunk[Byte]]): ClientRequest =
     ClientRequest(this.method, this.path, this.hdrs, stream)
 
   def asJsonBody[B: JsonEncoder](body0: B): ClientRequest = {
@@ -113,7 +112,7 @@ case class ClientRequest(
 }
 
 //Request to Request, enriched with headers
-case class FilterProc(run: ClientRequest => ZIO[ZEnv with MyLogging, Throwable, ClientRequest])
+case class FilterProc(run: ClientRequest => ZIO[MyLogging, Throwable, ClientRequest])
 
 object HttpConnection {
 
@@ -183,7 +182,7 @@ object HttpConnection {
     blindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
-  ): ZIO[zio.ZEnv, Exception, Channel] = {
+  ): ZIO[Any, Exception, Channel] = {
     val T = for {
       address <- SocketAddress.inetSocketAddress(host, port)
       ssl_ctx <- if (trustKeystore == null && blindTrust == false)
@@ -201,7 +200,7 @@ object HttpConnection {
     host: String,
     port: Int,
     group: AsynchronousChannelGroup
-  ): ZIO[zio.ZEnv, Exception, Channel] = {
+  ): ZIO[Any, Exception, Channel] = {
     val T = for {
       address <- SocketAddress.inetSocketAddress(host, port)
       ch      <- if (group == null) AsynchronousSocketChannel() else AsynchronousSocketChannel(group)
@@ -217,13 +216,13 @@ object HttpConnection {
     tlsBlindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
-  ): ZIO[ZEnv, HttpConnectionError, HttpConnection] =
+  ): ZIO[Any, HttpConnectionError, HttpConnection] =
     connectWithFilter(url, socketGroup, req => ZIO.succeed(req), tlsBlindTrust, trustKeystore, password)
 
   def connectWithFilter(
     url: String,
     socketGroup: AsynchronousChannelGroup,
-    filter: ClientRequest => ZIO[ZEnv with MyLogging, Throwable, ClientRequest],
+    filter: ClientRequest => ZIO[MyLogging, Throwable, ClientRequest],
     tlsBlindTrust: Boolean = false,
     trustKeystore: String = null,
     password: String = ""
@@ -259,7 +258,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
   private def read_http_header(
     hdr_size: Int,
     cb: Chunk[Byte] = Chunk[Byte]()
-  ): ZIO[ZEnv, Exception, Chunk[Byte]] =
+  ): ZIO[Any, Exception, Chunk[Byte]] =
     for {
       nextChunk <- if (cb.size < hdr_size) Channel.read(ch)
                   else ZIO.fail(new HttpResponseHeaderError("header is too big"))
@@ -334,7 +333,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
  
   def close = Channel.close(ch)
 
-  def send(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] =
+  def send(req: ClientRequest): ZIO[MyLogging, Throwable, ClientResponse] =
     for {
       req0 <- filter.run(req)
       response <- if (req.isChunked) sendChunked(req0)
@@ -343,7 +342,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
     } yield (response)
 
   ///////////////////////////////////////////////////////////////
-  private def sendChunked(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
+  private def sendChunked(req: ClientRequest): ZIO[Any with MyLogging, Throwable, ClientResponse] = {
 
     def genRequestChunked(resp: ClientRequest): String = {
       val dfmt = new java.text.SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
@@ -384,7 +383,7 @@ class HttpConnection(val uri: URI, val ch: Channel, filter: FilterProc) {
   }
 
   ///////////////////////////////////////////////////////////////
-  private def sendBody(req: ClientRequest): ZIO[zio.ZEnv with MyLogging, Throwable, ClientResponse] = {
+  private def sendBody(req: ClientRequest): ZIO[MyLogging, Throwable, ClientResponse] = {
 
     def parseRequest(req: ClientRequest, bodySize: Int) = ZIO.succeed {
       val r = new StringBuilder

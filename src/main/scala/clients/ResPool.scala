@@ -1,6 +1,5 @@
 package zhttp.clients
 
-import zio.ZEnv
 import zio.Queue
 import zio.ZLayer
 import zio.ZIO
@@ -21,15 +20,15 @@ object ResPool {
   case class ResRec[R](res: R, timeToLive: Long = 0L)
 
   trait Service[R] {
-    def acquire: ZIO[zio.ZEnv with MyLogging, Throwable, R]
-    def release(res: R): ZIO[ZEnv with MyLogging, Nothing, Unit]
+    def acquire: ZIO[MyLogging, Throwable, R]
+    def release(res: R): ZIO[MyLogging, Nothing, Unit]
   }
 
   def acquire[R](implicit tagged: Tag[R]) =
-    ZIO.environmentWithZIO[ZEnv with ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].acquire)
+    ZIO.environmentWithZIO[ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].acquire)
 
   def release[R](r: R)(implicit tagged: Tag[R]) =
-    ZIO.environmentWithZIO[ZEnv with ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].release(r))
+    ZIO.environmentWithZIO[ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].release(r))
 
   private def cleanup[R](connections: zio.Queue[ResRec[R]], closeResource: (R) => Unit) =
     connections.takeAll.map { list =>
@@ -46,7 +45,7 @@ object ResPool {
     s"ResPoolM[$vt]"
   }
 
-  private def cleanupM[R](connections: zio.Queue[ResRec[R]], closeResource: (R) => ZIO[ZEnv, Exception, Unit])(
+  private def cleanupM[R](connections: zio.Queue[ResRec[R]], closeResource: (R) => ZIO[Any, Exception, Unit])(
     implicit tagged: Tag[R]
   ) = {
     val T = for {
@@ -70,8 +69,8 @@ object ResPool {
     timeToLiveMs: Int,
     pool_id: String,
     q: zio.Queue[ResRec[R]],
-    createResource: () => ZIO[ZEnv, Exception, R],
-    closeResource: (R) => ZIO[ZEnv, Exception, Unit]
+    createResource: () => ZIO[Any, Exception, R],
+    closeResource: (R) => ZIO[Any, Exception, Unit]
   )(implicit tagged: Tag[R]) =
     for {
       logSvc <- MyLogging.logService
@@ -141,8 +140,8 @@ object ResPool {
 
   def makeScopedZIO[R](
     timeToLiveMs: Int,
-    createResource: () => ZIO[ZEnv, Exception, R],
-    closeResource: (R) => ZIO[ZEnv, Exception, Unit]
+    createResource: () => ZIO[Any, Exception, R],
+    closeResource: (R) => ZIO[Any, Exception, Unit]
   )( implicit tagged: Tag[R] ) = 
   {
      val obj = ZIO.acquireRelease( Queue.unbounded[ResRec[R]] )( q => { cleanupM(q, closeResource) *> q.shutdown } ).map { q =>

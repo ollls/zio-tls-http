@@ -234,7 +234,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     }
     result
   }
-
+/*
   /////////////////////////////////////////////////////////////////
   def debug_validate(): Boolean = {
 
@@ -265,7 +265,7 @@ class SkipList[A](implicit ord: A => Ordered[A]) {
     }
 
     status
-  }
+  }*/
 
   import scala.collection.mutable.StringBuilder
 

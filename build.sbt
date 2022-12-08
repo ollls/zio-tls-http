@@ -44,11 +44,11 @@ ThisBuild / publishMavenStyle := true
     organization := "io.github.ollls",
     name := "zio-tls-http",
     version := "2.0-m1",
-    scalaVersion := "3.1.1",
+    scalaVersion := "3.2.1",
     maxErrors := 3,
     retrieveManaged := true,
-    libraryDependencies += "dev.zio" %% "zio"         % "2.0.0-RC6",
-    libraryDependencies += "dev.zio" %% "zio-test"    % "2.0.0-RC6",
+    libraryDependencies += "dev.zio" %% "zio"         % "2.0.5",
+    libraryDependencies += "dev.zio" %% "zio-test"    % "2.0.5",
     libraryDependencies += "dev.zio" %% "zio-json"    % "0.3.0-RC6",
    
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
@@ -58,7 +58,7 @@ ThisBuild / publishMavenStyle := true
     organization := "com.ols",
     name := "zio-tls-http-exampe",
     version := "0.0.1",
-    scalaVersion := "3.1.1",
+    scalaVersion := "3.2.1",
     maxErrors := 3,
     libraryDependencies ++= Seq(
     ),

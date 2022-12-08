@@ -3,7 +3,6 @@ package zhttp.clients
 import zio.ZIO
 import zio.UIO
 import zio.ZLayer
-import zio.ZEnv
 import zhttp.MyLogging.MyLogging
 import zhttp.clients.ResPool
 import zio.Tag
@@ -82,28 +81,28 @@ object ResPoolCache {
   type ResPoolCache[K, V, R] = ResPoolCache.Service[K, V, R]
 
   trait Service[K, V, R] {
-    def get(key: K): ZIO[zio.ZEnv with MyLogging, Throwable, Option[V]]
+    def get(key: K): ZIO[MyLogging, Throwable, Option[V]]
 
-    def info: ZIO[ZEnv, Throwable, String]
+    def info: ZIO[Any, Throwable, String]
 
-    def doFreeSpace: ZIO[zio.ZEnv with MyLogging, Throwable, Unit]
+    def doFreeSpace: ZIO[MyLogging, Throwable, Unit]
 
-    def terminate: ZIO[zio.ZEnv with MyLogging, Throwable, Unit] 
+    def terminate: ZIO[MyLogging, Throwable, Unit] 
 
   }
 
   def get[K, V, R](key: K)(implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
-    ZIO.environmentWithZIO[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].get(key))
+    ZIO.environmentWithZIO[ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].get(key))
 
   def info[K, V, R](implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
-    ZIO.environmentWithZIO[ZEnv with ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].info)
+    ZIO.environmentWithZIO[ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].info)
 
-  def make[K, V, R](timeToLiveMs: Int, limit: Int, updatef: (R, K) => ZIO[ZEnv with MyLogging, Throwable, Option[V]])(
+  def make[K, V, R](timeToLiveMs: Int, limit: Int, updatef: (R, K) => ZIO[MyLogging, Throwable, Option[V]])(
     implicit ord: K => Ordered[K],
     tagged: Tag[R],
     tagged1: Tag[K],
     tagged2: Tag[V]
-  ): ZLayer[ZEnv with ResPool.ResPool[R] with MyLogging.MyLogging, Nothing, ResPoolCache.ResPoolCache[K, V, R]] =
+  ): ZLayer[ResPool.ResPool[R] with MyLogging.MyLogging, Nothing, ResPoolCache.ResPoolCache[K, V, R]] =
   {
     val effect = for {
       queue <- Queue.bounded[K](1)
@@ -129,7 +128,7 @@ object ResPoolCache {
     rp: ResPool.Service[R],
     timeToLiveMs: Int,
     limit: Int,
-    updatef: (R, K) => ZIO[ZEnv with MyLogging, Throwable, Option[V]],
+    updatef: (R, K) => ZIO[MyLogging, Throwable, Option[V]],
     q: zio.Queue[K]
   )(
     implicit ord: K => Ordered[K],
@@ -194,12 +193,12 @@ object ResPoolCache {
 
       }
 
-      def terminate: ZIO[zio.ZEnv with MyLogging, Throwable, Unit] = 
+      def terminate: ZIO[MyLogging, Throwable, Unit] = 
           for {
           _ <- q.shutdown  
           } yield() 
 
-      def get(key: K): ZIO[zio.ZEnv with MyLogging, Throwable, Option[V]] =
+      def get(key: K): ZIO[MyLogging, Throwable, Option[V]] =
         for {
           semPair <- acquireSemaphore(key) //compare and set based singleton for the given key - only one for the key
           result   <- semPair._2.withPermit(get_(key))
@@ -207,7 +206,7 @@ object ResPoolCache {
         } yield (result)
 
       /////////////////////////////////////////////////////////////////////////////////////
-      def get_(key: K): ZIO[zio.ZEnv with MyLogging, Throwable, Option[V]] =
+      def get_(key: K): ZIO[MyLogging, Throwable, Option[V]] =
         for {
           _     <- ZIO.succeed(total.incrementAndGet())
           entry <- cache_tbl.u_get(ValuePair[K, CacheEntry[V]](key))

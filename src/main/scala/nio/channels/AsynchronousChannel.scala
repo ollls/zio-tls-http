@@ -266,13 +266,13 @@ class AsynchronousSocketChannel(private val channel: JAsynchronousSocketChannel)
 
 object AsynchronousSocketChannel {
 
-  def apply(): ZIO[ZEnv, Exception, AsynchronousSocketChannel] = {
+  def apply(): ZIO[Any, Exception, AsynchronousSocketChannel] = {
     ZIO.attempt(JAsynchronousSocketChannel.open())
       .refineToOrDie[Exception]
       .map(new AsynchronousSocketChannel(_))
   }
 
-   def apply( channelGroup: AsynchronousChannelGroup ): ZIO[ZEnv, Exception, AsynchronousSocketChannel] = {
+   def apply( channelGroup: AsynchronousChannelGroup ): ZIO[Any, Exception, AsynchronousSocketChannel] = {
     ZIO.attempt(JAsynchronousSocketChannel.open( channelGroup.channelGroup ))
       .refineToOrDie[Exception]
       .map(new AsynchronousSocketChannel(_))
