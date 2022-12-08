@@ -19,6 +19,8 @@ DEV on 1.2-m3
 
 # Update history.
 
+* Update( 12-07-2022) Branch 2.0.CURRENT updated with ZIO 2.0.5. ZIO 2.0.5 has improved performance for async ops.
+
 * (12-01-2022) Please check out https://github.com/ollls/quartz-h2
 
 * Update( 07-21-2022 ) Extraction of all the usefull things from zio-tls-http is here <a>https://github.com/ollls/netio</a>
