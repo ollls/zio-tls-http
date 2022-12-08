@@ -4,7 +4,7 @@
 <br>
 <br>
 without ZStream<br>
-[![Generic badge](https://img.shields.io/badge/Hello%20World-template-red)](https://github.com/ollls/hello-http)
+[![Generic badge](https://img.shields.io/badge/Hello%20World-template-red)](https://github.com/ollls/hello-http)<br>
 ZStream 1.0<br>
 [![Generic badge](https://img.shields.io/badge/ZIO--LDAP-bindings-blue)](https://github.com/ollls/zio-quartz-ee/blob/main/src/main/scala/zio-quartz/clients/async-ldap.scala)
 
