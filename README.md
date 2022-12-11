@@ -19,7 +19,7 @@ DEV on 1.2-m3
 
 # Update history.
 
-* Update( 12-07-2022) Branches dev_zio2 and dev_master2 are active with ZIO 2.0.5. ZIO 2.0.5 has improved performance for async ops.
+* Update( 12-11-2022) Branches dev_zio2 and dev_master2 are active with ZIO 2.0.5. ZIO 2.0.5 has improved performance for async ops.
 
 * (12-01-2022) Please check out https://github.com/ollls/quartz-h2
 
