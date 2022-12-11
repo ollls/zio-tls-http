@@ -3,7 +3,7 @@ val Specs2Version = "4.7.0"
 resolvers += Resolver.sonatypeRepo("releases")
 resolvers += Resolver.sonatypeRepo("snapshots")
 
-ThisBuild / organization := "io.github.ollls"
+//ThisBuild / organization := "io.github.ollls"
 ThisBuild / organizationName := "ollls"
 ThisBuild / organizationHomepage := Some(url("https://github.com/ollls/zio-tls-http"))
 
@@ -43,7 +43,7 @@ ThisBuild / publishMavenStyle := true
   .settings(
     organization := "io.github.ollls",
     name := "zio-tls-http",
-    version := "2.0-m1",
+    version := "2.0.0.b",
     scalaVersion := "3.2.1",
     maxErrors := 3,
     retrieveManaged := true,

@@ -1,6 +1,8 @@
 package zhttp
 
-import zio.{ Chunk, IO, ZIO }
+import zio.{ Chunk, IO, ZIO, Task }
+import zhttp.netio._
+import java.nio.ByteBuffer
 
 //import scala.collection.immutable.ListMap
 import java.io.File
@@ -16,16 +18,16 @@ object ResponseWriters {
 
 ////////////////////////////////////////////////////////////////////////////
   def writeNoBodyResponse(
-    c: Channel,
+    c: IOChannel,
     code: StatusCode,
     msg: String,
     close: Boolean
-  ): ZIO[Any, Exception, Int] =
-    Channel.write(c, Chunk.fromArray(genResponse(code, msg, close).getBytes()))
+  ): Task[Int] =
+    c.write( ByteBuffer.wrap(genResponse(code, msg, close).getBytes() ) )
 
   /////////////////////////////////////////////////////////////////////////////
   def writeFullResponseFromStream[MyEnv](
-    c: Channel,
+    c: IOChannel,
     rs: Response
   ) = {
     val code   = rs.code
@@ -39,47 +41,47 @@ object ResponseWriters {
 
     res.foreach { chunk0 =>
       {
-        Channel.write(c, chunk0)
+        c.write(ByteBuffer.wrap(chunk0.toArray ) )
       }
     }
   }
 
   def writeFullResponseBytes(
-    c: Channel,
+    c: IOChannel,
     rs: Response,
     code: StatusCode,
     data: Chunk[Byte],
     close: Boolean
-  ): ZIO[Any, Exception, Int] =
+  ): Task[Int] = //ZIO[Any, Exception, Int] =
     for {
       n <- ZIO.succeed(data.size)
-      _ <- Channel.write(c, Chunk.fromArray(getContentResponse(rs, code, n, false).getBytes()))
-      _ <- Channel.write(c, data)
+      _ <- c.write( ByteBuffer.wrap( getContentResponse(rs, code, n, false).getBytes() ) )
+      _ <- c.write( ByteBuffer.wrap (data.toArray ) )
     } yield (n)
 
   ////////////////////////////////////////////////////////////////////////////
   def writeFullResponse(
-    c: Channel,
+    c: IOChannel,
     rs: Response,
     code: StatusCode,
     msg: String,
     close: Boolean
-  ): ZIO[Any, Exception, Int] =
-    Channel.write(c, Chunk.fromArray(genResponseFromResponse(rs, code, msg, close).getBytes()))
+  ): Task[Int] =
+    c.write( ByteBuffer.wrap( genResponseFromResponse(rs, code, msg, close).getBytes()) )
 
-  def writeResponseMethodNotAllowed(c: Channel, allow: String): ZIO[Any, Exception, Int] =
-    Channel.write(c, Chunk.fromArray(genResponseMethodNotAllowed(allow).getBytes()))
+  def writeResponseMethodNotAllowed(c: IOChannel, allow: String): Task[Int] =
+    c.write(ByteBuffer.wrap(genResponseMethodNotAllowed(allow).getBytes()))
 
-  def writeResponseUnsupportedMediaType(c: Channel): ZIO[Any, Exception, Int] =
-    Channel.write(c, Chunk.fromArray(genResponseUnsupportedMediaType().getBytes()))
+  def writeResponseUnsupportedMediaType(c: IOChannel): Task[Int] =
+    c.write( ByteBuffer.wrap(genResponseUnsupportedMediaType().getBytes()))
 
-  def writeResponseRedirect(c: Channel, location: String): ZIO[Any, Exception, Int] =
-    Channel.write(c, Chunk.fromArray(genResponseRedirect(location).getBytes()))
+  def writeResponseRedirect(c: IOChannel, location: String): Task[Int] =
+    c.write( ByteBuffer.wrap(genResponseRedirect(location).getBytes()))
 
   ///////////////////////////////////////////////////////////
   //chunkSize = tls app packet max len
   def writeBLOBtoChannel(
-    c: Channel,
+    c: IOChannel,
     chunkSize: Int,
     contentType: String,
     fpath: File
@@ -93,11 +95,11 @@ object ResponseWriters {
       fpm = ZIO.acquireRelease( attemptBlocking( new FileInputStream(fpath))) ( fp => ZIO.attempt(fp.close ).catchAll(_ => ZIO.unit) )
 
       y <- ZIO.scoped { fpm.flatMap{ fp =>
-            Channel.write(c, Chunk.fromArray(header.getBytes)) *> (attemptBlocking(fp.read(buf))
+            c.write( ByteBuffer.wrap(header.getBytes)) *> (attemptBlocking(fp.read(buf))
               .flatMap { nBytes =>
                 {
                   if (nBytes > 0) {
-                    Channel.write(c, Chunk.fromArray(buf).take(nBytes)) *> ZIO.succeed(nBytes)
+                    c.write(ByteBuffer.wrap(Chunk.fromArray(buf).take(nBytes).toArray) ) *> ZIO.succeed(nBytes)
                   } else ZIO.succeed(nBytes)
                 }
               })

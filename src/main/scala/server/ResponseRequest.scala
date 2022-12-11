@@ -5,8 +5,9 @@ import java.net.URI
 import zio.json._
 import zio.stream.ZStream
 import zio.ZIO
+import zhttp.netio._
 
-sealed case class Request(headers: Headers, stream: ZStream[Any, Exception, Chunk[Byte]], ch: Channel) {
+sealed case class Request(headers: Headers, stream: ZStream[Any, Throwable, Chunk[Byte]], ch: IOChannel) {
 
   def path: String             = headers.get(HttpRouter._PATH).getOrElse("")
   def method: Method           = Method(headers.get(HttpRouter._METHOD).getOrElse(""))
@@ -27,7 +28,7 @@ sealed case class Request(headers: Headers, stream: ZStream[Any, Exception, Chun
 
   def isChunked = transferEncoding.exists(_.equalsIgnoreCase("chunked"))
 
-  def body = stream.runCollect.map(_.flatten): ZIO[Any, Exception, Chunk[Byte]]
+  def body = stream.runCollect.map(_.flatten): ZIO[Any, Throwable, Chunk[Byte]]
 
   def fromJSONToStream[A: JsonDecoder] = stream.map(chunk => new String(chunk.toArray).fromJson[A])
 
