@@ -1,13 +1,53 @@
+[![Generic badge](https://img.shields.io/badge/Nexus-v1.2--m3-yellow.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.2-m3/)
+<br>
 [![Generic badge](https://img.shields.io/badge/Nexus-v1.1.0--m8-blue.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.1.0-m8)
+<br>
+<br>
+[![Generic badge](https://img.shields.io/badge/Hello%20World-template-red)](https://github.com/ollls/hello-http)
+[![Generic badge](https://img.shields.io/badge/ZIO--LDAP-bindings-blue)](https://github.com/ollls/zio-quartz-ee/blob/main/src/main/scala/zio-quartz/clients/async-ldap.scala)
 
 Appreciate any feedback, please use, my email or open issue, or use 
-https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) <br>
+https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) 
+<br>
 
+To run from sbt:  "sbt example/run". <br>
+Example file: "/zio-tls-http/examples/start/src/main/scala/MyServer.scala"
+<br>
+https://github.com/ollls/zio-tls-http/blob/dev/examples/start/src/main/scala/MyServer.scala
+
+DEV on 1.2-m3
 
 # Update history.
 
+* (12-01-2022) Please check out https://github.com/ollls/quartz-h2
 
-* DEV is 1.2-m2 - ZStream and chunked encoding support.
+* Update( 07-21-2022 ) Extraction of all the usefull things from zio-tls-http is here <a>https://github.com/ollls/netio</a>
+  ZIO1 port will be provided, due to perf limitations ZIO2 port is not planned.
+
+
+* Update ( 07-16-2022 ) As you know ZIO2 is not optimized for aync (callback based monadic composition). At this moment there are no specific plans to complete testing process for ZIO2 branch. Tests shows 40% slowness with ZIO2 port. My personal stand that new JDK virtual threads and Java Loom project won't affect low level API like Java NIO Sync/Async channels. Java NIO with ByteBuffer and its completion routies will be same way viable for high performance network work on latest Loom enabled JDK as before.<br> Some interesting CATS effect 3/fs2 stream initiatives will be posted soon. Including standalone CATS effect 3 TLS client/server channel abstraction. 
+
+* Update ( 05-03-2022 ) branch 2.0.CURRENT with ZIO2-RC6, no more connection leak issue with RC6. ZStream.peel was fixed in RC6.
+
+* Update ( 04-21-2022 ) branch dev_zio2_rc5 ZIO2 RC5 port.
+
+* Update ( 02-15-2022 ) branch dev_zio2 can be built now, not tested and profiled yet, more to come.
+
+* Use cases slides: https://github.com/ollls/zio-tls-http-slides
+
+* DEV 1.2-m3 Websocket support moved to ZStream interface. See, example: for "/ws-test"
+
+* DEV 1.2-m3 fixed compatibility issue on 1.1 websocket with 1.2 server streams. Prep, for ZStream websocket upgrade.
+
+* DEV 1.2-m2 many useful fixes, Response ZStream now works with ensuring() which is dependent on user's environment.
+
+* DEV 1.2-m1 (streams) is out.
+
+* DEV is 1.2-m1, HttpClient on ZStream, file streaming, data streaming with chunked encoding support in and out.
+  https://github.com/ollls/zio-tls-http/blob/dev/FileStreaming.png  
+
+* DEV is 1.2-m1, everything now on ZStream, chunked encoding in/out support. ZStream conversion for http client is coming. 
+  All the documentation for 1.2 with ZIO streams is outdated now, this will be fixed.
 
 * 1.1.0-m8 release, with server stop(), header iterrator, log iterrator, pattern match on Channel -> Tls/Tcp Channel subclasses, 
   DDOS patch to block and log bad TLS handshakes.
