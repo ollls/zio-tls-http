@@ -7,7 +7,8 @@ jobs:
   build:
     docker:
       # specify the version you desire here
-      - image: hseeberger/scala-sbt:8u222_1.3.5_2.13.1
+      #- image: hseeberger/scala-sbt:8u222_1.3.5_2.13.1
+      - image: sbtscala/scala-sbt:19.0.1_1.8.0_3.2.1
 
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
