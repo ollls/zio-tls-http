@@ -1,7 +1,7 @@
 # Update history.
 
 # Update history.
-- ![#c5f015]test`#c5f015`
+<span style="color:green>test</span>
 
 * dev branch: HttpClient can be used with connectWithFilter. Filter can be made as blocking effect ( to get OAUTH2 headers, etc... ).
 
