@@ -21,7 +21,9 @@ DEV on 1.2-m3
 
 # Update history.
 
-* Update( 12-11-2022) Branches dev_zio2 and master_zio2 are active with ZIO 2.0.5. ZIO 2.0.5 has improved performance for async ops. New network layer based on netio is under testing now, no known problems so far. <br>in /examples: SyncTLSSocketServer is active now, to enable Java-NIO async uncomment TLSServer.
+* Update(12-12-2022) async NIO: TcpServer and TLSServer run socket group on default ZIO thread pool. Pushed up to master_zio2.
+
+* Update(12-11-2022) Branches dev_zio2 and master_zio2 are active with ZIO 2.0.5. ZIO 2.0.5 has improved performance for async ops. New network layer based on netio is under testing now, no known problems so far. <br>in /examples: SyncTLSSocketServer is active now, to enable Java-NIO async uncomment TLSServer.
 
 * (12-01-2022) Please check out https://github.com/ollls/quartz-h2
 
