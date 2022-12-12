@@ -1,7 +1,7 @@
 # Update history.
 
 # Update history.
-- ![#c5f015](https://via.placeholder.com/15/c5f015/000000?text=+) `#c5f015`
+- ![#c5f015](test)`#c5f015`
 
 * dev branch: HttpClient can be used with connectWithFilter. Filter can be made as blocking effect ( to get OAUTH2 headers, etc... ).
 
