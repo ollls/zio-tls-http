@@ -85,7 +85,7 @@ class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
     val cores = Runtime.getRuntime().availableProcessors()
     for {
 
-      _ <- MyLogging.info("console", s"Java Socket TLS HTTPS started on" + cores + " core CPU")
+      _ <- MyLogging.info("console", s"Java Socket TLS HTTPS started on " + cores + " core CPU")
       _ <- MyLogging.info("console", "Listens TLS: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms ")
 
       sslCtx <-
