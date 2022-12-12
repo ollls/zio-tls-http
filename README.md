@@ -1,4 +1,4 @@
-# Update history.
+# - ![#c5f015]Update history.
 
 * dev branch: HttpClient can be used with connectWithFilter. Filter can be made as blocking effect ( to get OAUTH2 headers, etc... ).
 
