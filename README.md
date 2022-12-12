@@ -12,7 +12,7 @@ Appreciate any feedback, please use, my email or open issue, or use
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) 
 <br>
 
-`#0969DA` Please check out `#0969DA` https://github.com/ollls/quartz-h2 
+**Please check out** https://github.com/ollls/quartz-h2 
 
 To run from sbt:  "sbt example/run". <br>
 Example file: "/zio-tls-http/examples/start/src/main/scala/MyServer.scala"
