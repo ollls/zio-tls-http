@@ -67,7 +67,6 @@ class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
     ia.getHostString()
   }
 
-
   def ctrlC_handlerZIO(s0: SSLServerSocket) = ZIO.attempt(
     java.lang.Runtime
       .getRuntime()
@@ -79,13 +78,15 @@ class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
       })
   )
 
-
   def myAppLogic(
       processor: IOChannel => zio.Chunk[Byte] => zio.ZIO[MyEnv, Throwable, Unit],
       sslctx: SSLContext = null
-  ): ZIO[MyEnv, Throwable, ExitCode] =
+  ): ZIO[MyEnv, Throwable, ExitCode] = {
+    val cores = Runtime.getRuntime().availableProcessors()
     for {
-      _ <- MyLogging.info("console", "Java Socket TLS started: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms")
+
+      _ <- MyLogging.info("console", s"Java Socket TLS HTTPS started on" + cores + " core CPU")
+      _ <- MyLogging.info("console", "Listens TLS: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms ")
 
       sslCtx <-
         if (sslctx == null) buildSSLContext(TLS_PROTO, KEYSTORE_PATH, KEYSTORE_PASSWORD)
@@ -110,7 +111,7 @@ class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
             })
           }
         )
-        .tap(c =>  MyLogging.info("console", "Connected: " + hostName( c.getRemoteSocketAddress())))
+        .tap(c => MyLogging.info("console", "Connected: " + hostName(c.getRemoteSocketAddress())))
         .flatMap(c => ZIO.attempt(new SocketChannel(c)))
 
       _ <- accept
@@ -119,8 +120,9 @@ class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
         .repeatUntil(_ => isTerminated)
 
     } yield (ExitCode(0))
+  }
 
-    //////////////////////////////////////////////////
+  //////////////////////////////////////////////////
   def run(appRoutes: HttpRoutes[MyEnv]*) = {
     val rtr = new HttpRouter(appRoutes.toList)
 

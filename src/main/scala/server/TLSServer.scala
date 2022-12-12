@@ -23,15 +23,12 @@ class TLSServer[MyEnv <: MyLogging.Service](
     tlsVersion: String = "TLS"
 ) {
 
-  val KEYSTORE_PATH     = keystore
-  val KEYSTORE_PASSWORD = keyStorePwd
-  val TLS_PROTO         = tlsVersion // default TLSv1.2 in JDK8
-  val BINDING_SERVER_IP = serverIP   // make sure certificate has that IP on SAN's list
-  val KEEP_ALIVE        = keepAlive  // ms, good if short for testing with broken site's snaphosts with 404 pages
-  val SERVER_PORT       = port
-
-  // private var processor: IOChannel => ZIO[MyEnv, Throwable, Unit] = null
-
+  val KEYSTORE_PATH       = keystore
+  val KEYSTORE_PASSWORD   = keyStorePwd
+  val TLS_PROTO           = tlsVersion // default TLSv1.2 in JDK8
+  val BINDING_SERVER_IP   = serverIP   // make sure certificate has that IP on SAN's list
+  val KEEP_ALIVE          = keepAlive  // ms, good if short for testing with broken site's snaphosts with 404 pages
+  val SERVER_PORT         = port
   private var f_terminate = false
   def terminate           = f_terminate = true
   def isTerminated        = f_terminate
@@ -44,19 +41,17 @@ class TLSServer[MyEnv <: MyLogging.Service](
   def myAppLogic(
       processor: IOChannel => zio.Chunk[Byte] => zio.ZIO[MyEnv, Throwable, Unit],
       sslctx: SSLContext = null
-  ): ZIO[MyEnv, Throwable, ExitCode] =
+  ): ZIO[MyEnv, Throwable, ExitCode] = {
 
     val cores = Runtime.getRuntime().availableProcessors()
-
-    val e = java.util.concurrent.Executors.newCachedThreadPool()
     for {
-      _ <- MyLogging.info("console", s"TLS HTTP Service started on " + SERVER_PORT)
+      ex <- ZIO.executor.map(_.asExecutionContextExecutorService)
 
-      _ <- MyLogging.info(
+      _ <- MyLogging.info("console", s"TLS HTTPS Service started on " + cores + " core CPU")
+       _ <- MyLogging.info(
         "console",
-        "Listens: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms"
-      )
-
+        "Listens TLS: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms " )
+ 
       sslCtx <-
         if (sslctx == null) buildSSLContext(TLS_PROTO, KEYSTORE_PATH, KEYSTORE_PASSWORD)
         else ZIO.succeed(sslctx)
@@ -64,7 +59,7 @@ class TLSServer[MyEnv <: MyLogging.Service](
       addr <- ZIO.attempt(new java.net.InetSocketAddress(BINDING_SERVER_IP, SERVER_PORT))
 
       group <- ZIO.attempt(
-        java.nio.channels.AsynchronousChannelGroup.withThreadPool(e)
+        java.nio.channels.AsynchronousChannelGroup.withThreadPool(ex)
       )
 
       server_ch <- ZIO.attempt(
@@ -79,11 +74,16 @@ class TLSServer[MyEnv <: MyLogging.Service](
         .tap(c => ZIO.succeed(c._1.timeOutMs(KEEP_ALIVE)))
 
       _ <- accept
-        .flatMap(ch => ZIO.scoped { ZIO.acquireReleaseWith(ZIO.succeed(ch))(_._1.close().catchAll(e => ZIO.unit))(ch => processor(ch._1)(ch._2)) }.fork)
-        .catchAll( e =>  MyLogging.error( "console", e.toString() ) )
+        .flatMap(ch =>
+          ZIO.scoped {
+            ZIO.acquireReleaseWith(ZIO.succeed(ch))(_._1.close().catchAll(e => ZIO.unit))(ch => processor(ch._1)(ch._2))
+          }.fork
+        )
+        .catchAll(e => MyLogging.error("console", e.toString()))
         .repeatUntil(_ => isTerminated)
 
     } yield ((ExitCode(0)))
+  }
 
   //////////////////////////////////////////////////
   def run(appRoutes: HttpRoutes[MyEnv]*) = {
