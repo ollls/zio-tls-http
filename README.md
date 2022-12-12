@@ -1,8 +1,9 @@
-# Update history.
 
 # Update history.
 
-markdown color font styles {: style=“color: red; opacity: 0.80;” }
+```diff 
++ markdown color font styles
+````
 
 
 * dev branch: HttpClient can be used with connectWithFilter. Filter can be made as blocking effect ( to get OAUTH2 headers, etc... ).
