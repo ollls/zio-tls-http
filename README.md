@@ -23,11 +23,9 @@ DEV on 1.2-m3
 
 # Update history.
 
-* Update(12-12-2022) async NIO: TcpServer and TLSServer run socket group on default ZIO thread pool. Pushed up to master_zio2.
+* Update(12-12-2022) ZIO2 async NIO: TcpServer and TLSServer run socket group on default ZIO thread pool. Pushed up to master_zio2.
 
-* Update(12-11-2022) Branches dev_zio2 and master_zio2 are active with ZIO 2.0.5. ZIO 2.0.5 has improved performance for async ops. New network layer based on netio is under testing now, no known problems so far. <br>in /examples: SyncTLSSocketServer is active now, to enable Java-NIO async uncomment TLSServer.
-
-* Update ( 07-16-2022 ) As you know ZIO2 is not optimized for aync (callback based monadic composition). At this moment there are no specific plans to complete testing process for ZIO2 branch. Tests shows 40% slowness with ZIO2 port. My personal stand that new JDK virtual threads and Java Loom project won't affect low level API like Java NIO Sync/Async channels. Java NIO with ByteBuffer and its completion routies will be same way viable for high performance network work on latest Loom enabled JDK as before.<br> Some interesting CATS effect 3/fs2 stream initiatives will be posted soon. Including standalone CATS effect 3 TLS client/server channel abstraction. 
+* Update(12-11-2022) ZIO2 Branches dev_zio2 and master_zio2 are active with ZIO 2.0.5. ZIO 2.0.5 has improved performance for async ops. New network layer based on netio is under testing now, no known problems so far. <br>in /examples: SyncTLSSocketServer is active now, to enable Java-NIO async uncomment TLSServer.
 
 * Update ( 05-03-2022 ) branch 2.0.CURRENT with ZIO2-RC6, no more connection leak issue with RC6. ZStream.peel was fixed in RC6.
 
