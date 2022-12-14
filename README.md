@@ -1,7 +1,7 @@
-with ZStream 1.0<br>
+with ZIO.10 with ZStream 1.0<br>
 [![Generic badge](https://img.shields.io/badge/Nexus-v1.2--m3-yellow.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.2-m3/)
 <br>
-without ZStream<br>
+ZIO 1.0 without ZStream<br>
 [![Generic badge](https://img.shields.io/badge/Nexus-v1.1.0--m8-blue.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.1.0-m8)
 <br>
 <br>
