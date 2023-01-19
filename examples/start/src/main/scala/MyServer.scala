@@ -16,7 +16,6 @@ import zio.stream.ZStream
 
 import zio.ZIOAppDefault
 
-import MyLogging.MyLogging
 import zio.ZIOApp
 import zio.ZEnvironment
 
@@ -26,6 +25,7 @@ object param2 extends QueryParam("param2")
 import zhttp.clients.util.SkipList
 
 import example.myServer.validateEnv
+import zio.logging.backend.SLF4J
 
 object DataBlock {
 
@@ -37,6 +37,8 @@ object DataBlock {
 case class DataBlock(val name: String, val address: String, val colors: Chunk[String])
 
 object myServer extends zio.ZIOAppDefault {
+
+  override val bootstrap = zio.Runtime.removeDefaultLoggers ++ SLF4J.slf4j ++ zio.Runtime.enableWorkStealing
 
   // type Environment = MyLogging with String
 
@@ -93,7 +95,7 @@ object myServer extends zio.ZIOAppDefault {
         for {
           _ <- wsctx.accept(req)
           _ <- ws_stream.foreach { frame =>
-            MyLogging.debug("console", "Data from websocket <<< " + new String(frame.data.toArray)) *>
+            ZIO.logDebug("Data from websocket <<< " + new String(frame.data.toArray)) *>
               wsctx.sendAsTextStream(
                 req,
                 ZStream("Websocket Rocks, this will be one packet with size: " + Websocket.WS_PACKET_SZ)
@@ -106,7 +108,7 @@ object myServer extends zio.ZIOAppDefault {
     val app_route_pre_post_filters = HttpRoutes.ofWithFilter(proc3, openCORS) { req =>
       req match {
         case GET -> Root / "print" =>
-          MyLogging.trace("console", "Hello from app") *>
+          ZIO.logTrace("Hello from app") *>
             ZIO.succeed(Response.Ok().asTextBody(req.headers.printHeaders))
         case GET -> Root / "Ok" => ZIO.succeed(Response.Ok())
       }
@@ -143,7 +145,7 @@ object myServer extends zio.ZIOAppDefault {
 
     }
 
-    val app_route_cookies_and_params: HttpRoutes[MyLogging] = HttpRoutes.of { (req: Request) =>
+    val app_route_cookies_and_params: HttpRoutes[Any] = HttpRoutes.of { (req: Request) =>
       {
         req match {
 
@@ -192,8 +194,7 @@ object myServer extends zio.ZIOAppDefault {
           case req @ GET -> "files2" /: "chunked" /: remainig_path =>
             for {
               query <- ZIO.succeed(req.uri.getQuery)
-              _ <- MyLogging.info(
-                "console",
+              _ <- ZIO.logInfo(
                 "Requested file: " + req.uri.getPath + " Query string:  " + query
               )
               path <- FileUtils.serverFilePath_(remainig_path, ROOT_CATALOG)
@@ -225,10 +226,21 @@ object myServer extends zio.ZIOAppDefault {
       }
     }
 
-    type Environment2 = MyLogging with String
 
+
+    
+    val myHttp2 = new TLSServer[String](
+      port = 8084,
+      keepAlive = 4000,
+      // serverIP = "0.0.0.0",
+      serverIP = "127.0.0.1",
+      keystore = "keystore.jks",
+      "password",
+      tlsVersion = "TLSv1.2"
+    )
+    
     /*
-    val myHttp = new TLSServer[Environment2](
+    val myHttp = new SyncTLSSocketServer[String](
       port = 8084,
       keepAlive = 4000,
       // serverIP = "0.0.0.0",
@@ -237,35 +249,30 @@ object myServer extends zio.ZIOAppDefault {
       "password",
       tlsVersion = "TLSv1.2"
     )*/
-    
-    
-    val myHttp = new SyncTLSSocketServer[Environment2](
-      port = 8084,
-      keepAlive = 4000,
-      // serverIP = "0.0.0.0",
-      serverIP = "127.0.0.1",
-      keystore = "keystore.jks",
-      "password",
-      tlsVersion = "TLSv1.2"
-    )
 
     // val myHttp = new zhttp.TcpServer[MyEnv3]( 8080 )
 
-    val myHttpRouter = new HttpRouter[Environment2](
+    val myHttpRouter = new HttpRouter(
       /* normal app routes */
-      List(app_route_cookies_and_params, app_route_JSON, app_route_pre_post_filters, ws_stream)
+      List(
+      app_route_cookies_and_params, 
+      app_route_JSON, 
+      app_route_pre_post_filters, 
+      ws_stream)
       /* channel ( file server) routes */
     )
 
     val AttributeLayer = ZLayer.fromZIO(ZIO.succeed("flag#1-1"))
 
-    val R1 = myHttp
-      .run(myHttpRouter.route)
-      .provideSomeLayer[MyLogging](AttributeLayer)
-      .provideSomeLayer[Environment](MyLogging.make(("console" -> LogLevel.Info), ("access" -> LogLevel.Info)))
+    val test = myHttpRouter.route
+  
 
+    //val test: IOChannel => Chunk[Byte] => ZIO[String, Throwable, Unit]
+
+    val R1 = myHttp2
+      .run(test)
+      .provideSomeLayer(AttributeLayer)
     R1
-
   }
 
 }

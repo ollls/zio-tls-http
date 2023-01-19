@@ -4,7 +4,7 @@ import zio.{IO, ZIO, Chunk}
 import zio.ExitCode
 import zhttp.netio._
 
-class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, serverIP: String = "0.0.0.0") {
+class TcpServer[Env](port: Int, keepAlive: Int = 2000, serverIP: String = "0.0.0.0") {
 
   val BINDING_SERVER_IP   = serverIP  // make sure certificate has that IP on SAN's list
   val KEEP_ALIVE: Long    = keepAlive // ms, good if short for testing with broken site's snaphosts with 404 pages
@@ -19,13 +19,11 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
   }
 
   /////////////////////////////////
-  def myAppLogic(processor: IOChannel => Chunk[Byte] => ZIO[MyEnv, Throwable, Unit]): ZIO[MyEnv, Throwable, ExitCode] = {
+  def myAppLogic(processor: IOChannel => Chunk[Byte] => ZIO[Env, Throwable, Unit]): ZIO[Env, Throwable, ExitCode] = {
     val cores = Runtime.getRuntime().availableProcessors()
     for {
-      _ <- MyLogging.info("console", s"Plain TCP HTTP Service started on " + cores + " core CPU")
-      _ <- MyLogging.info(
-        "console",
-        "Listens TCP: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms " )
+      _ <- ZIO.logInfo(s"Plain TCP HTTP Service started on " + cores + " core CPU")
+      _ <- ZIO.logInfo("Listens TCP: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms ")
 
       ex    <- ZIO.executor.map(_.asExecutionContextExecutorService)
       addr  <- ZIO.attempt(new java.net.InetSocketAddress(BINDING_SERVER_IP, SERVER_PORT))
@@ -36,25 +34,25 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
       accept = for {
         channel    <- TCPChannel.accept(server_ch)
         remoteAddr <- ZIO.attempt(channel.ch.getRemoteAddress())
-        _          <- MyLogging.info("console", "Connected: " + hostName(remoteAddr))
+        _          <- ZIO.logInfo("Connected: " + hostName(remoteAddr))
       } yield (channel)
 
       _ <- accept
         .flatMap(c =>
           ZIO.scoped {
             ZIO.acquireReleaseWith(ZIO.attempt(c))(_.close().orDie) { c =>
-              processor(c)(Chunk.empty[Byte]).catchAll(e => MyLogging.error("console", e.toString) *> ZIO.succeed(0))
+              processor(c)(Chunk.empty[Byte]).catchAll(e => ZIO.logError(e.toString) *> ZIO.succeed(0))
             }
           }.fork
         )
-        .catchAll(e => MyLogging.error("console", e.toString()))
+        .catchAll(e => ZIO.logError(e.toString()))
         .repeatUntil(_ => isTerminated)
 
     } yield (ExitCode(0))
   }
 
   //////////////////////////////////////////////////
-  def run(appRoutes: HttpRoutes[MyEnv]*) = {
+  def run(appRoutes: HttpRoutes[Env]*) = {
     val rtr = new HttpRouter(appRoutes.toList)
 
     val T = myAppLogic(rtr.route).fold(
@@ -67,7 +65,7 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
   }
 
   @deprecated("Use run() with list HttRoutes directly")
-  def run(proc: IOChannel => Chunk[Byte] => ZIO[MyEnv, Throwable, Unit]) = {
+  def run(proc: IOChannel => Chunk[Byte] => ZIO[Env, Throwable, Unit]) = {
 
     val T = myAppLogic(proc).fold(
       e => {
@@ -86,10 +84,6 @@ class TcpServer[MyEnv <: MyLogging.Service](port: Int, keepAlive: Int = 2000, se
       c <- clients.HttpConnection
         .connect(s"http://$serverIP:$SERVER_PORT")
       response <- c.send(clients.ClientRequest(zhttp.Method.GET, "/"))
-
-      svc <- MyLogging.logService
-      _   <- svc.shutdown
-
     } yield ()
 
 }

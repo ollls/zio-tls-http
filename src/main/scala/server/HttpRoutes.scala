@@ -1,28 +1,27 @@
 package zhttp
 
-import MyLogging.MyLogging
-
 import zio.{ ZIO }
 
-final case class HttpRoutes[-MyEnv <: MyLogging.Service](
-  run: Request => ZIO[MyEnv, Option[Exception], Response],
+final case class HttpRoutes[-Env](
+  run: Request => ZIO[Env, Option[Exception], Response],
   postProc: HttpRoutes.PostProc
 )
 
 object HttpRoutes {
 
-  case class WebFilterProc[-MyEnv <: MyLogging.Service](
-    run: Request => ZIO[MyEnv, Throwable, Response]
-  ) {
-    def <> [MyEnv0 <: MyEnv](another: WebFilterProc[MyEnv0]) = combine[MyEnv0](another.run)
+  case class WebFilterProc[-Env](
+    run: Request => ZIO[Env, Throwable, Response]
+  ) 
+  {
+    def <>[E <: Env] (another: WebFilterProc[E]) = combine[E](another.run)
 
-    def <> [MyEnv0 <: MyEnv](another: Request => ZIO[MyEnv0, Throwable, Response]) = combine[MyEnv0](another)
+    def <>[E <: Env] (another: Request => ZIO[E, Throwable, Response]) = combine[E](another)
 
     ////////////////////////////////////////////////////////////////////////////////////////vb
-    def combine[MyEnv0 <: MyEnv](
-      another: Request => ZIO[MyEnv0, Throwable, Response]
-    ): WebFilterProc[MyEnv0] = {
-      def new_proc(req: Request): ZIO[MyEnv0, Throwable, Response] =
+    def combine[E <: Env](
+      another: Request => ZIO[E, Throwable, Response]
+    ): WebFilterProc[E] = {
+      def new_proc(req: Request): ZIO[E, Throwable, Response] =
         run(req).flatMap(
           resp0 => {
             //transfer custom headers from filter1 response to filter2 request
@@ -32,7 +31,7 @@ object HttpRoutes {
             else ZIO.succeed(resp0)
           }
         )
-      WebFilterProc[MyEnv0](new_proc)
+      WebFilterProc[E](new_proc)
     }
 
   }
@@ -41,9 +40,9 @@ object HttpRoutes {
   //type WebFilterProc = Request => ZIO[ZEnv, Throwable, Response
 
   //replaces sequence and OptionT
-  def OptionToOptionalZIOError[A, MyEnv <: MyLogging.Service](
-    oza: Option[ZIO[MyEnv, Throwable, A]]
-  ): ZIO[MyEnv, Option[Exception], A] =
+  def OptionToOptionalZIOError[A, Env](
+    oza: Option[ZIO[Env, Throwable, A]]
+  ): ZIO[Env, Option[Exception], A] =
     oza match {
       case Some(x) => x.refineToOrDie[Exception].asSomeError
       case None    => ZIO.fromOption(None)
@@ -54,33 +53,33 @@ object HttpRoutes {
 
   //default flter ony with MyLogging, supporting all envs will incur serious chnages.
   //not sure how to share a variable with type parameters, can use only predef MyLogging
-  def defaultFilter(ft0: Request => ZIO[MyLogging, Throwable, Response]) =
+  def defaultFilter(ft0: Request => ZIO[Any, Throwable, Response]) =
     _filter = WebFilterProc(ft0)
 
   def defaultPostProc                 = _postProc
   def defaultPostProc(proc: PostProc) = _postProc = proc
 
-  def of[MyEnv <: MyLogging.Service](pf: PartialFunction[Request, ZIO[MyEnv, Throwable, Response]]) =
-    ofWithFilter[MyEnv](_filter, _postProc)(pf)
+  def of[Env](pf: PartialFunction[Request, ZIO[Env, Throwable, Response]]) =
+    ofWithFilter(_filter, _postProc)(pf)
 
-  def ofWithPostProc[MyEnv <: MyLogging.Service](
+  def ofWithPostProc[Env](
     postProc: PostProc
-  )(pf: PartialFunction[Request, ZIO[ MyEnv, Throwable, Response]]) =
-    ofWithFilter[MyEnv](_filter, postProc)(pf)
+  )(pf: PartialFunction[Request, ZIO[ Env, Throwable, Response]]) =
+    ofWithFilter[Env](_filter, postProc)(pf)
 
-  def ofWithFilter[MyEnv <: MyLogging.Service](
-    filter0: WebFilterProc[MyEnv],
+  def ofWithFilter[Env](
+    filter0: WebFilterProc[Env],
     postProc0: PostProc = _postProc
-  )(pf: PartialFunction[Request, ZIO[ MyEnv, Throwable, Response]]): HttpRoutes[MyEnv] = {
+  )(pf: PartialFunction[Request, ZIO[ Env, Throwable, Response]]): HttpRoutes[Env] = {
 
     //preceded with default filter first
-    val filter = if (filter0 != _filter) _filter.combine[MyEnv](filter0.run) else filter0
+    val filter = if (filter0 != _filter) _filter.combine(filter0.run) else filter0
 
     // default post proc called last, defaultPostProc ( mypostProc( response )
     val postProc = if (postProc0 != _postProc) _postProc.compose(postProc0) else postProc0
 
     //filter partial function - will call filter only if second route function defined
-    val f0: PartialFunction[Request, ZIO[ MyEnv, Throwable, Response]] =
+    val f0: PartialFunction[Request, ZIO[ Env, Throwable, Response]] =
       (req: Request) => {
         req match {
           case (req: Request) if pf.isDefinedAt(req) => filter.run(req)
@@ -88,17 +87,17 @@ object HttpRoutes {
       }
 
     //resulting lifted and sequenced function, which combines filter and route processing
-    def res0(req: Request): ZIO[ MyEnv, Option[Exception], Response] =
+    def res0(req: Request): ZIO[ Env, Option[Exception], Response] =
       for {
-        filter_resp <- OptionToOptionalZIOError[Response, MyEnv](f0.lift(req))
+        filter_resp <- OptionToOptionalZIOError[Response, Env](f0.lift(req))
 
         new_req <- ZIO.succeed(Request(req.headers ++ filter_resp.headers, req.stream, req.ch))
 
-        route_resp <- if (filter_resp.code.isSuccess) OptionToOptionalZIOError[Response, MyEnv](pf.lift(new_req))
+        route_resp <- if (filter_resp.code.isSuccess) OptionToOptionalZIOError[Response, Env](pf.lift(new_req))
                      else ZIO.succeed(filter_resp)
 
       } yield (route_resp)
 
-    HttpRoutes[MyEnv](res0, postProc)
+    HttpRoutes[Env](res0, postProc)
   }
 }

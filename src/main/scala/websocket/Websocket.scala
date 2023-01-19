@@ -4,7 +4,6 @@ import zio.{Chunk, ZIO}
 
 import java.security.MessageDigest
 import java.util.Base64
-import MyLogging.MyLogging
 import java.nio.ByteBuffer
 import zio.stream.ZStream
 
@@ -148,15 +147,14 @@ class Websocket(isClient: Boolean, idleTimeout: Int) {
     (T.repeatWhile(_.opcode == WebSocketFrame.PING)).refineToOrDie[Exception]
   }
 
-  def accept(req: Request): ZIO[MyLogging, Exception, Unit] = {
+  def accept(req: Request): ZIO[Any, Exception, Unit] = {
     val T = for {
       res <- ZIO.attempt(serverHandshake(req))
       _ <- res match {
         case Right(response) =>
           req.ch.remoteAddress()
             .flatMap(adr =>
-              MyLogging.debug(
-                "console",
+              ZIO.logDebug(
                 "Webocket request initiated from: " + adr.asInstanceOf[java.net.InetSocketAddress].getHostString()
               )
             ) *> req.ch.write( ByteBuffer.wrap(genWsResponse(response).getBytes())) *> ZIO.succeed { isClosed = false }

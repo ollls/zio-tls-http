@@ -13,7 +13,7 @@ import javax.net.ssl.KeyManagerFactory
 import java.net.InetSocketAddress
 import scala.jdk.CollectionConverters.ListHasAsScala
 
-class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
+class SyncTLSSocketServer[Env](
     port: Int,
     keepAlive: Int = 2000,
     serverIP: String = "0.0.0.0",
@@ -79,14 +79,14 @@ class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
   )
 
   def myAppLogic(
-      processor: IOChannel => zio.Chunk[Byte] => zio.ZIO[MyEnv, Throwable, Unit],
+      processor: IOChannel => zio.Chunk[Byte] => zio.ZIO[Env, Throwable, Unit],
       sslctx: SSLContext = null
-  ): ZIO[MyEnv, Throwable, ExitCode] = {
+  ): ZIO[Env, Throwable, ExitCode] = {
     val cores = Runtime.getRuntime().availableProcessors()
     for {
 
-      _ <- MyLogging.info("console", s"Java Socket TLS HTTPS started on " + cores + " core CPU")
-      _ <- MyLogging.info("console", "Listens TLS: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms ")
+      _ <- ZIO.logInfo(s"Java Socket TLS HTTPS started on " + cores + " core CPU")
+      _ <- ZIO.logInfo(s"Listens TLS: " + BINDING_SERVER_IP + ":" + SERVER_PORT + ", keep alive: " + KEEP_ALIVE + " ms ")
 
       sslCtx <-
         if (sslctx == null) buildSSLContext(TLS_PROTO, KEYSTORE_PATH, KEYSTORE_PASSWORD)
@@ -111,19 +111,19 @@ class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
             })
           }
         )
-        .tap(c => MyLogging.info("console", "Connected: " + hostName(c.getRemoteSocketAddress())))
+        .tap(c => ZIO.logInfo("Connected: " + hostName(c.getRemoteSocketAddress())))
         .flatMap(c => ZIO.attempt(new SocketChannel(c)))
 
       _ <- accept
         .flatMap(ch => ZIO.scoped { ZIO.acquireReleaseWith(ZIO.succeed(ch))(_.close().catchAll(e => ZIO.unit))(ch => processor(ch)(Chunk.empty[Byte])) }.fork)
-        .catchAll(e => MyLogging.error("console", e.toString()))
+        .catchAll(e => ZIO.logInfo(e.toString()))
         .repeatUntil(_ => isTerminated)
 
     } yield (ExitCode(0))
   }
 
   //////////////////////////////////////////////////
-  def run(appRoutes: HttpRoutes[MyEnv]*) = {
+  def run(appRoutes: HttpRoutes[Env]*) = {
     val rtr = new HttpRouter(appRoutes.toList)
 
     val T = myAppLogic(rtr.route).fold(
@@ -136,7 +136,7 @@ class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
   }
 
   @deprecated("Use run() with list HttRoutes directly")
-  def run(proc: IOChannel => Chunk[Byte] => ZIO[MyEnv, Throwable, Unit]) = {
+  def run(proc: IOChannel => Chunk[Byte] => ZIO[Env, Throwable, Unit]) = {
 
     val T = myAppLogic(proc).fold(
       e => {
@@ -155,10 +155,6 @@ class SyncTLSSocketServer[MyEnv <: MyLogging.Service](
       c <- clients.HttpConnection
         .connect(s"http://$serverIP:$SERVER_PORT")
       response <- c.send(clients.ClientRequest(zhttp.Method.GET, "/"))
-
-      svc <- MyLogging.logService
-      _   <- svc.shutdown
-
     } yield ()
 
 }

@@ -20,8 +20,6 @@ import zhttp.Headers
 import zhttp.HttpRouter
 import zhttp.ContentType
 import zhttp.Cookie
-import zhttp.MyLogging
-import zhttp.MyLogging.MyLogging
 import zhttp.StatusCode
 
 import javax.net.ssl.TrustManager
@@ -110,7 +108,7 @@ case class ClientRequest(
 }
 
 //Request to Request, enriched with headers
-case class FilterProc(run: ClientRequest => ZIO[MyLogging, Throwable, ClientRequest])
+case class FilterProc(run: ClientRequest => ZIO[Any, Throwable, ClientRequest])
 
 object HttpConnection {
 
@@ -223,7 +221,7 @@ object HttpConnection {
   def connectWithFilter(
       url: String,
       socketGroup: AsynchronousChannelGroup,
-      filter: ClientRequest => ZIO[MyLogging, Throwable, ClientRequest],
+      filter: ClientRequest => ZIO[Any, Throwable, ClientRequest],
       tlsBlindTrust: Boolean = false,
       trustKeystore: String = null,
       password: String = ""
@@ -334,7 +332,7 @@ class HttpConnection(val uri: URI, val ch: IOChannel, filter: FilterProc) {
   def close = ch.close()
 
   /////////////////////////
-  def send(req: ClientRequest): ZIO[MyLogging, Throwable, ClientResponse] =
+  def send(req: ClientRequest): ZIO[Any, Throwable, ClientResponse] =
     for {
       req0 <- filter.run(req)
       response <-
@@ -344,7 +342,7 @@ class HttpConnection(val uri: URI, val ch: IOChannel, filter: FilterProc) {
     } yield (response)
 
   ///////////////////////////////////////////////////////////////
-  private def sendChunked(req: ClientRequest): ZIO[Any with MyLogging, Throwable, ClientResponse] = {
+  private def sendChunked(req: ClientRequest): ZIO[Any, Throwable, ClientResponse] = {
 
     def genRequestChunked(resp: ClientRequest): String = {
       val dfmt = new java.text.SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
@@ -371,8 +369,7 @@ class HttpConnection(val uri: URI, val ch: IOChannel, filter: FilterProc) {
     (for {
       _        <- res.foreach(chunk0 => { ch.write(ByteBuffer.wrap(chunk0.toArray)) })
       response <- getHTTPResponse2
-      _ <- MyLogging.debug(
-        "client",
+      _ <- ZIO.logDebug(
         "http <<<: " + "http code = " + response.httpString + " " +
           "bytes = " + req.transferEncoding().mkString(",")
       )
@@ -381,7 +378,7 @@ class HttpConnection(val uri: URI, val ch: IOChannel, filter: FilterProc) {
   }
 
   ///////////////////////////////////////////////////////////////
-  private def sendBody(req: ClientRequest): ZIO[MyLogging, Throwable, ClientResponse] = {
+  private def sendBody(req: ClientRequest): ZIO[Any, Throwable, ClientResponse] = {
 
     def parseRequest(req: ClientRequest, bodySize: Int) = ZIO.succeed {
       val r = new StringBuilder
@@ -400,14 +397,13 @@ class HttpConnection(val uri: URI, val ch: IOChannel, filter: FilterProc) {
 
       _ <- ch.write(ByteBuffer.wrap(r.toString.getBytes))
 
-      _ <- MyLogging.debug("client", "http >>>: " + req.method + "  " + this.uri.toString() + " ;path = " + req.path)
+      _ <- ZIO.logDebug( "http >>>: " + req.method + "  " + this.uri.toString() + " ;path = " + req.path)
 
       _ <- if (body.isEmpty == false) ch.write(ByteBuffer.wrap(body.toArray)) else ZIO.unit
 
       response <- getHTTPResponse2
 
-      _ <- MyLogging.debug(
-        "client",
+      _ <- ZIO.logDebug(
         "http <<<: " + "http code = " + response.httpString + " " +
           "bytes = " + response.hdrs.get("content-length").getOrElse(0)
       )

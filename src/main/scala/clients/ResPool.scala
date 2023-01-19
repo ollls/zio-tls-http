@@ -4,12 +4,7 @@ import zio.Queue
 import zio.ZLayer
 import zio.ZIO
 import zio.IO
-import zhttp.MyLogging.MyLogging
-import zhttp.MyLogging
-
 import zio.Tag
-import zhttp.LogLevel
-
 import zio.Runtime
 import zio.ZIO.attemptBlocking
 
@@ -20,15 +15,15 @@ object ResPool {
   case class ResRec[R](res: R, timeToLive: Long = 0L)
 
   trait Service[R] {
-    def acquire: ZIO[MyLogging, Throwable, R]
-    def release(res: R): ZIO[MyLogging, Nothing, Unit]
+    def acquire: ZIO[Any, Throwable, R]
+    def release(res: R): ZIO[Any, Nothing, Unit]
   }
 
   def acquire[R](implicit tagged: Tag[R]) =
-    ZIO.environmentWithZIO[ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].acquire)
+    ZIO.environmentWithZIO[ResPool[R]](cpool => cpool.get[ResPool.Service[R]].acquire)
 
   def release[R](r: R)(implicit tagged: Tag[R]) =
-    ZIO.environmentWithZIO[ResPool[R] with MyLogging](cpool => cpool.get[ResPool.Service[R]].release(r))
+    ZIO.environmentWithZIO[ResPool[R]](cpool => cpool.get[ResPool.Service[R]].release(r))
 
   private def cleanup[R](connections: zio.Queue[ResRec[R]], closeResource: (R) => Unit) =
     connections.takeAll.map { list =>
@@ -54,7 +49,7 @@ object ResPool {
                 list.map(
                   rec =>
                     closeResource(rec.res) *>
-                      MyLogging.log("console", LogLevel.Debug, layerNameM[R] + ": closing resource on shutdown")
+                      ZIO.logDebug(layerNameM[R] + ": closing resource on shutdown")
                 )
               )
 
@@ -73,7 +68,6 @@ object ResPool {
     closeResource: (R) => ZIO[Any, Exception, Unit]
   )(implicit tagged: Tag[R]) =
     for {
-      logSvc <- MyLogging.logService
       optR <- q.poll.repeatWhile { or =>
                or.isDefined && or.exists(
                  r =>
@@ -89,7 +83,7 @@ object ResPool {
              }
       resource <- if (optR.isDefined) ZIO.succeed(optR.map(_.res).get)
                  else {
-                   MyLogging.log("console", LogLevel.Debug, layerNameM[R] + s": $pool_id - create new resource") *>
+                   ZIO.logDebug(layerNameM[R] + s": $pool_id - create new resource") *>
                      createResource()
                  }
 
@@ -103,7 +97,6 @@ object ResPool {
     closeResource: (R) => Unit
   )(implicit tagged: Tag[R]) =
     for {
-      logSvc <- MyLogging.logService
       optR <- q.poll.repeatWhile { or =>
                or.isDefined && or.exists(
                  r =>
@@ -118,7 +111,7 @@ object ResPool {
              }
       resource <- if (optR.isDefined) ZIO.succeed(optR.map(_.res).get)
                  else {
-                   MyLogging.log("console", LogLevel.Debug, layerName[R] + s": $pool_id - create new resource") *>
+                   ZIO.logDebug( layerName[R] + s": $pool_id - create new resource") *>
                      attemptBlocking(createResource())
                  }
 

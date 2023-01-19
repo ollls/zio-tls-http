@@ -8,6 +8,7 @@ import zio.stream.ZPipeline
 import zio.stream.ZChannel
 import zio.stream.ZSink
 import java.nio.ByteBuffer
+import zio.logging.backend.SLF4J
 
 sealed trait HTTPError                              extends Exception
 sealed case class BadInboundDataError()             extends HTTPError
@@ -247,61 +248,60 @@ object HttpRouter {
 
 }
 
-class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
+class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
 
-  def this(rt: HttpRoutes[R]*) = this(rt.toList)
+  def this(rt: HttpRoutes[Env]*) = this(rt.toList)
 
   // TODO enforce those !!!!
   // val HTTP_HEADER_SZ          = 8096 * 2
   val MAX_ALLOWED_CONTENT_LEN = 1048576 * 100 // 104 MB
 
-  def route(c: IOChannel)(leftOverData: Chunk[Byte]): ZIO[R, Throwable, Unit] =
+  def route(c: IOChannel)(leftOverData: Chunk[Byte]): ZIO[Env, Throwable, Unit] =
     zio.Ref.make(true).flatMap { ref =>
       route_do(c, leftOverData, ref).forever.catchAll(ex =>
         ex match {
 
           case _: java.nio.channels.InterruptedByTimeoutException =>
-            MyLogging.debug("console", "Connection closed") *> ZIO.unit
+            ZIO.logDebug( "Connection closed") *> ZIO.unit
 
           case _: BadInboundDataError =>
-            MyLogging.debug("console", "Bad request, connection closed") *>
+            ZIO.logDebug("Bad request, connection closed") *>
               ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request.", true) *> ZIO.unit
 
           case _: HTTPHeaderTooBig =>
-            MyLogging.error("console", "HTTP header exceeds allowed limit") *>
+            ZIO.logError("HTTP header exceeds allowed limit") *>
               ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad HTTP header.", true) *> ZIO.unit
 
           case e: java.io.FileNotFoundException =>
-            MyLogging.error("console", "File not found " + e.toString()) *>
+            ZIO.logError("File not found " + e.toString()) *>
               ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> ZIO.unit
 
           case e: java.nio.file.NoSuchFileException =>
-            MyLogging.error("console", "File not found " + e.toString()) *>
+            ZIO.logError("File not found " + e.toString()) *>
               ResponseWriters.writeNoBodyResponse(c, StatusCode.NotFound, "Not found.", true) *> ZIO.unit
 
           case _: AccessDenied =>
-            MyLogging.error("console", "Access denied") *>
+            ZIO.logError("Access denied") *>
               ResponseWriters.writeNoBodyResponse(c, StatusCode.Forbidden, "Access denied.", true) *> ZIO.unit
 
           case _: scala.MatchError =>
-            MyLogging.error("console", "Bad request(1)") *>
+            ZIO.logError("Bad request(1)") *>
               ResponseWriters.writeNoBodyResponse(c, StatusCode.BadRequest, "Bad request (1).", true) *> ZIO.unit
 
           case e: TLSChannelError =>
-            MyLogging.debug("console", "Remote peer closed connection") *> ZIO.unit
+            ZIO.logDebug("Remote peer closed connection") *> ZIO.unit
 
           case e: java.io.IOException =>
-            MyLogging
-              .error("console", "Remote peer closed connection (1) " + e.getMessage()) *> ZIO.unit
+            ZIO.logError( "Remote peer closed connection (1) " + e.getMessage()) *> ZIO.unit
 
           case e: ChunkedEncodingError =>
-            MyLogging.error("console", e.toString()) *>
+            ZIO.logError(e.toString()) *>
               ResponseWriters.writeNoBodyResponse(c, StatusCode.NotImplemented, "", true) *> ZIO.unit
 
-          case e: WebSocketClosed => MyLogging.debug("console", "Websocket closed: " + e.getMessage()) *> ZIO.unit
+          case e: WebSocketClosed => ZIO.logDebug("Websocket closed: " + e.getMessage()) *> ZIO.unit
 
           case e: Exception =>
-            MyLogging.error("console", e.toString()) *>
+            ZIO.logError(e.toString()) *>
               ResponseWriters.writeNoBodyResponse(c, StatusCode.InternalServerError, "", true) *> ZIO.unit
         }
       )
@@ -319,7 +319,7 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
     } yield (res)
   }
 
-  def route_do(c: IOChannel, leftOverData: Chunk[Byte], refStart: zio.Ref[Boolean]): ZIO[R, Throwable, Unit] = {
+  def route_do(c: IOChannel, leftOverData: Chunk[Byte], refStart: zio.Ref[Boolean]): ZIO[Env, Throwable, Unit] = {
 
     val header_pair = raw"(.{2,100}):\s+(.+)".r
     val http_line   = raw"([A-Z]{3,8})\s+(.+)\s+(HTTP/.+)".r
@@ -346,7 +346,7 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
           val strings =
             ZStream.fromChunk(header_bytes).via(ZPipeline.usASCIIDecode >>> ZPipeline.splitLines)
 
-          val hdrs: ZIO[R, Exception, Headers] = strings.runFold[Headers](Headers())((hdrs, line) => {
+          val hdrs: ZIO[Env, Exception, Headers] = strings.runFold[Headers](Headers())((hdrs, line) => {
             line match {
               case http_line(method, path, prot) =>
                 hdrs ++ Headers(HttpRouter._METHOD -> method, HttpRouter._PATH -> path, HttpRouter._PROTO -> prot)
@@ -438,8 +438,8 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
 
   private def route_go(
       req: Request,
-      appRoutes: List[HttpRoutes[R]]
-  ): ZIO[R, Option[Exception], (Response, HttpRoutes.PostProc)] =
+      appRoutes: List[HttpRoutes[Env]]
+  ): ZIO[Env, Option[Exception], (Response, HttpRoutes.PostProc)] =
     appRoutes match {
       case h :: tail => {
         for {
@@ -459,13 +459,13 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
       ch: IOChannel,
       req: Request,
       resp: Response
-  ): ZIO[R, Throwable, Int] =
+  ): ZIO[Env, Throwable, Int] =
     if (req.isWebSocket && resp.code.isSuccess) {
       req.ch.remoteAddress().map(c => c.asInstanceOf[java.net.InetSocketAddress].getHostString()).flatMap(hostName => ZIO.fail(WebSocketClosed(hostName)))
     } else if (resp == NoResponse) {
       ZIO.succeed(0)
     } else if (resp.raw_stream == true) {
-      val stream = resp.streamWith[R]
+      val stream = resp.streamWith[Env]
       stream.foreach(chunk => ch.write(ByteBuffer.wrap(chunk.toArray))).refineToOrDie[Exception] *>
         ZIO.succeed(0)
     } else {
@@ -475,11 +475,15 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
       val status   = resp.code
 
       if (resp.isChunked) {
-        Logs.log_access(req, status, 0, "chunked").refineToOrDie[Exception] *>
+        //https://zio.dev/zio-logging/slf4j
+        //access
+         ZIO.logInfo( req.method.toString + " " + req.uri.toString() + "  " + status.value + " chunked" ) @@ SLF4J.loggerName( "access") *>
+         ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
+        //Logs.log_access(req, status, 0, "chunked").refineToOrDie[Exception] *>
           ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
       } else
         (for {
-          body <- resp.streamWith[R].flatMap(c => { ZStream.fromChunk(c) }).runCollect
+          body <- resp.streamWith[Env].flatMap(c => { ZStream.fromChunk(c) }).runCollect
           res <- status match {
             case StatusCode.OK =>
               ResponseWriters.writeFullResponseBytes(ch, resp, resp.code, body, false)
@@ -492,7 +496,8 @@ class HttpRouter[R <: MyLogging.Service](val appRoutes: List[HttpRoutes[R]]) {
               ResponseWriters.writeNoBodyResponse(ch, StatusCode.UnsupportedMediaType, "", true)
             case _ => ResponseWriters.writeNoBodyResponse(ch, status, new String(body.toArray), true)
           }
-          _ <- Logs.log_access(req, status, body.size)
+          //_ <- Logs.log_access(req, status, body.size)
+          _ <- ZIO.logInfo( req.method.toString + " " + req.uri.toString() + "  " + status.value + " " + body.size ) @@ SLF4J.loggerName( "access")
 
         } yield (0)).refineToOrDie[Exception]
 

@@ -3,7 +3,6 @@ package zhttp.clients
 import zio.ZIO
 import zio.UIO
 import zio.ZLayer
-import zhttp.MyLogging.MyLogging
 import zhttp.clients.ResPool
 import zio.Tag
 import zio.Queue
@@ -12,9 +11,6 @@ import zio.Semaphore
 import zhttp.clients.util.SkipList
 import zhttp.clients.util.ValuePair
 
-import zhttp.MyLogging.MyLogging
-import zhttp.MyLogging
-import zhttp.LogLevel
 
 import scala.volatile
 import java.util.concurrent.atomic.AtomicLong
@@ -81,28 +77,28 @@ object ResPoolCache {
   type ResPoolCache[K, V, R] = ResPoolCache.Service[K, V, R]
 
   trait Service[K, V, R] {
-    def get(key: K): ZIO[MyLogging, Throwable, Option[V]]
+    def get(key: K): ZIO[Any, Throwable, Option[V]]
 
     def info: ZIO[Any, Throwable, String]
 
-    def doFreeSpace: ZIO[MyLogging, Throwable, Unit]
+    def doFreeSpace: ZIO[Any, Throwable, Unit]
 
-    def terminate: ZIO[MyLogging, Throwable, Unit] 
+    def terminate: ZIO[Any, Throwable, Unit] 
 
   }
 
   def get[K, V, R](key: K)(implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
-    ZIO.environmentWithZIO[ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].get(key))
+    ZIO.environmentWithZIO[ResPoolCache[K, V, R]](svc => svc.get[ResPoolCache.Service[K, V, R]].get(key))
 
   def info[K, V, R](implicit tagged: Tag[R], tagged1: Tag[K], tagged2: Tag[V]) =
-    ZIO.environmentWithZIO[ResPoolCache[K, V, R] with MyLogging](svc => svc.get[ResPoolCache.Service[K, V, R]].info)
+    ZIO.environmentWithZIO[ResPoolCache[K, V, R]](svc => svc.get[ResPoolCache.Service[K, V, R]].info)
 
-  def make[K, V, R](timeToLiveMs: Int, limit: Int, updatef: (R, K) => ZIO[MyLogging, Throwable, Option[V]])(
+  def make[K, V, R](timeToLiveMs: Int, limit: Int, updatef: (R, K) => ZIO[Any, Throwable, Option[V]])(
     implicit ord: K => Ordered[K],
     tagged: Tag[R],
     tagged1: Tag[K],
     tagged2: Tag[V]
-  ): ZLayer[ResPool.ResPool[R] with MyLogging.MyLogging, Nothing, ResPoolCache.ResPoolCache[K, V, R]] =
+  ): ZLayer[ResPool.ResPool[R], Nothing, ResPoolCache.ResPoolCache[K, V, R]] =
   {
     val effect = for {
       queue <- Queue.bounded[K](1)
@@ -128,7 +124,7 @@ object ResPoolCache {
     rp: ResPool.Service[R],
     timeToLiveMs: Int,
     limit: Int,
-    updatef: (R, K) => ZIO[MyLogging, Throwable, Option[V]],
+    updatef: (R, K) => ZIO[Any, Throwable, Option[V]],
     q: zio.Queue[K]
   )(
     implicit ord: K => Ordered[K],
@@ -193,12 +189,12 @@ object ResPoolCache {
 
       }
 
-      def terminate: ZIO[MyLogging, Throwable, Unit] = 
+      def terminate: ZIO[Any, Throwable, Unit] = 
           for {
           _ <- q.shutdown  
           } yield() 
 
-      def get(key: K): ZIO[MyLogging, Throwable, Option[V]] =
+      def get(key: K): ZIO[Any, Throwable, Option[V]] =
         for {
           semPair <- acquireSemaphore(key) //compare and set based singleton for the given key - only one for the key
           result   <- semPair._2.withPermit(get_(key))
@@ -206,7 +202,7 @@ object ResPoolCache {
         } yield (result)
 
       /////////////////////////////////////////////////////////////////////////////////////
-      def get_(key: K): ZIO[MyLogging, Throwable, Option[V]] =
+      def get_(key: K): ZIO[Any, Throwable, Option[V]] =
         for {
           _     <- ZIO.succeed(total.incrementAndGet())
           entry <- cache_tbl.u_get(ValuePair[K, CacheEntry[V]](key))
@@ -219,9 +215,7 @@ object ResPoolCache {
                     refresh.incrementAndGet()
                     val old_ts = cached_entry.ts
                     for {
-                      _ <- MyLogging.log(
-                            "console",
-                            LogLevel.Trace,
+                      _ <- ZIO.logTrace(
                             layerName[K, V, R] + ": key = " + key.toString() + " expired with " + cached_entry.ts
                           )
                       res <- ZIO.acquireReleaseWith(rp.acquire)(c => rp.release(c) )(resource => updatef(resource, key))
@@ -237,9 +231,7 @@ object ResPoolCache {
                                   case None => ZIO.none
                                 }
                               })
-                      _ <- MyLogging.log(
-                            "console",
-                            LogLevel.Trace,
+                      _ <- ZIO.logTrace(
                             layerName[K, V, R] + ": key = " + key.toString() + " value refreshed"
                           )
 
@@ -251,9 +243,7 @@ object ResPoolCache {
                 case None =>
                   //nothing cached for the key
                   for {
-                    _ <- MyLogging.log(
-                          "console",
-                          LogLevel.Trace,
+                    _ <- ZIO.logTrace(
                           layerName[K, V, R] + ": key = " + key.toString() + " attempt to cache a new value"
                         )
                     v <- ZIO.acquireReleaseWith(rp.acquire)(c => rp.release(c))(resource => updatef(resource, key))
@@ -269,9 +259,7 @@ object ResPoolCache {
                                   _   <- ZIO.attempt(lru_tbl.add(new LRUQEntry[K](entry.ts, key))).when(res == true)
                                   _   <- ZIO.succeed(adds.incrementAndGet()).when(res == true)
 
-                                  _ <- MyLogging.log(
-                                        "console",
-                                        LogLevel.Trace,
+                                  _ <- ZIO.logTrace(
                                         layerName[K, V, R] + ": key = " + key
                                           .toString() + " new value cached"
                                       )
@@ -294,9 +282,7 @@ object ResPoolCache {
       private def cleanLRU3_par(e: LRUQEntry[K]) = {
 
         val T = for {
-          _ <- MyLogging.log(
-                "console",
-                LogLevel.Trace,
+          _ <- ZIO.logTrace(
                 layerName[K, V, R] + ": Remove LRU entry = " + e.key.toString()
               )
           b <- ZIO.attempt(lru_tbl.remove(e))

@@ -37,7 +37,7 @@ ThisBuild / publishTo := {
 }
 ThisBuild / publishMavenStyle := true
 
-
+Runtime / unmanagedClasspath += baseDirectory.value / "src" / "main" / "resources"
 
   lazy val root = (project in file("."))
   .settings(
@@ -50,8 +50,9 @@ ThisBuild / publishMavenStyle := true
     libraryDependencies += "dev.zio" %% "zio"         % "2.0.5",
     libraryDependencies += "dev.zio" %% "zio-test"    % "2.0.5",
     libraryDependencies += "dev.zio" %% "zio-json"    % "0.3.0-RC6",
-   
-    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    libraryDependencies += "dev.zio" %% "zio-logging-slf4j" % "2.1.5",
+    libraryDependencies += "org.slf4j" % "slf4j-api" % "2.0.4",
+    libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.3.5"
   )
 
   lazy val example = (project in file("examples/start")).settings(
