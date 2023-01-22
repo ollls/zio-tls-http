@@ -1,10 +1,8 @@
-val Specs2Version = "4.7.0"
-
-resolvers += Resolver.sonatypeRepo("releases")
-resolvers += Resolver.sonatypeRepo("snapshots")
-
-//ThisBuild / organization := "io.github.ollls"
+ThisBuild / scalaVersion := "3.2.1"
+ThisBuild / version := "2.0"
+ThisBuild / organization := "io.github.ollls"
 ThisBuild / organizationName := "ollls"
+ThisBuild / versionScheme := Some("strict")
 ThisBuild / organizationHomepage := Some(url("https://github.com/ollls/zio-tls-http"))
 
 ThisBuild / scmInfo := Some(
@@ -26,6 +24,13 @@ ThisBuild / developers := List(
 ThisBuild / description := "Scala ZIO/zio-json Web Server with native TLS"
 ThisBuild / licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt"))
 ThisBuild / homepage := Some(url("https://github.com/ollls/zio-tls-http"))
+ThisBuild / credentials += Credentials(Path.userHome / ".sbt" / ".credentials")
+ThisBuild / credentials += Credentials(
+  "GnuPG Key ID",
+  "gpg",
+  "F85809244447DB9FA35A3C9B1EB44A5FC60F4104", // key identifier
+  "ignored" // this field is ignored; passwords are supplied by pinentry
+)
 
 
 // Remove all additional repository other than Maven Central from POM
@@ -41,10 +46,7 @@ Runtime / unmanagedClasspath += baseDirectory.value / "src" / "main" / "resource
 
   lazy val root = (project in file("."))
   .settings(
-    organization := "io.github.ollls",
     name := "zio-tls-http",
-    version := "2.0.0.b",
-    scalaVersion := "3.2.1",
     maxErrors := 3,
     retrieveManaged := true,
     libraryDependencies += "dev.zio" %% "zio"         % "2.0.5",
@@ -59,23 +61,17 @@ Runtime / unmanagedClasspath += baseDirectory.value / "src" / "main" / "resource
     organization := "com.ols",
     name := "zio-tls-http-exampe",
     version := "0.0.1",
-    scalaVersion := "3.2.1",
     maxErrors := 3,
     libraryDependencies ++= Seq(
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")) ).dependsOn( root )
 
   
-
-// lazy val distro = (project in file("build"))
-
-// Refine scalac params from tpolecat
 scalacOptions ++= Seq(
-  "-Xfatal-warnings",
-  "-deprecation", 
+  "-deprecation",
+  "-feature",
+  "-no-indent"
 )
-
-//addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full)
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("chk", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
