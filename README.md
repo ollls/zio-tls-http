@@ -23,6 +23,10 @@ DEV on 1.2-m3
 
 # Update history.
 
+* Update(20-01-2023) ZIO.log with logback, access log with logback and ZIO aspects. Original custom logger removed.
+
+* Update(19-01-2023) zio-http2 first public release: https://github.com/ollls/zio-quartz-h2
+
 * Update(12-12-2022) ZIO2 async NIO: TcpServer and TLSServer run socket group on default ZIO thread pool. Pushed up to master_zio2.
 
 * Update(12-11-2022) ZIO2 Branches dev_zio2 and master_zio2 are active with ZIO 2.0.5. ZIO 2.0.5 has improved performance for async ops. New network layer based on netio is under testing now, no known problems so far. <br>in /examples: SyncTLSSocketServer is active now, to enable Java-NIO async uncomment TLSServer.
