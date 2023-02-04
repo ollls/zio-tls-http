@@ -12,7 +12,7 @@ import Method._
 
 import zio.json._
 import zio.Chunk
-import zio.stream.ZStream
+import zio.stream.{ZStream, ZSink}
 
 import zio.ZIOAppDefault
 
@@ -149,7 +149,17 @@ object myServer extends zio.ZIOAppDefault {
       {
         req match {
 
-          case req @ GET -> Root / "health" => ZIO.succeed(Response.Ok()) //.asTextBody("Health Check is OK"))
+          // ZStream upload
+          case req @ POST -> Root / "upload2" / StringVar(fileName) =>
+            for {
+              path <- ZIO.attempt(new java.io.File(ROOT_CATALOG + "//" + fileName))
+              _    <- ZIO.log("Receiving file: " + path.toString());
+              _ <- req.stream.flatMap(c => ZStream.fromChunk(c)).run(ZSink.fromFile(path))
+            } yield (Response.Ok())
+
+          case req @ GET -> Root / "health" => ZIO.succeed(Response.Ok())
+
+          case req @ POST -> Root / "health" => ZIO.succeed(Response.Ok())
 
           case req @ GET -> Root / "app" / StringVar(userId1) / "get" => ZIO.succeed(Response.Ok().asTextBody(userId1))
 
@@ -226,9 +236,6 @@ object myServer extends zio.ZIOAppDefault {
       }
     }
 
-
-
-    
     val myHttp2 = new TLSServer[String](
       port = 8084,
       keepAlive = 4000,
@@ -238,7 +245,7 @@ object myServer extends zio.ZIOAppDefault {
       "password",
       tlsVersion = "TLSv1.2"
     )
-    
+
     /*
     val myHttp = new SyncTLSSocketServer[String](
       port = 8084,
@@ -254,20 +261,15 @@ object myServer extends zio.ZIOAppDefault {
 
     val myHttpRouter = new HttpRouter(
       /* normal app routes */
-      List(
-      app_route_cookies_and_params, 
-      app_route_JSON, 
-      app_route_pre_post_filters, 
-      ws_stream)
+      List(app_route_cookies_and_params, app_route_JSON, app_route_pre_post_filters, ws_stream)
       /* channel ( file server) routes */
     )
 
     val AttributeLayer = ZLayer.fromZIO(ZIO.succeed("flag#1-1"))
 
     val test = myHttpRouter.route
-  
 
-    //val test: IOChannel => Chunk[Byte] => ZIO[String, Throwable, Unit]
+    // val test: IOChannel => Chunk[Byte] => ZIO[String, Throwable, Unit]
 
     val R1 = myHttp2
       .run(test)
