@@ -182,7 +182,6 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
       )
     }
 
-
   private def testWithStatePos(byte: Byte, pattern: Array[Byte], statusPos: Int): Int = {
     if (byte == pattern(statusPos)) statusPos + 1
     else 0
@@ -193,7 +192,7 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
 
     var cntr      = 0;
     var stop      = false;
-    var statusPos = 0; //state shows how many bytes matched in pattern
+    var statusPos = 0; // state shows how many bytes matched in pattern
 
     while (!stop)
     {
@@ -228,14 +227,14 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
 
     for {
       start <- refStart.get
-      //_     <- ZIO.debug("*************")
-      //_     <- ZIO.debug("route_do leftOverData=" + leftOverData.size)
-      //_     <- ZIO.debug("*************")
-      v     <- splitHeadersAndBody(c, if (start) leftOverData else Chunk.empty[Byte])
+  
+      _  <- ZIO.logDebug("route_do() with leftOverData=" + leftOverData.size)
+   
+      v <- splitHeadersAndBody(c, if (start) leftOverData else Chunk.empty[Byte])
       header_bytes = v._1
       leftover     = v._2
 
-     _  <- refStart.set(false)
+      _ <- refStart.set(false)
 
       body_stream = (ZStream(leftover) ++ ZStream.repeatZIO(c.read())).flatMap(ZStream.fromChunk(_))
 
@@ -250,8 +249,7 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
         }
       })
 
-      //_ <- ZIO.attempt(println(hdrs.printHeaders))
-      //_ <- ZIO.debug("**********************************")
+      _ <- ZIO.logDebug(hdrs.printHeaders)
 
       isWebSocket <- ZIO.succeed(
         hdrs
@@ -278,8 +276,6 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
       contentLen  <- ZIO.succeed(hdrs.get("content-length").getOrElse("0"))
       contentLenL <- ZIO.fromTry(scala.util.Try(contentLen.toLong)).refineToOrDie[Exception]
 
-      // validate content-len
-      // contentLenL <- ZIO.fromTry(Try(contentLen.toLong))
       _ <- if (contentLenL > MAX_ALLOWED_CONTENT_LEN) ZIO.fail(new ContentLenTooBig) else ZIO.unit
 
       stream <-
