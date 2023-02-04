@@ -23,6 +23,8 @@ DEV on 1.2-m3
 
 # Update history.
 
+* Update(02-02-2023) Mew incoming processing code ( Http body ZStream without ZStream.peel ). This was done due to an issue when ZStream2 peel attempts to read more data then required and size of stream was already was limited with ZStream.take( content-len).
+
 * Update(20-01-2023) ZIO.log with logback, access log with logback and ZIO aspects. Original custom logger removed.
 
 * Update(19-01-2023) zio-http2 first public release: https://github.com/ollls/zio-quartz-h2
