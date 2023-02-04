@@ -238,9 +238,9 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
 
       body_stream = (ZStream(leftover) ++ ZStream.repeatZIO(c.read())).flatMap(ZStream.fromChunk(_))
 
-      strings <- ZIO.attempt(ZStream.fromChunk(header_bytes).via(ZPipeline.usASCIIDecode >>> ZPipeline.splitLines))
+      header_lines <- ZIO.attempt(ZStream.fromChunk(header_bytes).via(ZPipeline.usASCIIDecode >>> ZPipeline.splitLines))
 
-      hdrs <- strings.runFold[Headers](Headers())((hdrs, line) => {
+      hdrs <- header_lines.runFold[Headers](Headers())((hdrs, line) => {
         line match {
           case http_line(method, path, prot) =>
             hdrs ++ Headers(HttpRouter._METHOD -> method, HttpRouter._PATH -> path, HttpRouter._PROTO -> prot)
