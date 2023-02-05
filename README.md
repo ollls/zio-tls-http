@@ -22,7 +22,6 @@ https://github.com/ollls/zio-tls-http/blob/dev/examples/start/src/main/scala/MyS
 DEV on 1.2-m3
 
 # Update history.
-Full update history 2021/22: https://github.com/ollls/zio-tls-http/blob/master_zio2/history.md
 
 * Update(02-02-2023) New processing code for incoming data ( http body ZStream without ZStream.peel ). This was done due to an issue when ZStream2 peel attempts to read more data then required when size of the "peeled" stream is limited with ZStream.take( content-len).
 * Update(01-20-2023) ZIO.log with logback, access log with logback and ZIO aspects. Original custom logger removed.
