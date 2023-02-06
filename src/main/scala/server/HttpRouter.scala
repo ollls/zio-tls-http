@@ -81,7 +81,7 @@ object HttpRouter {
     if (chunkSize > 0 && chunkSize < in.size - idx + 2 + 1) {
       val chunk    = in.slice(splitAt + 2, splitAt + 2 + chunkSize)
       val leftOver = in.slice(splitAt + 2 + chunkSize + 2, in.size)
-     
+
       (Some(chunk), leftOver, false)
 
     } else {
@@ -137,7 +137,7 @@ object HttpRouter {
 
             }
             case (None, leftover, false) => { chunk_converter(leftover) } // no chunk yet but data coming
-            case _ => ZChannel.fail(new Exception("chunkedDecode: Unexpected error"))
+            case _                       => ZChannel.fail(new Exception("chunkedDecode: Unexpected error"))
           }
         },
         (err: Exception) => ZChannel.fail(err),
@@ -378,12 +378,8 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
       val status   = resp.code
 
       if (resp.isChunked) {
-        // https://zio.dev/zio-logging/slf4j
-        // access
         ZIO.logInfo(req.method.toString + " " + req.uri.toString() + "  " + status.value + " chunked") @@ SLF4J.loggerName("access") *>
           ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
-        // Logs.log_access(req, status, 0, "chunked").refineToOrDie[Exception] *>
-        ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
       } else
         (for {
           body <- resp.streamWith[Env].flatMap(c => { ZStream.fromChunk(c) }).runCollect
@@ -399,7 +395,6 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
               ResponseWriters.writeNoBodyResponse(ch, StatusCode.UnsupportedMediaType, "", true)
             case _ => ResponseWriters.writeNoBodyResponse(ch, status, new String(body.toArray), true)
           }
-          // _ <- Logs.log_access(req, status, body.size)
           _ <- ZIO.logInfo(req.method.toString + " " + req.uri.toString() + "  " + status.value + " " + body.size) @@ SLF4J.loggerName("access")
 
         } yield (0)).refineToOrDie[Exception]
