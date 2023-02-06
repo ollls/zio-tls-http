@@ -56,7 +56,6 @@ object HttpRouter {
   }
 
   def produceChunk(in: Chunk[Byte]): (Option[Chunk[Byte]], Chunk[Byte], Boolean) = {
-
     var bb: Byte      = 0
     var pbb: Byte     = 0
     var splitAt: Int  = 0
@@ -80,11 +79,11 @@ object HttpRouter {
     val chunkSize = Integer.parseInt(new String(in.slice(0, splitAt).toArray), 16)
 
     if (chunkSize > 0 && chunkSize < in.size - idx + 2 + 1) {
-
       val chunk    = in.slice(splitAt + 2, splitAt + 2 + chunkSize)
       val leftOver = in.slice(splitAt + 2 + chunkSize + 2, in.size)
-
+     
       (Some(chunk), leftOver, false)
+
     } else {
       if (chunkSize == 0) {
         if (parseTrail(in, splitAt) == true) (None, in, true)
@@ -94,23 +93,51 @@ object HttpRouter {
 
   }
 
-  /*+:class ZPipeline[-Env, +Err, -In, +Out](val channel: ZChannel[Env, Nothing, Chunk[In], Any, Err, Chunk[Out], Any])
-   */
+  def produceChunk1(
+      in: Chunk[Byte],
+      result: Option[ZChannel[Any, Exception, zio.Chunk[Byte], Any, Exception, Chunk[zio.Chunk[Byte]], Any]] = None
+  ): (Option[ZChannel[Any, Exception, Chunk[Byte], Any, Exception, Chunk[Chunk[Byte]], Any]], Chunk[Byte], Boolean) = {
+    val r = produceChunk(in)
+
+    var chunk_opt = r._1
+    val leftover  = r._2
+    val eof       = r._3
+
+    if (chunk_opt.isDefined) {
+      val chunk = chunk_opt.get
+      produceChunk1(
+        leftover,
+        if (result.isDefined == false) Some(ZChannel.write(Chunk.single(chunk))) else Some(result.get *> ZChannel.write(Chunk.single(chunk)))
+      )
+    } else (result, leftover, eof)
+  }
 
   def chunkedDecode: zio.stream.ZPipeline[Any, Exception, Byte, Chunk[Byte]] = {
 
     def chunk_converter(leftOver: Chunk[Byte]): ZChannel[Any, Exception, Chunk[Byte], Any, Exception, Chunk[Chunk[Byte]], Any] = {
       val converter: ZChannel[Any, Exception, Chunk[Byte], Any, Exception, Chunk[Chunk[Byte]], Any] = ZChannel.readWith(
         (in: Chunk[Byte]) => {
-
           val res = produceChunk(leftOver ++ in)
 
           res match {
-            case (Some(chunk), leftover, false) => ZChannel.write(Chunk.single(chunk)) *> chunk_converter(leftover)
-            case (None, leftover, false)        => chunk_converter(leftover)            // no chunk yet but data coming
-            case (None, leftover, true)         => ZChannel.succeed(true)
-            case _                              => ZChannel.fail(new Exception("TEMP")) // TODO
+            case (Some(chunk), leftover, false) => {
+              if (leftover.size == 0) ZChannel.write(Chunk.single(chunk)) *> chunk_converter(leftover)
+              else {
+                val (channel_opt, leftover1, isEof) = produceChunk1(leftover)
+                if (isEof == false) {
+                  if (channel_opt.isDefined == false)
+                    ZChannel.write(Chunk.single(chunk)) *> chunk_converter(leftover1)
+                  else
+                    ZChannel.write(Chunk.single(chunk)) *> channel_opt.get *> chunk_converter(leftover1)
 
+                } else {
+                  ZChannel.write(Chunk.single(chunk)) *> ZChannel.succeed(true) // r._1 //*> ZChannel.succeed()
+                }
+              }
+
+            }
+            case (None, leftover, false) => { chunk_converter(leftover) } // no chunk yet but data coming
+            case _ => ZChannel.fail(new Exception("chunkedDecode: Unexpected error"))
           }
         },
         (err: Exception) => ZChannel.fail(err),
@@ -227,9 +254,9 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
 
     for {
       start <- refStart.get
-  
-      _  <- ZIO.logDebug("route_do() with leftOverData=" + leftOverData.size)
-   
+
+      _ <- ZIO.logDebug("route_do() with leftOverData=" + leftOverData.size)
+
       v <- splitHeadersAndBody(c, if (start) leftOverData else Chunk.empty[Byte])
       header_bytes = v._1
       leftover     = v._2
