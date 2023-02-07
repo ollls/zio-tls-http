@@ -40,7 +40,7 @@ object Headers {
 
 class Headers( tbl0 : HashMap[String, Set[String]] )
 {
-    private val tbl : HashMap[String, Set[String]] = tbl0
+    val tbl : HashMap[String, Set[String]] = tbl0
 
     def this( pair : ( String, String ) ) = this( HashMap[String, Set[String]]( (pair._1.toLowerCase(), Set( pair._2 )) )  ) 
 

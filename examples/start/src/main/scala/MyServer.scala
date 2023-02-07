@@ -149,12 +149,14 @@ object myServer extends zio.ZIOAppDefault {
       {
         req match {
 
-          // ZStream upload
+          case req @ POST -> Root / "mpart" =>
+            MultiPart.writeAll(req, "/Users/ostrygun/tmp1/") *> ZIO.succeed(Response.Ok())
+
           case req @ POST -> Root / "upload2" / StringVar(fileName) =>
             for {
               path <- ZIO.attempt(new java.io.File(ROOT_CATALOG + "//" + fileName))
               _    <- ZIO.log("Receiving file: " + path.toString());
-              _ <- req.stream.flatMap(c => ZStream.fromChunk(c)).run(ZSink.fromFile(path))
+              _    <- req.stream.flatMap(c => ZStream.fromChunk(c)).run(ZSink.fromFile(path))
             } yield (Response.Ok())
 
           case req @ GET -> Root / "health" => ZIO.succeed(Response.Ok())
@@ -209,7 +211,7 @@ object myServer extends zio.ZIOAppDefault {
               )
               path <- FileUtils.serverFilePath_(remainig_path, ROOT_CATALOG)
               str = ZStream.fromFile(path.toFile, 16000).mapChunks(Chunk.single(_))
-            } yield (Response.Ok().asStream(str).transferEncoding("chunked"))
+            } yield (Response.Ok().contentType(ContentType.Image_JPEG).asStream(str).transferEncoding("chunked"))
 
           // Just exact file name in the ROOT_CATALOG
           // curl https://localhost:8084/files2/picture1.jpg --output out2.jpg
