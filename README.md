@@ -42,7 +42,28 @@ DEV on 1.2-m3
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
 
-![alt text](https://github.com/ollls/zio-tls-http/blob/master/Screenshot.jpg)
+```scala
+package example
+import zio.logging.backend.SLF4J
+import zio.{ZIO, Chunk}
+import zhttp.Method._
+import zhttp.dsl._
+import zhttp.{TLSServer, TcpServer, HttpRoutes}
+import zhttp.{MultiPart, Headers, ContentType, Response, FileUtils}
+
+object MyApp extends zio.ZIOAppDefault {
+
+  override val bootstrap =
+    zio.Runtime.removeDefaultLoggers ++ SLF4J.slf4j ++ zio.Runtime.enableWorkStealing
+    
+  val r = HttpRoutes.of { case GET -> Root / "health" =>
+    ZIO.attempt(Response.Ok().asTextBody("Health Check Ok"))
+  }
+  val myHttp =
+    new TcpServer[Any](port = 8080, keepAlive = 2000, serverIP = "0.0.0.0")
+  val run = myHttp.run(r)
+}
+``
 
 
 Your comments or questions appreciated, please ask at
