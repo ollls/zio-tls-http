@@ -10,6 +10,12 @@ ZIO 1.0 without ZStream<br>
 
 New Server Example for upcoming ZIO2 based release:  https://github.com/ollls/hello-http
 
+# Features of upcoming ZIO2 based release:
+* Native ZStream2 with ZIO2, integrated with http chunked and http multi-part ZStream.
+* New ZIO Logging with backlog, access log rotation implemented with backlog.
+* New sync mode with new netio wrapper with JAVA-NIO.
+
+
 Appreciate any feedback, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) 
 <br>
