@@ -20,10 +20,10 @@ object MultiPart {
 
 //Parse headers from chunk
   private def parseMPHeaders(h: Headers, mpblock: Chunk[Byte], boundary: String): (Boolean, Headers, Chunk[Byte]) = {
-    var h_out = h
-    val lines = new String(mpblock.toArray).split("\\R", 128) // .split("\\R+")
+    var h_out        = h
+    val lines        = new String(mpblock.toArray).split("\\R", 128) // .split("\\R+")
     var endOfHeaders = false
-    var dataI = 0;
+    var dataI        = 0;
     breakable {
       for (i <- 0 to lines.length - 1) {
         val v = lines(i).split(":")
@@ -36,8 +36,8 @@ object MultiPart {
   }
 
   private def doMultiPart_scanAndDropBoundary(chunk: Chunk[Byte], boundary: String): Chunk[Byte] = {
-    var bI = 0
-    var cI = 0
+    var bI     = 0
+    var cI     = 0
     var bFound = false
     breakable {
       for (c <- chunk) {
@@ -57,9 +57,9 @@ object MultiPart {
       chunk: Chunk[Byte],
       boundary: String
   ): (Boolean, Chunk[Byte], Chunk[Byte]) = {
-    var bI = 0
-    var cI = 0
-    var bFound = false
+    var bI                  = 0
+    var cI                  = 0
+    var bFound              = false
     var bFinalBoundaryFound = false
     breakable {
       for (c <- chunk) {
@@ -71,14 +71,8 @@ object MultiPart {
         if (c == boundary(bI)) bI += 1 else bI = 0
       }
     }
-    // if (bFound) {
-    //  val testC = chunk.drop( cI-1 ).take(2)
-    //  println( "leftOver=" + Arrays.toString( chunk.drop(cI + 3).toArray ) )
-    //  if ( testC.asString == "--" ) bFinalBoundaryFound = true
-    // }
-    // if (bFinalBoundaryFound) (true, chunk.take(cI - boundary.length() - 3), chunk.drop(cI + 3)) //drop all 4: { -, -, \n, \r }
     if (bFound) (true, chunk.take(cI - boundary.length() - 3), chunk.drop(cI + 1)) // drop all 2: { \n, \r }
-    else (false, chunk, Chunk.empty[Byte]) // false - no term, whole chunk
+    else (false, chunk, Chunk.empty[Byte])                                         // false - no term, whole chunk
   }
 
   def multiPartPipe(boundary: String): ZPipeline[Any, Throwable, Byte, Headers | Chunk[Byte]] = {
@@ -99,7 +93,7 @@ object MultiPart {
         boundary: String,
         hdrCont: Boolean
     ): ZChannel[Any, Exception, Chunk[Byte], Any, Exception, Chunk[Headers | Chunk[Byte]], Any] = {
-      val chunk = if (hdrCont) chunk0 else doMultiPart_scanAndDropBoundary(chunk0, boundary)
+      val chunk                 = if (hdrCont) chunk0 else doMultiPart_scanAndDropBoundary(chunk0, boundary)
       val (done, hdr, leftOver) = parseMPHeaders(h, chunk, boundary)
       if (hdr.tbl.isEmpty) ZChannel.succeed(true) // go4(h, Chunk.empty[Byte], boundary, hdrCont = true)
       else if (done) ZChannel.write(Chunk.single(hdr)) *> go4_data(leftOver, boundary)
@@ -116,7 +110,11 @@ object MultiPart {
           multi_part_process_data_chunks(chunk, boundary)
         },
         (err: Exception) => ZChannel.fail(err),
-        (done: Any) => multi_part_process_data_chunks(carryOver, boundary) *> ZChannel.succeed(true)
+        (done: Any) => {
+          if (carryOver.isEmpty) ZChannel.succeed(true)
+          else
+            multi_part_process_data_chunks(carryOver, boundary) *> ZChannel.succeed(true)
+        }
       )
     }
 
@@ -163,7 +161,7 @@ object MultiPart {
         .when(contType.toLowerCase().startsWith("multipart/form-data") == false)
 
       boundary <- ZIO.attempt(extractBoundaryFromMultipart(contType))
-      fileRef <- Ref.make[FileOutputStream](null)
+      fileRef  <- Ref.make[FileOutputStream](null)
 
       mpStream = req.stream.flatMap(c => ZStream.fromChunk(c)).via(multiPartPipe(boundary))
 
@@ -171,7 +169,6 @@ object MultiPart {
         // each time we have headers we close and create FileOutputStream with file name from headers
         case h: Headers =>
           for {
-            //_ <- zio.Console.printLine("case h: Headers " + h.printHeaders)
             _ <- ZIO
               .attempt {
                 Map.from(
@@ -195,9 +192,8 @@ object MultiPart {
           } yield ()
         case b: Chunk[Byte] =>
           for {
-            //_ <- zio.Console.printLine("b: Chunk[Byte]")
             fos <- fileRef.get
-            _ <- ZIO.attemptBlocking(fos.write(b.toArray))
+            _   <- ZIO.attemptBlocking(fos.write(b.toArray))
           } yield ()
       }
 

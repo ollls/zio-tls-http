@@ -255,7 +255,7 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
     for {
       start <- refStart.get
 
-      _ <- ZIO.logDebug("route_do() with leftOverData=" + leftOverData.size)
+      _ <- ZIO.logTrace("route_do() with leftOverData=" + leftOverData.size)
 
       v <- splitHeadersAndBody(c, if (start) leftOverData else Chunk.empty[Byte])
       header_bytes = v._1
@@ -276,7 +276,7 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
         }
       })
 
-      _ <- ZIO.logDebug(hdrs.printHeaders)
+      _ <- ZIO.logTrace(hdrs.printHeaders)
 
       isWebSocket <- ZIO.succeed(
         hdrs
@@ -378,6 +378,7 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
       val status   = resp.code
 
       if (resp.isChunked) {
+        ZIO.logDebug(req.method.toString + " " + req.uri.toString() + "  " + status.value + " chunked") *>
         ZIO.logInfo(req.method.toString + " " + req.uri.toString() + "  " + status.value + " chunked") @@ SLF4J.loggerName("access") *>
           ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
       } else
@@ -395,6 +396,7 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
               ResponseWriters.writeNoBodyResponse(ch, StatusCode.UnsupportedMediaType, "", true)
             case _ => ResponseWriters.writeNoBodyResponse(ch, status, new String(body.toArray), true)
           }
+          _ <- ZIO.logDebug(req.method.toString + " " + req.uri.toString() + "  " + status.value + " " + body.size)
           _ <- ZIO.logInfo(req.method.toString + " " + req.uri.toString() + "  " + status.value + " " + body.size) @@ SLF4J.loggerName("access")
 
         } yield (0)).refineToOrDie[Exception]
