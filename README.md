@@ -14,6 +14,7 @@ New Server Example for upcoming ZIO2 based release:  https://github.com/ollls/he
 * Native ZStream2 with ZIO2, integrated with http chunked and http multi-part ZStream.
 * New ZIO Logging with backlog, access log rotation implemented with backlog.
 * New sync mode with new netio wrapper with JAVA-NIO.
+* zio-json integrated.
 * Good performance of async operations on latest ZIO 2.0.5.
 
 
