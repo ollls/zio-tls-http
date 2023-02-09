@@ -26,10 +26,7 @@ https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-
 
 To run from sbt:  "sbt example/run". <br>
 Example file: "/zio-tls-http/examples/start/src/main/scala/MyServer.scala"
-<br>
-https://github.com/ollls/zio-tls-http/blob/dev/examples/start/src/main/scala/MyServer.scala
 
-DEV on 1.2-m3
 
 # Update history for ZIO2 port.
 
