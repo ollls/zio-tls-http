@@ -66,9 +66,7 @@ object MyApp extends zio.ZIOAppDefault {
 
 ```
 
-
-Your comments or questions appreciated, please ask at
-https://gitter.im/zio-tls-http
+More detailed app template: https://github.com/ollls/hello-http
 
 ## How to run.
 
