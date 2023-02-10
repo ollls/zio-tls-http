@@ -16,7 +16,7 @@ Server implements a DSL for route matching, it's very similar (but a bit simplif
 * New ZIO Logging with backlog, access log rotation implemented with backlog.
 * New sync mode with new netio wrapper with JAVA-NIO.
 * zio-json integrated.
-* Good performance of async operations on latest ZIO 2.0.5.
+* Good performance of async operations on latest ZIO 2.0.8.
 
 Appreciate any feedback, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) 
