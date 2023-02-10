@@ -12,7 +12,7 @@ ZIO 2.0<br>
 
 New Server Example for upcoming ZIO2 based release:  https://github.com/ollls/hello-http
 
-# Features of upcoming ZIO2 based release:
+# ZIO2 release:
 * Native ZStream2 with ZIO2, integrated with http chunked and http multi-part ZStream.
 * New ZIO Logging with backlog, access log rotation implemented with backlog.
 * New sync mode with new netio wrapper with JAVA-NIO.
