@@ -14,7 +14,7 @@ Server implements a DSL for route matching, it's very similar (but a bit simplif
 # ZIO2 release.
 Necessary dependencies(check hello-http template):
 ```scala
-   "dev.zio" %% "zio" % "2.0.8",
+   "dev.zio" %% "zio" % "2.0.x",
    "io.github.ollls" %% "zio-tls-http" % "2.0.0",
 ```
 
