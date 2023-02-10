@@ -7,7 +7,7 @@
 [![Generic badge](https://img.shields.io/badge/Hello%20World-template-red)](https://github.com/ollls/hello-http)
 
 # ZIO2 release:
-* Native ZStream2 with ZIO2, integrated with http chunked and http multi-part ZStream.
+* Native ZIO ZStream2 with http1.1 chunked and http multi-part.
 * New ZIO Logging with backlog, access log rotation implemented with backlog.
 * New sync mode with new netio wrapper with JAVA-NIO.
 * zio-json integrated.
