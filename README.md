@@ -19,7 +19,6 @@ New Server Example for upcoming ZIO2 based release:  https://github.com/ollls/he
 * zio-json integrated.
 * Good performance of async operations on latest ZIO 2.0.5.
 
-
 Appreciate any feedback, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) 
 <br>
@@ -28,15 +27,6 @@ https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-
 
 To run from sbt:  "sbt example/run". <br>
 Example file: "/zio-tls-http/examples/start/src/main/scala/MyServer.scala"
-
-
-# Update history for ZIO2 port.
-
-* Update(02-02-2023) New processing code for incoming data ( http body ZStream without ZStream.peel ). This was done due to an issue when ZStream2 peel attempts to read more data then required when size of the "peeled" stream is limited with ZStream.take( content-len).
-* Update(01-20-2023) ZIO.log with logback, access log with logback and ZIO aspects. Original custom logger removed.
-* Update(01-19-2023) zio-http2 first public release: https://github.com/ollls/zio-quartz-h2
-* Update(12-12-2022) ZIO2 async NIO: TcpServer and TLSServer run socket group on default ZIO thread pool. Pushed up to master_zio2.
-* Update(12-11-2022) ZIO2 Branches dev_zio2 and master_zio2 are active with ZIO 2.0.5. ZIO 2.0.5 has improved performance for async ops. New network layer based on netio is under testing now, no known problems so far. <br>in /examples: SyncTLSSocketServer is active now, to enable Java-NIO async uncomment TLSServer.
 
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
