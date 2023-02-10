@@ -50,29 +50,6 @@ object MyApp extends zio.ZIOAppDefault {
 ```
 
 More detailed app template: https://github.com/ollls/hello-http
-
-## How to run.
-
-Import https://github.com/ollls/zio-tls-http/blob/master/localhost.cer to keychain on MacOS.
-Click on localhost once imported, find ">Trust", expand it, select "Always Trust".
-On Windows or any other machine, you will need to go thru similar steps.
-You can use any other cert, as long as keystore.jks is seen by the server.
-
-
-Please, use docker image to run it or use sbt run, for sbt run default TLS port is 8084, in docker image it will be mapped to 443.
-To run in docker:
-
-    sbt package
-    docker build --pull --rm -f "Dockerfile" -t ziohttp:latest "."
-    docker container run --name zhttp_container -p 443:8084 ziohttp:latest
-
-    https://localhost        ZIO doc static web server example
-    https://localhost/print  print headers example
-    https://localhost/test   JSON output example
-    
-    Use case examples:
-    https://github.com/ollls/zio-tls-http/blob/master/src/main/scala/MyServer.scala
-
     
 Server will use self-signed SSL certificate, you will need to configure the browser to trust it.
 Certificate resides in keystore.jks
