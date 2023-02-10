@@ -1,5 +1,5 @@
 ThisBuild / scalaVersion         := "3.2.1"
-ThisBuild / version              := "2.0"
+ThisBuild / version              := "2.0.0"
 ThisBuild / organization         := "io.github.ollls"
 ThisBuild / organizationName     := "ollls"
 ThisBuild / versionScheme        := Some("strict")
@@ -48,7 +48,8 @@ lazy val root = (project in file("."))
     name                                   := "zio-tls-http",
     maxErrors                              := 3,
     retrieveManaged                        := true,
-    libraryDependencies += "dev.zio"       %% "zio"               % "2.0.5" % "provided",
+    libraryDependencies += "dev.zio"       %% "zio"               % "2.0.8" % "provided",
+    libraryDependencies += "dev.zio"       %% "zio-test"          % "2.0.8",
     libraryDependencies += "dev.zio"       %% "zio-json"          % "0.4.2",
     libraryDependencies += "dev.zio"       %% "zio-logging-slf4j" % "2.1.5",
     libraryDependencies += "org.slf4j"      % "slf4j-api"         % "2.0.4",
