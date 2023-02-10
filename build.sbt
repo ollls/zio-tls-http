@@ -48,8 +48,7 @@ lazy val root = (project in file("."))
     name                                   := "zio-tls-http",
     maxErrors                              := 3,
     retrieveManaged                        := true,
-    libraryDependencies += "dev.zio"       %% "zio"               % "2.0.5",
-    libraryDependencies += "dev.zio"       %% "zio-test"          % "2.0.5",
+    libraryDependencies += "dev.zio"       %% "zio"               % "2.0.5" % "provided",
     libraryDependencies += "dev.zio"       %% "zio-json"          % "0.4.2",
     libraryDependencies += "dev.zio"       %% "zio-logging-slf4j" % "2.1.5",
     libraryDependencies += "org.slf4j"      % "slf4j-api"         % "2.0.4",
@@ -63,6 +62,7 @@ lazy val example = (project in file("examples/start"))
     version      := "0.0.1",
     maxErrors    := 3,
     libraryDependencies ++= Seq(
+        "dev.zio" %% "zio" % "2.0.8"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
