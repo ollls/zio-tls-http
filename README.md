@@ -30,7 +30,7 @@ Appreciate any feedback, please use, my email or open issue, or use
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) 
 <br>
 
-> **Also: Please check out** https://github.com/ollls/quartz-h2 
+> **Also: Please check out** https://github.com/ollls/quartz-h2  https://github.com/ollls/zio-quartz-h2
 
 To run from sbt:  "sbt example/run". <br>
 Example file: https://github.com/ollls/zio-tls-http/blob/master_zio2/examples/start/src/main/scala/MyServer.scala
