@@ -18,11 +18,13 @@ Necessary dependencies(check hello-http template):
    "io.github.ollls" %% "zio-tls-http" % "2.0.0",
 ```
 
-* Native ZIO ZStream2 with http1.1 chunked and http multi-part.
-* New ZIO Logging with backlog, access log rotation implemented with backlog.
-* New sync mode with new netio wrapper with JAVA-NIO.
-* zio-json integrated.
-* Good performance of async operations on latest ZIO 2.0.8.
+* Native ZStream2 with ZIO2.
+* Integration with http1.1 chunked.
+* Special http multi-part ZStream.
+* Support for ZIO2 logging with logback.
+* Separate http access log with rotation.
+* App template: "hello-http" with major use cases.
+* Version of ZIO library can be configured in build.sbt on app template by the user.
 
 Appreciate any feedback, please use, my email or open issue, or use 
 https://discord.com/channels/629491597070827530/817042692554489886   ( #zio-tls-http ) 
