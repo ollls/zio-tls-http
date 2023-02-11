@@ -56,7 +56,7 @@ object MyApp extends zio.ZIOAppDefault {
 }
 
 ```
-To enable more detailed logging, use logback-test.xml with debug or trace levels
+To enable more detailed logging, use logback-test.xml with "debug" or "trace" levels
 
 ```xml
   <root level="debug">
