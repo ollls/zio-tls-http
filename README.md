@@ -14,7 +14,7 @@ Web Server has its own implementation of TLS protocol layer based on JAVA NIO an
 Server implements a DSL for route matching, it's very similar (but a bit simplified) to the one which is used in HTTP4s. Server implements pluggable pre-filters and post-filters. The goal is to provide small and simple HTTP JSON server with all the benefits of async monadic non-blocking JAVA NIO calls wrapped up into ZIO interpreter with minimal number of dependencies.
 
 
->**Our new HTTP/2 server can talk HTTP/1.1 now!<br> Please, check it out. Simplified, streamlined, massivley parallel with nothing but ZIO Streams and HTTP/2 paralell streams, for client and server.
+>**Our new HTTP/2 server can talk HTTP/1.1 now!<br> Please, check it out. Simplified, streamlined, massivley parallel with nothing but ZIO Streams and HTTP/2, for client and server.
 HTTP/2 client available as ZIO Service. https://github.com/ollls/zio-quartz-h2**
 
 
