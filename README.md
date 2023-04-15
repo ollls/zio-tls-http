@@ -13,7 +13,7 @@ Server implements a DSL for route matching, it's very similar (but a bit simplif
 
 
 >**Our new HTTP/2 server can talk HTTP/1.1 now!<br> Please, check it out. Simplified, streamlined, massivley parallel with nothing but ZIO Streams and HTTP/2, for client and server.
-HTTP/2 client available as ZIO Service. https://github.com/ollls/zio-quartz-h2**
+HTTP/2 client available as ZIO Service.<br> https://github.com/ollls/zio-quartz-h2**
 
 
 # ZIO2 release.
