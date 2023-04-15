@@ -5,8 +5,6 @@
 [![Generic badge](https://img.shields.io/badge/Nexus-v1.1.0--m8-blue.svg)](https://repo1.maven.org/maven2/io/github/ollls/zio-tls-http_2.13/1.1.0-m8)
 <br>
 [![Generic badge](https://img.shields.io/badge/Hello%20World-template-red)](https://github.com/ollls/hello-http)
-<br>
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ollls_zio-tls-http&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ollls_zio-tls-http)
 
 
 # Lightweight Scala TLS HTTP 1.1 Web Server based on ZIO async fibers and Java NIO sockets.
