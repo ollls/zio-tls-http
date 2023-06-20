@@ -379,7 +379,7 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
 
       if (resp.isChunked) {
         ZIO.logDebug(req.method.toString + " " + req.uri.toString() + "  " + status.value + " chunked") *>
-        ZIO.logInfo(req.method.toString + " " + req.uri.toString() + "  " + status.value + " chunked") @@ SLF4J.loggerName("access") *>
+        ZIO.logInfo(req.method.toString + " " + req.uri.toString() + "  " + status.value + " chunked") @@ zio.logging.loggerName("access") *>
           ResponseWriters.writeFullResponseFromStream(ch, resp).refineToOrDie[Exception].map(_ => 0)
       } else
         (for {
@@ -397,7 +397,7 @@ class HttpRouter[Env](val appRoutes: List[HttpRoutes[Env]]) {
             case _ => ResponseWriters.writeNoBodyResponse(ch, status, new String(body.toArray), true)
           }
           _ <- ZIO.logDebug(req.method.toString + " " + req.uri.toString() + "  " + status.value + " " + body.size)
-          _ <- ZIO.logInfo(req.method.toString + " " + req.uri.toString() + "  " + status.value + " " + body.size) @@ SLF4J.loggerName("access")
+          _ <- ZIO.logInfo(req.method.toString + " " + req.uri.toString() + "  " + status.value + " " + body.size) @@ zio.logging.loggerName("access")
 
         } yield (0)).refineToOrDie[Exception]
 

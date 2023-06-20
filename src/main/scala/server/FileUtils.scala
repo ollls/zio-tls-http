@@ -71,7 +71,7 @@ object FileUtils {
       //https://zio.dev/zio-logging/slf4j
       //access
       //_ <- Logs.log_access(req, StatusCode.OK, body.size)
-       _ <- ZIO.logInfo( req.method.toString + " " + req.uri.toString() + " " + StatusCode.OK.value + " " + body.size ) @@ SLF4J.loggerName( "access")
+       _ <- ZIO.logInfo( req.method.toString + " " + req.uri.toString() + " " + StatusCode.OK.value + " " + body.size ) @@ zio.logging.loggerName("access")
       s <-
         if (file_name.toString.endsWith(".jpg")) {
           ZIO.attempt(headerStream("image/jpeg", file_path.toString) ++ fstream)
